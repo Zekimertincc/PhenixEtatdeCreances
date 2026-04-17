@@ -117,7 +117,8 @@
                     <appVersion>1.0.0</appVersion>
                     <mainClass>com.zeki.merger.App</mainClass>
                     <mainJar>app-shaded.jar</mainJar>
-                    <destination>target/installer</destination>
+                    <input>${project.build.directory}</input>
+                    <destination>${project.build.directory}/installer</destination>
                     <type>EXE</type>
                     <winShortcut>true</winShortcut>
                     <winMenu>true</winMenu>
