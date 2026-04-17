@@ -23,19 +23,19 @@ jobs:
         run: mvn package
 
       - name: Create launch.bat
-        run: |
-          echo @echo off > launch.bat
-          echo "%~dp0jre\bin\java.exe" -jar "%~dp0app-shaded.jar" >> launch.bat
-        shell: cmd
-
-      - name: Package ZIP
-        run: |
-          mkdir EtatCreancesMerger
-          copy target\app-shaded.jar EtatCreancesMerger\app-shaded.jar
-          copy launch.bat EtatCreancesMerger\launch.bat
-          Copy-Item -Path $env:JAVA_HOME -Destination EtatCreancesMerger\jre -Recurse
-          Compress-Archive -Path EtatCreancesMerger -DestinationPath EtatCreancesMerger.zip
         shell: pwsh
+        run: |
+          $content = "@echo off`r`n`"%~dp0jre\bin\java.exe`" -jar `"%~dp0app-shaded.jar`"`r`npause"
+          Set-Content -Path launch.bat -Value $content -Encoding ASCII
+
+      - name: Package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path EtatCreancesMerger
+          Copy-Item target\app-shaded.jar EtatCreancesMerger\app-shaded.jar
+          Copy-Item launch.bat EtatCreancesMerger\launch.bat
+          Copy-Item -Path $env:JAVA_HOME -Destination EtatCreancesMerger\jre -Recurse
+          Compress-Archive -Path EtatCreancesMerger\* -DestinationPath EtatCreancesMerger.zip
 
       - name: Upload ZIP
         uses: actions/upload-artifact@v4
