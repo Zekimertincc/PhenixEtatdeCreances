@@ -1,4 +1,4 @@
-name: Build Windows EXE
+name: Build Windows ZIP
 on:
   push:
     branches: [ main ]
@@ -13,10 +13,21 @@ jobs:
         with:
           java-version: '22'
           distribution: 'temurin'
-      - name: Build EXE
-        run: mvn package jpackage:jpackage
-      - name: Upload EXE
+          java-package: jre
+      - name: Build fat JAR
+        run: mvn package
+      - name: Create launch.bat
+        run: echo java -jar app-shaded.jar > launch.bat
+      - name: Package ZIP
+        run: |
+          mkdir EtatCreancesMerger
+          copy target\*-shaded.jar EtatCreancesMerger\app-shaded.jar
+          copy launch.bat EtatCreancesMerger\launch.bat
+          xcopy /E /I "%JAVA_HOME%" EtatCreancesMerger\jre
+          Compress-Archive -Path EtatCreancesMerger -DestinationPath EtatCreancesMerger.zip
+        shell: pwsh
+      - name: Upload ZIP
         uses: actions/upload-artifact@v4
         with:
           name: EtatCreancesMerger
-          path: target/installer/*.exe
+          path: EtatCreancesMerger.zip
