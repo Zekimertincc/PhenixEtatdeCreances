@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+
+<BorderPane xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.zeki.merger.controller.MainController"
+            styleClass="root-pane">
+
+    <!-- ===== TOP — title / config banner ===== -->
+    <top>
+        <VBox styleClass="header-box">
+            <Label text="Etat de Créances" styleClass="app-title"/>
+            <Label fx:id="configInfoLabel" styleClass="config-info"/>
+        </VBox>
+    </top>
+
+    <!-- ===== CENTER — form + progress + log ===== -->
+    <center>
+        <VBox styleClass="content-box" spacing="10">
+            <padding><Insets top="20" right="24" bottom="12" left="24"/></padding>
+
+            <!-- INPUT FOLDER -->
+            <Label text="Root Folder (to scan)" styleClass="field-label"/>
+            <HBox spacing="8" alignment="CENTER_LEFT">
+                <TextField fx:id="inputFolderField"
+                           styleClass="path-field"
+                           promptText="/path/to/ZEKI IT"
+                           HBox.hgrow="ALWAYS"/>
+                <Button fx:id="browseInputBtn"
+                        text="Browse…"
+                        styleClass="secondary-btn"
+                        onAction="#browseInput"/>
+            </HBox>
+
+            <!-- OUTPUT FOLDER -->
+            <Label text="Output Folder" styleClass="field-label"/>
+            <HBox spacing="8" alignment="CENTER_LEFT">
+                <TextField fx:id="outputFolderField"
+                           styleClass="path-field"
+                           promptText="/path/to/output"
+                           HBox.hgrow="ALWAYS"/>
+                <Button fx:id="browseOutputBtn"
+                        text="Browse…"
+                        styleClass="secondary-btn"
+                        onAction="#browseOutput"/>
+            </HBox>
+
+            <!-- RUN BUTTON -->
+            <HBox alignment="CENTER_RIGHT">
+                <padding><Insets top="6" bottom="2"/></padding>
+                <Button fx:id="runBtn"
+                        text="▶   Run Merge"
+                        styleClass="run-btn"
+                        onAction="#run"
+                        defaultButton="true"/>
+            </HBox>
+
+            <!-- PROGRESS BAR -->
+            <ProgressBar fx:id="progressBar"
+                         maxWidth="Infinity"
+                         prefHeight="10"
+                         styleClass="merge-progress"/>
+
+            <!-- LOG AREA -->
+            <Label text="Log" styleClass="field-label"/>
+            <TextArea fx:id="logArea"
+                      editable="false"
+                      wrapText="false"
+                      styleClass="log-area"
+                      VBox.vgrow="ALWAYS"/>
+        </VBox>
+    </center>
+
+    <!-- ===== BOTTOM — status bar ===== -->
+    <bottom>
+        <HBox fx:id="statusBar"
+              spacing="12"
+              alignment="CENTER_LEFT"
+              styleClass="status-bar">
+            <padding><Insets top="8" right="16" bottom="8" left="16"/></padding>
+            <Label fx:id="statusLabel"
+                   styleClass="status-label"
+                   HBox.hgrow="ALWAYS"/>
+            <Button fx:id="openFileBtn"
+                    text="Open File"
+                    styleClass="open-btn"
+                    onAction="#openFile"/>
+        </HBox>
+    </bottom>
+</BorderPane>
