@@ -82,8 +82,7 @@
                             <goal>shade</goal>
                         </goals>
                         <configuration>
-                            <shadedArtifactAttached>false</shadedArtifactAttached>
-                            <finalName>etat-creances-merger-1.0.0-shaded</finalName>
+                            <shadedArtifactAttached>true</shadedArtifactAttached>                            <finalName>etat-creances-merger-1.0.0-shaded</finalName>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <mainClass>com.zeki.merger.App</mainClass>
@@ -115,8 +114,7 @@
                     <appVersion>1.0.0</appVersion>
                     <mainClass>com.zeki.merger.App</mainClass>
                     <mainJar>etat-creances-merger-1.0.0-shaded.jar</mainJar>
-                    <destination>target/installer</destination>
-                    <type>EXE</type>
+                    <mainJar>etat-creances-merger-1.0.0-shaded-shaded.jar</mainJar>                    <type>EXE</type>
                     <winShortcut>true</winShortcut>
                     <winMenu>true</winMenu>
                 </configuration>
