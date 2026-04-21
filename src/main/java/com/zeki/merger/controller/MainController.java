@@ -1,6 +1,7 @@
 package com.zeki.merger.controller;
 
 import com.zeki.merger.AppConfig;
+import com.zeki.merger.service.EspacePartageFixer;
 import com.zeki.merger.service.MergeService;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
@@ -30,6 +31,7 @@ public class MainController {
     @FXML private Button    browseInputBtn;
     @FXML private Button    browseOutputBtn;
     @FXML private Label     configInfoLabel;
+    @FXML private Button    fixPathsBtn;
     @FXML private Button    runBtn;
     @FXML private ProgressBar progressBar;
     @FXML private TextArea  logArea;
@@ -40,6 +42,7 @@ public class MainController {
     // ---- private state ----
 
     private final MergeService mergeService = new MergeService();
+    private final EspacePartageFixer espacePartageFixer = new EspacePartageFixer();
     private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "merge-worker");
         t.setDaemon(true);
@@ -86,6 +89,48 @@ public class MainController {
     }
 
     @FXML
+    private void fixPaths() {
+        File rootFolder = new File(inputFolderField.getText().trim());
+        if (!rootFolder.isDirectory()) {
+            appendLog("ERROR: Root folder does not exist — " + rootFolder.getAbsolutePath());
+            return;
+        }
+
+        fixPathsBtn.setDisable(true);
+        runBtn.setDisable(true);
+        statusBar.setVisible(false);
+        progressBar.setProgress(0);
+        logArea.clear();
+        lastOutputFile = null;
+
+        executor.submit(() -> {
+            try {
+                File result = espacePartageFixer.fix(rootFolder, (progress, msg) ->
+                    Platform.runLater(() -> {
+                        progressBar.setProgress(progress);
+                        appendLog(msg);
+                    })
+                );
+
+                Platform.runLater(() -> {
+                    lastOutputFile = result;
+                    statusLabel.setText("Saved: " + result.getAbsolutePath());
+                    openFileBtn.setVisible(true);
+                    statusBar.setVisible(true);
+                    fixPathsBtn.setDisable(false);
+                    runBtn.setDisable(false);
+                });
+            } catch (Exception e) {
+                Platform.runLater(() -> {
+                    appendLog("FATAL: " + e.getMessage());
+                    fixPathsBtn.setDisable(false);
+                    runBtn.setDisable(false);
+                });
+            }
+        });
+    }
+
+    @FXML
     private void run() {
         File rootFolder   = new File(inputFolderField.getText().trim());
         File outputFolder = new File(outputFolderField.getText().trim());
@@ -101,6 +146,7 @@ public class MainController {
 
         // Reset UI state
         runBtn.setDisable(true);
+        fixPathsBtn.setDisable(true);
         statusBar.setVisible(false);
         progressBar.setProgress(0);
         logArea.clear();
@@ -122,11 +168,13 @@ public class MainController {
                         openFileBtn.setVisible(true);
                         statusBar.setVisible(true);
                     }
+                    fixPathsBtn.setDisable(false);
                     runBtn.setDisable(false);
                 });
             } catch (Exception e) {
                 Platform.runLater(() -> {
                     appendLog("FATAL: " + e.getMessage());
+                    fixPathsBtn.setDisable(false);
                     runBtn.setDisable(false);
                 });
             }

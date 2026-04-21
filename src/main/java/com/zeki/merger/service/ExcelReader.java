@@ -128,6 +128,21 @@ public class ExcelReader {
         };
     }
 
+    private static final java.util.Set<Integer> NUMERIC_STRING_COLS = java.util.Set.of(
+        8, 9, 12, 13, 14, 18, 20, 21, 22, 23, 24
+    );
+
+    private Object coerceStringToDouble(String raw) {
+        String cleaned = raw.replaceAll("[€$£\\s]", "")
+                            .replace(".", "")
+                            .replace(",", ".");
+        try {
+            return Double.parseDouble(cleaned);
+        } catch (NumberFormatException e) {
+            return raw;
+        }
+    }
+
     private List<Object> extractRowValues(Row row, DataFormatter fmt, FormulaEvaluator evaluator) {
         int lastCell = row.getLastCellNum();
         List<Object> values = new ArrayList<>(lastCell);
@@ -185,7 +200,9 @@ public class ExcelReader {
                     }
                 }
                 case BOOLEAN -> values.add(booleanResult);
-                case STRING  -> values.add(stringResult);
+                case STRING  -> values.add(
+                    NUMERIC_STRING_COLS.contains(c) ? coerceStringToDouble(stringResult) : stringResult
+                );
                 case BLANK   -> values.add("");
                 default      -> values.add(""); // ERROR veya bilinmeyen — boş bırak
             }

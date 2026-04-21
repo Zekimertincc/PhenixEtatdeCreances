@@ -30,5 +30,17 @@ public final class AppConfig {
     /** Name of the merged output file. */
     public static final String OUTPUT_FILENAME = "etat_creances_global.xlsx";
 
+    /** Name of the correspondance file read by EspacePartageFixer. */
+    public static final String ESPACE_PARTAGE_FILENAME = "CorrespondanceClient-EspacePartage.xlsx";
+
+    /** Suffix that must appear at the end of every EspacePartagé path (canonical form). */
+    public static final String ETAT_CREANCES_SUFFIX = "\\Etat des créances";
+
+    /**
+     * When true, EspacePartageFixer overwrites the source file in place.
+     * When false, it writes a sibling file with a _fixed suffix.
+     */
+    public static final boolean FIX_OVERWRITE = true;
+
     private AppConfig() {}
 }
