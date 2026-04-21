@@ -2,6 +2,7 @@ package com.zeki.merger.controller;
 
 import com.zeki.merger.AppConfig;
 import com.zeki.merger.service.EspacePartageFixer;
+import com.zeki.merger.service.EtatPublicGenerator;
 import com.zeki.merger.service.MergeService;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
@@ -32,6 +33,8 @@ public class MainController {
     @FXML private Button    browseOutputBtn;
     @FXML private Label     configInfoLabel;
     @FXML private Button    fixPathsBtn;
+    @FXML private Button    generateEtatPublicBtn;
+    @FXML private Button    exportTrfBtn;
     @FXML private Button    runBtn;
     @FXML private ProgressBar progressBar;
     @FXML private TextArea  logArea;
@@ -43,6 +46,7 @@ public class MainController {
 
     private final MergeService mergeService = new MergeService();
     private final EspacePartageFixer espacePartageFixer = new EspacePartageFixer();
+    private final EtatPublicGenerator etatPublicGenerator = new EtatPublicGenerator();
     private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "merge-worker");
         t.setDaemon(true);
@@ -89,6 +93,92 @@ public class MainController {
     }
 
     @FXML
+    private void generateEtatPublic() {
+        File rootFolder = new File(inputFolderField.getText().trim());
+        if (!rootFolder.isDirectory()) {
+            appendLog("ERROR: Root folder does not exist — " + rootFolder.getAbsolutePath());
+            return;
+        }
+
+        setAllButtonsDisabled(true);
+        statusBar.setVisible(false);
+        progressBar.setProgress(0);
+        logArea.clear();
+        lastOutputFile = null;
+
+        executor.submit(() -> {
+            try {
+                etatPublicGenerator.generate(rootFolder, (prog, msg) ->
+                    Platform.runLater(() -> {
+                        progressBar.setProgress(prog);
+                        appendLog(msg);
+                    })
+                );
+
+                Platform.runLater(() -> {
+                    // Multiple files produced — no single file to open
+                    statusLabel.setText("Etat Public files written to EspacePartagé paths.");
+                    openFileBtn.setVisible(false);
+                    statusBar.setVisible(true);
+                    setAllButtonsDisabled(false);
+                });
+            } catch (Exception e) {
+                Platform.runLater(() -> {
+                    appendLog("FATAL: " + e.getMessage());
+                    setAllButtonsDisabled(false);
+                });
+            }
+        });
+    }
+
+    @FXML
+    private void exportTrf() {
+        File rootFolder   = new File(inputFolderField.getText().trim());
+        File outputFolder = new File(outputFolderField.getText().trim());
+
+        if (!rootFolder.isDirectory()) {
+            appendLog("ERROR: Root folder does not exist — " + rootFolder.getAbsolutePath());
+            return;
+        }
+        if (!outputFolder.isDirectory()) {
+            appendLog("ERROR: Output folder does not exist — " + outputFolder.getAbsolutePath());
+            return;
+        }
+
+        setAllButtonsDisabled(true);
+        statusBar.setVisible(false);
+        progressBar.setProgress(0);
+        logArea.clear();
+        lastOutputFile = null;
+
+        executor.submit(() -> {
+            try {
+                File result = mergeService.exportTrf(rootFolder, outputFolder, (progress, msg) ->
+                    Platform.runLater(() -> {
+                        progressBar.setProgress(progress);
+                        appendLog(msg);
+                    })
+                );
+
+                Platform.runLater(() -> {
+                    if (result != null) {
+                        lastOutputFile = result;
+                        statusLabel.setText("TRF Output: " + result.getAbsolutePath());
+                        openFileBtn.setVisible(true);
+                        statusBar.setVisible(true);
+                    }
+                    setAllButtonsDisabled(false);
+                });
+            } catch (Exception e) {
+                Platform.runLater(() -> {
+                    appendLog("FATAL: " + e.getMessage());
+                    setAllButtonsDisabled(false);
+                });
+            }
+        });
+    }
+
+    @FXML
     private void fixPaths() {
         File rootFolder = new File(inputFolderField.getText().trim());
         if (!rootFolder.isDirectory()) {
@@ -96,8 +186,7 @@ public class MainController {
             return;
         }
 
-        fixPathsBtn.setDisable(true);
-        runBtn.setDisable(true);
+        setAllButtonsDisabled(true);
         statusBar.setVisible(false);
         progressBar.setProgress(0);
         logArea.clear();
@@ -117,14 +206,12 @@ public class MainController {
                     statusLabel.setText("Saved: " + result.getAbsolutePath());
                     openFileBtn.setVisible(true);
                     statusBar.setVisible(true);
-                    fixPathsBtn.setDisable(false);
-                    runBtn.setDisable(false);
+                    setAllButtonsDisabled(false);
                 });
             } catch (Exception e) {
                 Platform.runLater(() -> {
                     appendLog("FATAL: " + e.getMessage());
-                    fixPathsBtn.setDisable(false);
-                    runBtn.setDisable(false);
+                    setAllButtonsDisabled(false);
                 });
             }
         });
@@ -145,8 +232,7 @@ public class MainController {
         }
 
         // Reset UI state
-        runBtn.setDisable(true);
-        fixPathsBtn.setDisable(true);
+        setAllButtonsDisabled(true);
         statusBar.setVisible(false);
         progressBar.setProgress(0);
         logArea.clear();
@@ -168,14 +254,12 @@ public class MainController {
                         openFileBtn.setVisible(true);
                         statusBar.setVisible(true);
                     }
-                    fixPathsBtn.setDisable(false);
-                    runBtn.setDisable(false);
+                    setAllButtonsDisabled(false);
                 });
             } catch (Exception e) {
                 Platform.runLater(() -> {
                     appendLog("FATAL: " + e.getMessage());
-                    fixPathsBtn.setDisable(false);
-                    runBtn.setDisable(false);
+                    setAllButtonsDisabled(false);
                 });
             }
         });
@@ -203,6 +287,13 @@ public class MainController {
         if (initial.isDirectory()) dc.setInitialDirectory(initial);
         Stage stage = (Stage) browseInputBtn.getScene().getWindow();
         return dc.showDialog(stage);
+    }
+
+    private void setAllButtonsDisabled(boolean disabled) {
+        fixPathsBtn.setDisable(disabled);
+        generateEtatPublicBtn.setDisable(disabled);
+        exportTrfBtn.setDisable(disabled);
+        runBtn.setDisable(disabled);
     }
 
     private void appendLog(String message) {

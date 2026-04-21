@@ -53,6 +53,14 @@
                         text="🔧  Fix EspacePartagé Paths"
                         styleClass="secondary-btn"
                         onAction="#fixPaths"/>
+                <Button fx:id="generateEtatPublicBtn"
+                        text="📄  Generate Etat Public"
+                        styleClass="secondary-btn"
+                        onAction="#generateEtatPublic"/>
+                <Button fx:id="exportTrfBtn"
+                        text="▶  Export TRF"
+                        styleClass="secondary-btn"
+                        onAction="#exportTrf"/>
                 <Button fx:id="runBtn"
                         text="▶   Run Merge"
                         styleClass="run-btn"

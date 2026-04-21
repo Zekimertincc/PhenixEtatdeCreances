@@ -23,9 +23,10 @@ import java.util.function.BiConsumer;
  */
 public class MergeService {
 
-    private final FolderScanner scanner = new FolderScanner();
-    private final ExcelReader   reader  = new ExcelReader();
-    private final ExcelWriter   writer  = new ExcelWriter();
+    private final FolderScanner scanner   = new FolderScanner();
+    private final ExcelReader   reader    = new ExcelReader();
+    private final ExcelWriter   writer    = new ExcelWriter();
+    private final TrfWriter     trfWriter = new TrfWriter();
 
     public File merge(File rootFolder,
                       File outputFolder,
@@ -107,6 +108,83 @@ public class MergeService {
         String outputFilename = AppConfig.OUTPUT_FILENAME.replace(".xlsx", "_" + timestamp + ".xlsx");
         File outputFile = new File(outputFolder, outputFilename);
         writer.write(groupedRows, outputFile);
+
+        log(progressCallback, 1.00,
+            "Done.  Output: " + outputFile.getAbsolutePath());
+
+        return outputFile;
+    }
+
+    // -------------------------------------------------------------------------
+
+    public File exportTrf(File rootFolder,
+                          File outputFolder,
+                          BiConsumer<Double, String> progressCallback) throws Exception {
+
+        log(progressCallback, 0.00, "TRF export — scanning: " + rootFolder.getAbsolutePath());
+
+        List<FolderScanner.CompanyFile> companyFiles = scanner.scan(rootFolder);
+
+        if (companyFiles.isEmpty()) {
+            log(progressCallback, 1.00,
+                "No matching files found. Check that company sub-folders contain a " +
+                "folder whose name includes \"etat\" and \"cr\", with an Excel file " +
+                "starting with \"" + AppConfig.FILE_PREFIX + "\".");
+            return null;
+        }
+
+        log(progressCallback, 0.05,
+            "Found " + companyFiles.size() + " company file(s).");
+
+        Map<String, List<CreanceRow>> groupedRows = new LinkedHashMap<>();
+        int total   = companyFiles.size();
+        int skipped = 0;
+        int totalRowCount = 0;
+
+        for (int i = 0; i < total; i++) {
+            FolderScanner.CompanyFile cf = companyFiles.get(i);
+            double progress = 0.05 + 0.85 * (double) (i + 1) / total;
+
+            log(progressCallback, progress,
+                "[" + (i + 1) + "/" + total + "] " + cf.companyName()
+                + "  →  " + cf.excelFile().getName());
+
+            try {
+                List<CreanceRow> rows = reader.readFiltered(cf.companyName(), cf.excelFile());
+                if (rows.isEmpty()) {
+                    log(progressCallback, progress,
+                        "[" + cf.companyName() + "] SKIPPED - no data in column S");
+                } else {
+                    groupedRows.put(cf.companyName(), rows);
+                    totalRowCount += rows.size();
+                    log(progressCallback, progress,
+                        "     " + rows.size() + " row(s) matched.");
+                }
+            } catch (Exception e) {
+                skipped++;
+                log(progressCallback, progress,
+                    "     ERROR: " + e.getMessage() + " — file skipped.");
+            }
+        }
+
+        groupedRows.entrySet().removeIf(e -> e.getValue() == null || e.getValue().isEmpty());
+
+        if (groupedRows.isEmpty()) {
+            log(progressCallback, 1.00,
+                "No rows matched the filter across all companies. Output not written.");
+            return null;
+        }
+
+        log(progressCallback, 0.90,
+            "Total rows: " + totalRowCount
+            + " across " + groupedRows.size() + " company/ies"
+            + (skipped > 0 ? "  |  errors: " + skipped : "")
+            + ".  Writing TRF output…");
+
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
+        String outputFilename = AppConfig.TRF_OUTPUT_FILENAME.replace(".xlsx", "_" + timestamp + ".xlsx");
+        File outputFile = new File(outputFolder, outputFilename);
+        trfWriter.write(groupedRows, outputFile);
 
         log(progressCallback, 1.00,
             "Done.  Output: " + outputFile.getAbsolutePath());

@@ -30,6 +30,15 @@ public final class AppConfig {
     /** Name of the merged output file. */
     public static final String OUTPUT_FILENAME = "etat_creances_global.xlsx";
 
+    /** Name of the TRF export output file (timestamp appended before extension). */
+    public static final String TRF_OUTPUT_FILENAME = "trf_export.xlsx";
+
+    /** Sheet name to look for when reading a company's source Excel file. */
+    public static final String CREANCES_SHEET_NAME = "Créances";
+
+    /** Filename prefix for Etat Public output files. */
+    public static final String ETAT_PUBLIC_FILENAME_PREFIX = "L_ETAT_DE_CREANCES_";
+
     /** Name of the correspondance file read by EspacePartageFixer. */
     public static final String ESPACE_PARTAGE_FILENAME = "CorrespondanceClient-EspacePartage.xlsx";
 
