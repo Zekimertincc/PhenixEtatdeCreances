@@ -7,11 +7,13 @@
             fx:controller="com.zeki.merger.controller.MainController"
             styleClass="root-pane">
 
-    <!-- ===== TOP — title / config banner ===== -->
+    <!-- ===== TOP — black header band + config info ===== -->
     <top>
-        <VBox styleClass="header-box">
-            <Label text="Etat de Créances" styleClass="app-title"/>
-            <Label fx:id="configInfoLabel" styleClass="config-info"/>
+        <VBox>
+            <VBox styleClass="header-band">
+                <Label text="CABINET PHÉNIX" styleClass="app-title"/>
+            </VBox>
+
         </VBox>
     </top>
 
@@ -46,23 +48,37 @@
                         onAction="#browseOutput"/>
             </HBox>
 
+            <!-- TRF INPUT FOLDER -->
+            <Label text="TRF Files Folder  (ConsolidationGenerale + Listing + Tableau de Bord)"
+                   styleClass="field-label"/>
+            <HBox spacing="8" alignment="CENTER_LEFT">
+                <TextField fx:id="trfInputFolderField"
+                           styleClass="path-field"
+                           promptText="/path/to/trf-files"
+                           HBox.hgrow="ALWAYS"/>
+                <Button fx:id="browseTrfInputBtn"
+                        text="Browse…"
+                        styleClass="secondary-btn"
+                        onAction="#browseTrfInput"/>
+            </HBox>
+
             <!-- BUTTONS ROW -->
             <HBox alignment="CENTER_RIGHT" spacing="10">
                 <padding><Insets top="6" bottom="2"/></padding>
                 <Button fx:id="fixPathsBtn"
-                        text="🔧  Fix EspacePartagé Paths"
+                        text="Fix EspacePartage Paths"
                         styleClass="secondary-btn"
                         onAction="#fixPaths"/>
                 <Button fx:id="generateEtatPublicBtn"
-                        text="📄  Generate Etat Public"
+                        text="Generate Etat Public"
                         styleClass="secondary-btn"
                         onAction="#generateEtatPublic"/>
-                <Button fx:id="exportTrfBtn"
-                        text="▶  Export TRF"
+                <Button fx:id="generateTrfBtn"
+                        text="Generate TRF"
                         styleClass="secondary-btn"
-                        onAction="#exportTrf"/>
+                        onAction="#generateTrf"/>
                 <Button fx:id="runBtn"
-                        text="▶   Run Merge"
+                        text="Run Merge"
                         styleClass="run-btn"
                         onAction="#run"
                         defaultButton="true"/>
@@ -71,11 +87,11 @@
             <!-- PROGRESS BAR -->
             <ProgressBar fx:id="progressBar"
                          maxWidth="Infinity"
-                         prefHeight="10"
+                         prefHeight="16"
                          styleClass="merge-progress"/>
 
             <!-- LOG AREA -->
-            <Label text="Log" styleClass="field-label"/>
+            <Label text="LOG" styleClass="field-label"/>
             <TextArea fx:id="logArea"
                       editable="false"
                       wrapText="false"

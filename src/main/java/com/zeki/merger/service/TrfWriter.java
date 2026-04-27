@@ -1,6 +1,7 @@
 package com.zeki.merger.service;
 
 import com.zeki.merger.model.CreanceRow;
+import com.zeki.merger.trf.model.ConsolidationRow;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.*;
 
@@ -122,7 +123,7 @@ public class TrfWriter {
                         Object val = values.get(s);
                         XSSFCell cell = row.createCell(trfCol);
                         writeValue(cell, val, dataStyle, dateStyle);
-                        if (val instanceof Double) numericTrfCols.add(trfCol);
+                        if (isNumericValue(val)) numericTrfCols.add(trfCol);
                         trfCol++;
                     }
                     // fill remaining cols with border style
@@ -184,19 +185,25 @@ public class TrfWriter {
 
     private void writeValue(XSSFCell cell, Object val,
                             XSSFCellStyle defaultStyle, XSSFCellStyle dateStyle) {
-        if (val instanceof Double d) {
-            cell.setCellValue(d);
+        if (val instanceof Double d)            { cell.setCellValue(d);              cell.setCellStyle(defaultStyle); return; }
+        if (val instanceof Number n)            { cell.setCellValue(n.doubleValue()); cell.setCellStyle(defaultStyle); return; }
+        if (val instanceof Boolean b)           { cell.setCellValue(b);              cell.setCellStyle(defaultStyle); return; }
+        if (val instanceof LocalDateTime ldt)   { cell.setCellValue(ldt);            cell.setCellStyle(dateStyle);    return; }
+        if (val instanceof String s && !s.isBlank()) {
+            double d = ConsolidationRow.parseFrenchDouble(s);
+            if (d != 0.0) { cell.setCellValue(d); cell.setCellStyle(defaultStyle); return; }
+            cell.setCellValue(s);
             cell.setCellStyle(defaultStyle);
-        } else if (val instanceof Boolean b) {
-            cell.setCellValue(b);
-            cell.setCellStyle(defaultStyle);
-        } else if (val instanceof LocalDateTime ldt) {
-            cell.setCellValue(ldt);
-            cell.setCellStyle(dateStyle);
-        } else {
-            cell.setCellValue(val != null ? val.toString() : "");
-            cell.setCellStyle(defaultStyle);
+            return;
         }
+        cell.setCellStyle(defaultStyle);
+    }
+
+    private boolean isNumericValue(Object val) {
+        if (val instanceof Number) return true;
+        if (val instanceof String s && !s.isBlank())
+            return ConsolidationRow.parseFrenchDouble(s) != 0.0;
+        return false;
     }
 
     // -------------------------------------------------------------------------

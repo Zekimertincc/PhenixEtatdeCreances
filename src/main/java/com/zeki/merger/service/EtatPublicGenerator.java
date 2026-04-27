@@ -1,6 +1,7 @@
 package com.zeki.merger.service;
 
 import com.zeki.merger.AppConfig;
+import com.zeki.merger.trf.model.ConsolidationRow;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.*;
@@ -78,11 +79,24 @@ public class EtatPublicGenerator {
 
                 File destDir = resolveEtatCreancesDir(espacePartageDir.get());
 
+                // Delete old L_ETAT files before writing the new one
+                File[] oldFiles = destDir.listFiles(f -> {
+                    String lower = f.getName().toLowerCase();
+                    return f.isFile() && lower.startsWith("l_etat")
+                        && (lower.endsWith(".xlsx") || lower.endsWith(".xls") || lower.endsWith(".pdf"));
+                });
+                if (oldFiles != null) {
+                    for (File old : oldFiles) {
+                        if (old.delete()) progress.accept(prog, "  Deleted old: " + old.getName());
+                    }
+                }
+
                 File outputFile = new File(destDir,
                     AppConfig.ETAT_PUBLIC_FILENAME_PREFIX + sanitize(cf.companyName()) + ".xlsx");
 
                 generateForClient(cf.companyName(), cf.excelFile(), outputFile);
                 progress.accept(prog, "  → " + outputFile.getAbsolutePath());
+                convertToPdf(outputFile, destDir, prog, progress);
                 done++;
             } catch (Exception e) {
                 progress.accept(prog, "  ERROR: " + e.getMessage());
@@ -302,19 +316,18 @@ public class EtatPublicGenerator {
 
     private void writeValue(XSSFCell cell, Object val,
                              XSSFCellStyle def, XSSFCellStyle dateStyle) {
-        if (val instanceof Double d) {
-            cell.setCellValue(d);
+        if (val instanceof Double d)            { cell.setCellValue(d);              cell.setCellStyle(def);       return; }
+        if (val instanceof Number n)            { cell.setCellValue(n.doubleValue()); cell.setCellStyle(def);      return; }
+        if (val instanceof Boolean b)           { cell.setCellValue(b);              cell.setCellStyle(def);       return; }
+        if (val instanceof LocalDateTime ldt)   { cell.setCellValue(ldt);            cell.setCellStyle(dateStyle); return; }
+        if (val instanceof String s && !s.isBlank()) {
+            double d = ConsolidationRow.parseFrenchDouble(s);
+            if (d != 0.0) { cell.setCellValue(d); cell.setCellStyle(def); return; }
+            cell.setCellValue(s);
             cell.setCellStyle(def);
-        } else if (val instanceof Boolean b) {
-            cell.setCellValue(b);
-            cell.setCellStyle(def);
-        } else if (val instanceof LocalDateTime ldt) {
-            cell.setCellValue(ldt);
-            cell.setCellStyle(dateStyle);
-        } else {
-            cell.setCellValue(val != null ? val.toString() : "");
-            cell.setCellStyle(def);
+            return;
         }
+        cell.setCellStyle(def);
     }
 
     private static String colLetter(int idx) {
@@ -388,6 +401,30 @@ public class EtatPublicGenerator {
         s.setRightBorderColor(bc);
         s.setVerticalAlignment(VerticalAlignment.CENTER);
         return s;
+    }
+
+    // -------------------------------------------------------------------------
+    // PDF conversion via LibreOffice headless
+    // -------------------------------------------------------------------------
+
+    private void convertToPdf(File xlsxFile, File outputDir,
+                               double prog, BiConsumer<Double, String> progress) {
+        try {
+            ProcessBuilder pb = new ProcessBuilder(
+                "soffice", "--headless", "--convert-to", "pdf",
+                "--outdir", outputDir.getAbsolutePath(),
+                xlsxFile.getAbsolutePath()
+            );
+            pb.redirectErrorStream(true);
+            int exitCode = pb.start().waitFor();
+            if (exitCode == 0) {
+                progress.accept(prog, "  → PDF generated");
+            } else {
+                progress.accept(prog, "  [WARN] PDF conversion failed (exit " + exitCode + ")");
+            }
+        } catch (Exception e) {
+            progress.accept(prog, "  [WARN] LibreOffice not available — PDF skipped");
+        }
     }
 
     // -------------------------------------------------------------------------

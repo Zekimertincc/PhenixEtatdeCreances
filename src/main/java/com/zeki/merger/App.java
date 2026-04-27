@@ -21,7 +21,7 @@ public class App extends Application {
         scene.getStylesheets().add(
             getClass().getResource("/com/zeki/merger/styles.css").toExternalForm());
 
-        primaryStage.setTitle("Etat de Créances Merger");
+        primaryStage.setTitle("Cabinet Phénix");
         primaryStage.setScene(scene);
         primaryStage.setMinWidth(720);
         primaryStage.setMinHeight(540);

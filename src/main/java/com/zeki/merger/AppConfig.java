@@ -33,6 +33,9 @@ public final class AppConfig {
     /** Name of the TRF export output file (timestamp appended before extension). */
     public static final String TRF_OUTPUT_FILENAME = "trf_export.xlsx";
 
+    /** Default folder shown in the UI for the TRF source files. */
+    public static final String DEFAULT_TRF_INPUT_PATH = "/Users/zekimertinceoglu/Dropbox/Projet 1";
+
     /** Sheet name to look for when reading a company's source Excel file. */
     public static final String CREANCES_SHEET_NAME = "Créances";
 

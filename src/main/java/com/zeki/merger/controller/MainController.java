@@ -4,6 +4,7 @@ import com.zeki.merger.AppConfig;
 import com.zeki.merger.service.EspacePartageFixer;
 import com.zeki.merger.service.EtatPublicGenerator;
 import com.zeki.merger.service.MergeService;
+import com.zeki.merger.trf.TrfGeneratorService;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
@@ -29,12 +30,14 @@ public class MainController {
 
     @FXML private TextField inputFolderField;
     @FXML private TextField outputFolderField;
+    @FXML private TextField trfInputFolderField;
     @FXML private Button    browseInputBtn;
     @FXML private Button    browseOutputBtn;
+    @FXML private Button    browseTrfInputBtn;
     @FXML private Label     configInfoLabel;
     @FXML private Button    fixPathsBtn;
     @FXML private Button    generateEtatPublicBtn;
-    @FXML private Button    exportTrfBtn;
+    @FXML private Button    generateTrfBtn;
     @FXML private Button    runBtn;
     @FXML private ProgressBar progressBar;
     @FXML private TextArea  logArea;
@@ -44,9 +47,10 @@ public class MainController {
 
     // ---- private state ----
 
-    private final MergeService mergeService = new MergeService();
-    private final EspacePartageFixer espacePartageFixer = new EspacePartageFixer();
-    private final EtatPublicGenerator etatPublicGenerator = new EtatPublicGenerator();
+    private final MergeService         mergeService         = new MergeService();
+    private final EspacePartageFixer   espacePartageFixer   = new EspacePartageFixer();
+    private final EtatPublicGenerator  etatPublicGenerator  = new EtatPublicGenerator();
+    private final TrfGeneratorService  trfGeneratorService  = new TrfGeneratorService();
     private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "merge-worker");
         t.setDaemon(true);
@@ -64,13 +68,9 @@ public class MainController {
     public void initialize() {
         inputFolderField.setText(AppConfig.DEFAULT_ROOT_PATH);
         outputFolderField.setText(AppConfig.DEFAULT_OUTPUT_PATH);
+        trfInputFolderField.setText(AppConfig.DEFAULT_TRF_INPUT_PATH);
 
-        configInfoLabel.setText(
-            "Target subfolder: \"" + AppConfig.TARGET_SUBFOLDER + "\""
-            + "   |   File prefix: \"" + AppConfig.FILE_PREFIX + "\""
-            + "   |   Filter column: " + AppConfig.FILTER_COLUMN_LABEL
-            + "  (index " + AppConfig.FILTER_COLUMN_INDEX + ")"
-        );
+
 
         progressBar.setProgress(0);
         statusBar.setVisible(false);
@@ -90,6 +90,58 @@ public class MainController {
     private void browseOutput() {
         File chosen = pickDirectory("Select Output Folder", outputFolderField.getText());
         if (chosen != null) outputFolderField.setText(chosen.getAbsolutePath());
+    }
+
+    @FXML
+    private void browseTrfInput() {
+        File chosen = pickDirectory("Select TRF Files Folder", trfInputFolderField.getText());
+        if (chosen != null) trfInputFolderField.setText(chosen.getAbsolutePath());
+    }
+
+    @FXML
+    private void generateTrf() {
+        File trfInputFolder = new File(trfInputFolderField.getText().trim());
+        File outputFolder   = new File(outputFolderField.getText().trim());
+
+        if (!trfInputFolder.isDirectory()) {
+            appendLog("ERROR: TRF input folder does not exist — " + trfInputFolder.getAbsolutePath());
+            return;
+        }
+        if (!outputFolder.isDirectory()) {
+            appendLog("ERROR: Output folder does not exist — " + outputFolder.getAbsolutePath());
+            return;
+        }
+
+        setAllButtonsDisabled(true);
+        statusBar.setVisible(false);
+        progressBar.setProgress(0);
+        logArea.clear();
+        lastOutputFile = null;
+
+        executor.submit(() -> {
+            try {
+                File result = trfGeneratorService.generate(trfInputFolder, outputFolder,
+                    (progress, msg) -> Platform.runLater(() -> {
+                        progressBar.setProgress(progress);
+                        appendLog(msg);
+                    }));
+
+                Platform.runLater(() -> {
+                    if (result != null) {
+                        lastOutputFile = result;
+                        statusLabel.setText("TRF Output: " + result.getAbsolutePath());
+                        openFileBtn.setVisible(true);
+                        statusBar.setVisible(true);
+                    }
+                    setAllButtonsDisabled(false);
+                });
+            } catch (Exception e) {
+                Platform.runLater(() -> {
+                    appendLog("FATAL: " + e.getMessage());
+                    setAllButtonsDisabled(false);
+                });
+            }
+        });
     }
 
     @FXML
@@ -120,53 +172,6 @@ public class MainController {
                     statusLabel.setText("Etat Public files written to EspacePartagé paths.");
                     openFileBtn.setVisible(false);
                     statusBar.setVisible(true);
-                    setAllButtonsDisabled(false);
-                });
-            } catch (Exception e) {
-                Platform.runLater(() -> {
-                    appendLog("FATAL: " + e.getMessage());
-                    setAllButtonsDisabled(false);
-                });
-            }
-        });
-    }
-
-    @FXML
-    private void exportTrf() {
-        File rootFolder   = new File(inputFolderField.getText().trim());
-        File outputFolder = new File(outputFolderField.getText().trim());
-
-        if (!rootFolder.isDirectory()) {
-            appendLog("ERROR: Root folder does not exist — " + rootFolder.getAbsolutePath());
-            return;
-        }
-        if (!outputFolder.isDirectory()) {
-            appendLog("ERROR: Output folder does not exist — " + outputFolder.getAbsolutePath());
-            return;
-        }
-
-        setAllButtonsDisabled(true);
-        statusBar.setVisible(false);
-        progressBar.setProgress(0);
-        logArea.clear();
-        lastOutputFile = null;
-
-        executor.submit(() -> {
-            try {
-                File result = mergeService.exportTrf(rootFolder, outputFolder, (progress, msg) ->
-                    Platform.runLater(() -> {
-                        progressBar.setProgress(progress);
-                        appendLog(msg);
-                    })
-                );
-
-                Platform.runLater(() -> {
-                    if (result != null) {
-                        lastOutputFile = result;
-                        statusLabel.setText("TRF Output: " + result.getAbsolutePath());
-                        openFileBtn.setVisible(true);
-                        statusBar.setVisible(true);
-                    }
                     setAllButtonsDisabled(false);
                 });
             } catch (Exception e) {
@@ -292,7 +297,7 @@ public class MainController {
     private void setAllButtonsDisabled(boolean disabled) {
         fixPathsBtn.setDisable(disabled);
         generateEtatPublicBtn.setDisable(disabled);
-        exportTrfBtn.setDisable(disabled);
+        generateTrfBtn.setDisable(disabled);
         runBtn.setDisable(disabled);
     }
 
