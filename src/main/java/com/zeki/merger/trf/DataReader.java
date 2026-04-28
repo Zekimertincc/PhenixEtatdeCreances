@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.text.Normalizer;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.function.Consumer;
 
 /**
  * Reads all three TRF input files:
@@ -56,7 +57,11 @@ public class DataReader {
     public List<ConsolidationRow> readAllConsolidationRows(File file) throws IOException {
         List<ConsolidationRow> rows = new ArrayList<>();
         try (Workbook wb = openWorkbook(file)) {
-            Sheet sheet = requireSheet(wb, file.getName(), "Consolidation");
+            Sheet sheet = wb.getSheet("Consolidation");
+            if (sheet == null) sheet = wb.getSheet("Créances");
+            if (sheet == null) sheet = wb.getSheetAt(0);
+            if (sheet == null) throw new IllegalArgumentException(
+                "No readable sheet found in: " + file.getName());
             DataFormatter    fmt  = new DataFormatter();
             FormulaEvaluator eval = wb.getCreationHelper().createFormulaEvaluator();
 
@@ -74,18 +79,41 @@ public class DataReader {
     }
 
     /**
-     * Reads the "Feuil1" sheet of LISTING_CABINET_PHENIX_pour_ZEKI.xls and returns
-     * a map keyed by <em>normalised</em> client name.
-     *
-     * Column indices (0-based):
-     *   C=2 name | D=3 code | U=20 NonComp | V=21 IBAN | W=22 BIC
+     * Reads the "Feuil1" sheet of the Listing file and returns a map keyed by normalised
+     * client name. Column indices (0-based): C=2 name | D=3 code | U=20 NonComp | V=21 IBAN | W=22 BIC
      */
     public Map<String, ClientInfo> readClientInfoMap(File file) throws IOException {
+        return readClientInfoMap(file, null);
+    }
+
+    /**
+     * Same as {@link #readClientInfoMap(File)} but logs the first 3 data rows verbatim
+     * via {@code debug} so the caller can verify column indices in the UI log.
+     */
+    public Map<String, ClientInfo> readClientInfoMap(File file, Consumer<String> debug)
+            throws IOException {
         Map<String, ClientInfo> map = new LinkedHashMap<>();
         try (Workbook wb = openWorkbook(file)) {
             Sheet sheet = findSheetFallback(wb, "Feuil1");
             DataFormatter    fmt  = new DataFormatter();
             FormulaEvaluator eval = wb.getCreationHelper().createFormulaEvaluator();
+
+            // ---- Diagnostic: dump first 3 rows so caller can verify column indices ----
+            if (debug != null) {
+                debug.accept("  [Listing] sheet='" + sheet.getSheetName()
+                    + "'  lastRow=" + sheet.getLastRowNum());
+                for (int r = 0; r <= Math.min(2, sheet.getLastRowNum()); r++) {
+                    Row row = sheet.getRow(r);
+                    if (row == null) { debug.accept("  [Listing] row " + r + " = null"); continue; }
+                    StringBuilder sb = new StringBuilder("  [Listing] row ").append(r).append(": ");
+                    for (int c = 0; c <= row.getLastCellNum(); c++) {
+                        String val = cellStr(row, c, fmt, eval);
+                        if (!val.isBlank()) sb.append("col").append(c).append("=[").append(val).append("] ");
+                    }
+                    debug.accept(sb.toString());
+                }
+            }
+            // -----------------------------------------------------------------------
 
             for (int r = 1; r <= sheet.getLastRowNum(); r++) {
                 Row row = sheet.getRow(r);

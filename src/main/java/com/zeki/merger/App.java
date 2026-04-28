@@ -1,5 +1,6 @@
 package com.zeki.merger;
 
+import com.zeki.merger.db.DatabaseManager;
 import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
@@ -13,6 +14,8 @@ public class App extends Application {
 
     @Override
     public void start(Stage primaryStage) throws Exception {
+        DatabaseManager.initialize();
+
         FXMLLoader loader = new FXMLLoader(
             getClass().getResource("/com/zeki/merger/main.fxml"));
         Parent root = loader.load();

@@ -1,6 +1,7 @@
 package com.zeki.merger.service;
 
 import com.zeki.merger.AppConfig;
+import com.zeki.merger.db.DatabaseManager;
 import com.zeki.merger.model.CreanceRow;
 
 import java.io.File;
@@ -23,10 +24,15 @@ import java.util.function.BiConsumer;
  */
 public class MergeService {
 
-    private final FolderScanner scanner   = new FolderScanner();
-    private final ExcelReader   reader    = new ExcelReader();
-    private final ExcelWriter   writer    = new ExcelWriter();
-    private final TrfWriter     trfWriter = new TrfWriter();
+    private final FolderScanner   scanner   = new FolderScanner();
+    private final ExcelReader     reader    = new ExcelReader();
+    private final ExcelWriter     writer    = new ExcelWriter();
+    private final TrfWriter       trfWriter = new TrfWriter();
+    private final DatabaseManager db;
+
+    public MergeService(DatabaseManager db) {
+        this.db = db;
+    }
 
     public File merge(File rootFolder,
                       File outputFolder,
@@ -72,6 +78,15 @@ public class MergeService {
                     log(progressCallback, progress,
                         "     " + rows.size() + " row(s) matched (column "
                         + AppConfig.FILTER_COLUMN_LABEL + " non-empty).");
+                    if (db != null) {
+                        try {
+                            long cid = db.upsertCompany(cf.companyName(),
+                                                        cf.excelFile().getAbsolutePath());
+                            db.replaceCreanceRows(cid, rows);
+                        } catch (Exception dbEx) {
+                            log(progressCallback, progress, "  [DB] " + dbEx.getMessage());
+                        }
+                    }
                 }
             } catch (Exception e) {
                 skipped++;

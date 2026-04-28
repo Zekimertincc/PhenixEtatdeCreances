@@ -7,113 +7,151 @@
             fx:controller="com.zeki.merger.controller.MainController"
             styleClass="root-pane">
 
-    <!-- ===== TOP — black header band + config info ===== -->
+    <!-- ===== TOP — black header band ===== -->
     <top>
-        <VBox>
-            <VBox styleClass="header-band">
-                <Label text="CABINET PHÉNIX" styleClass="app-title"/>
-            </VBox>
-
+        <VBox styleClass="header-band">
+            <Label text="CABINET PHÉNIX" styleClass="app-title"/>
         </VBox>
     </top>
 
-    <!-- ===== CENTER — form + progress + log ===== -->
+    <!-- ===== CENTER — tabbed content ===== -->
     <center>
-        <VBox styleClass="content-box" spacing="10">
-            <padding><Insets top="20" right="24" bottom="12" left="24"/></padding>
+        <TabPane styleClass="main-tabs" tabClosingPolicy="UNAVAILABLE">
 
-            <!-- INPUT FOLDER -->
-            <Label text="Root Folder (to scan)" styleClass="field-label"/>
-            <HBox spacing="8" alignment="CENTER_LEFT">
-                <TextField fx:id="inputFolderField"
-                           styleClass="path-field"
-                           promptText="/path/to/ZEKI IT"
-                           HBox.hgrow="ALWAYS"/>
-                <Button fx:id="browseInputBtn"
-                        text="Browse…"
-                        styleClass="secondary-btn"
-                        onAction="#browseInput"/>
-            </HBox>
+            <!-- ── Tab 1: Operations ── -->
+            <Tab text="OPÉRATIONS">
+                <BorderPane>
 
-            <!-- OUTPUT FOLDER -->
-            <Label text="Output Folder" styleClass="field-label"/>
-            <HBox spacing="8" alignment="CENTER_LEFT">
-                <TextField fx:id="outputFolderField"
-                           styleClass="path-field"
-                           promptText="/path/to/output"
-                           HBox.hgrow="ALWAYS"/>
-                <Button fx:id="browseOutputBtn"
-                        text="Browse…"
-                        styleClass="secondary-btn"
-                        onAction="#browseOutput"/>
-            </HBox>
+                    <center>
+                        <VBox styleClass="content-box" spacing="10">
+                            <padding><Insets top="20" right="24" bottom="12" left="24"/></padding>
 
-            <!-- TRF INPUT FOLDER -->
-            <Label text="TRF Files Folder  (ConsolidationGenerale + Listing + Tableau de Bord)"
-                   styleClass="field-label"/>
-            <HBox spacing="8" alignment="CENTER_LEFT">
-                <TextField fx:id="trfInputFolderField"
-                           styleClass="path-field"
-                           promptText="/path/to/trf-files"
-                           HBox.hgrow="ALWAYS"/>
-                <Button fx:id="browseTrfInputBtn"
-                        text="Browse…"
-                        styleClass="secondary-btn"
-                        onAction="#browseTrfInput"/>
-            </HBox>
+                            <!-- INPUT FOLDER -->
+                            <Label text="Root Folder (to scan)" styleClass="field-label"/>
+                            <HBox spacing="8" alignment="CENTER_LEFT">
+                                <TextField fx:id="inputFolderField"
+                                           styleClass="path-field"
+                                           promptText="/path/to/ZEKI IT"
+                                           HBox.hgrow="ALWAYS"/>
+                                <Button fx:id="browseInputBtn"
+                                        text="Browse…"
+                                        styleClass="secondary-btn"
+                                        onAction="#browseInput"/>
+                            </HBox>
 
-            <!-- BUTTONS ROW -->
-            <HBox alignment="CENTER_RIGHT" spacing="10">
-                <padding><Insets top="6" bottom="2"/></padding>
-                <Button fx:id="fixPathsBtn"
-                        text="Fix EspacePartage Paths"
-                        styleClass="secondary-btn"
-                        onAction="#fixPaths"/>
-                <Button fx:id="generateEtatPublicBtn"
-                        text="Generate Etat Public"
-                        styleClass="secondary-btn"
-                        onAction="#generateEtatPublic"/>
-                <Button fx:id="generateTrfBtn"
-                        text="Generate TRF"
-                        styleClass="secondary-btn"
-                        onAction="#generateTrf"/>
-                <Button fx:id="runBtn"
-                        text="Run Merge"
-                        styleClass="run-btn"
-                        onAction="#run"
-                        defaultButton="true"/>
-            </HBox>
+                            <!-- OUTPUT FOLDER -->
+                            <Label text="Output Folder" styleClass="field-label"/>
+                            <HBox spacing="8" alignment="CENTER_LEFT">
+                                <TextField fx:id="outputFolderField"
+                                           styleClass="path-field"
+                                           promptText="/path/to/output"
+                                           HBox.hgrow="ALWAYS"/>
+                                <Button fx:id="browseOutputBtn"
+                                        text="Browse…"
+                                        styleClass="secondary-btn"
+                                        onAction="#browseOutput"/>
+                            </HBox>
 
-            <!-- PROGRESS BAR -->
-            <ProgressBar fx:id="progressBar"
-                         maxWidth="Infinity"
-                         prefHeight="16"
-                         styleClass="merge-progress"/>
+                            <!-- TRF FILE PICKERS -->
+                            <Label text="CONSOLIDATION GÉNÉRALE" styleClass="field-label"/>
+                            <HBox spacing="8" alignment="CENTER_LEFT">
+                                <Label fx:id="trfConsoPathLabel"
+                                       styleClass="path-label"
+                                       text=""
+                                       HBox.hgrow="ALWAYS"/>
+                                <Button fx:id="trfConsoBtn"
+                                        text="PARCOURIR"
+                                        styleClass="secondary-btn"
+                                        onAction="#pickTrfConso"/>
+                            </HBox>
 
-            <!-- LOG AREA -->
-            <Label text="LOG" styleClass="field-label"/>
-            <TextArea fx:id="logArea"
-                      editable="false"
-                      wrapText="false"
-                      styleClass="log-area"
-                      VBox.vgrow="ALWAYS"/>
-        </VBox>
+                            <Label text="LISTING CABINET PHÉNIX" styleClass="field-label"/>
+                            <HBox spacing="8" alignment="CENTER_LEFT">
+                                <Label fx:id="trfListingPathLabel"
+                                       styleClass="path-label"
+                                       text=""
+                                       HBox.hgrow="ALWAYS"/>
+                                <Button fx:id="trfListingBtn"
+                                        text="PARCOURIR"
+                                        styleClass="secondary-btn"
+                                        onAction="#pickTrfListing"/>
+                            </HBox>
+
+                            <Label text="TABLEAU DE BORD" styleClass="field-label"/>
+                            <HBox spacing="8" alignment="CENTER_LEFT">
+                                <Label fx:id="trfTableauPathLabel"
+                                       styleClass="path-label"
+                                       text=""
+                                       HBox.hgrow="ALWAYS"/>
+                                <Button fx:id="trfTableauBtn"
+                                        text="PARCOURIR"
+                                        styleClass="secondary-btn"
+                                        onAction="#pickTrfTableau"/>
+                            </HBox>
+
+                            <!-- BUTTONS ROW -->
+                            <HBox alignment="CENTER_RIGHT" spacing="10">
+                                <padding><Insets top="6" bottom="2"/></padding>
+                                <Button fx:id="fixPathsBtn"
+                                        text="Fix EspacePartage Paths"
+                                        styleClass="secondary-btn"
+                                        onAction="#fixPaths"/>
+                                <Button fx:id="generateEtatPublicBtn"
+                                        text="Generate Etat Public"
+                                        styleClass="secondary-btn"
+                                        onAction="#generateEtatPublic"/>
+                                <Button fx:id="generateTrfBtn"
+                                        text="Generate TRF"
+                                        styleClass="secondary-btn"
+                                        onAction="#generateTrf"/>
+                                <Button fx:id="runBtn"
+                                        text="Run Merge"
+                                        styleClass="run-btn"
+                                        onAction="#run"
+                                        defaultButton="true"/>
+                            </HBox>
+
+                            <!-- PROGRESS BAR -->
+                            <ProgressBar fx:id="progressBar"
+                                         maxWidth="Infinity"
+                                         prefHeight="16"
+                                         styleClass="merge-progress"/>
+
+                            <!-- LOG AREA -->
+                            <Label text="LOG" styleClass="field-label"/>
+                            <TextArea fx:id="logArea"
+                                      editable="false"
+                                      wrapText="false"
+                                      styleClass="log-area"
+                                      VBox.vgrow="ALWAYS"/>
+                        </VBox>
+                    </center>
+
+                    <bottom>
+                        <HBox fx:id="statusBar"
+                              spacing="12"
+                              alignment="CENTER_LEFT"
+                              styleClass="status-bar">
+                            <padding><Insets top="8" right="16" bottom="8" left="16"/></padding>
+                            <Label fx:id="statusLabel"
+                                   styleClass="status-label"
+                                   HBox.hgrow="ALWAYS"/>
+                            <Button fx:id="openFileBtn"
+                                    text="Open File"
+                                    styleClass="open-btn"
+                                    onAction="#openFile"/>
+                        </HBox>
+                    </bottom>
+
+                </BorderPane>
+            </Tab>
+
+            <!-- ── Tab 2: Dashboard ── -->
+            <Tab text="DASHBOARD">
+                <fx:include fx:id="dashboard" source="dashboard.fxml"/>
+            </Tab>
+
+        </TabPane>
     </center>
 
-    <!-- ===== BOTTOM — status bar ===== -->
-    <bottom>
-        <HBox fx:id="statusBar"
-              spacing="12"
-              alignment="CENTER_LEFT"
-              styleClass="status-bar">
-            <padding><Insets top="8" right="16" bottom="8" left="16"/></padding>
-            <Label fx:id="statusLabel"
-                   styleClass="status-label"
-                   HBox.hgrow="ALWAYS"/>
-            <Button fx:id="openFileBtn"
-                    text="Open File"
-                    styleClass="open-btn"
-                    onAction="#openFile"/>
-        </HBox>
-    </bottom>
 </BorderPane>

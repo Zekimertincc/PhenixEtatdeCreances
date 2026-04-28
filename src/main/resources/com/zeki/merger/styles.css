@@ -76,6 +76,19 @@
     -fx-border-color: #0D0D0D;
 }
 
+/* ---- Read-only path label (TRF file pickers) ---- */
+.path-label {
+    -fx-background-color: #F5F0E8;
+    -fx-text-fill: #0D0D0D;
+    -fx-border-color: #0D0D0D;
+    -fx-border-width: 3;
+    -fx-padding: 8 12 8 12;
+    -fx-font-size: 12px;
+    -fx-font-family: "Courier New", "Consolas", monospace;
+    -fx-text-overrun: leading-ellipsis;
+    -fx-min-height: 36px;
+}
+
 /* ---- Secondary / action buttons ---- */
 .secondary-btn {
     -fx-background-color: #F5F0E8;
@@ -235,4 +248,165 @@
 .open-btn:pressed {
     -fx-background-color: #0D0D0D;
     -fx-text-fill: #FFFFFF;
+}
+
+/* ---- Main tab pane ---- */
+.main-tabs {
+    -fx-background-color: #F5F0E8;
+    -fx-tab-min-height: 36px;
+}
+
+.main-tabs .tab-header-area .tab-header-background {
+    -fx-background-color: #0D0D0D;
+}
+
+.main-tabs .tab {
+    -fx-background-color: #0D0D0D;
+    -fx-background-radius: 0;
+    -fx-border-color: transparent;
+    -fx-padding: 6 20 6 20;
+}
+
+.main-tabs .tab .tab-label {
+    -fx-text-fill: #888888;
+    -fx-font-weight: bold;
+    -fx-font-size: 12px;
+    -fx-font-family: "Courier New", "Consolas", monospace;
+}
+
+.main-tabs .tab:selected {
+    -fx-background-color: #FFE500;
+}
+
+.main-tabs .tab:selected .tab-label {
+    -fx-text-fill: #0D0D0D;
+}
+
+.main-tabs .tab:hover .tab-label {
+    -fx-text-fill: #FFFFFF;
+}
+
+.main-tabs .tab:selected:hover .tab-label {
+    -fx-text-fill: #0D0D0D;
+}
+
+/* ---- Dashboard pane ---- */
+.dashboard-pane {
+    -fx-background-color: #F5F0E8;
+}
+
+/* ---- Company left panel ---- */
+.company-panel {
+    -fx-background-color: #F5F0E8;
+    -fx-border-color: #0D0D0D;
+    -fx-border-width: 0 3 0 0;
+}
+
+/* ---- Company list view ---- */
+.company-list-view {
+    -fx-background-color: #F5F0E8;
+    -fx-border-color: #0D0D0D;
+    -fx-border-width: 3;
+    -fx-border-radius: 0;
+    -fx-background-radius: 0;
+    -fx-font-family: "Courier New", "Consolas", monospace;
+    -fx-font-size: 12px;
+}
+
+.company-list-view .list-cell {
+    -fx-background-color: #F5F0E8;
+    -fx-text-fill: #0D0D0D;
+    -fx-padding: 7 10 7 10;
+    -fx-border-color: transparent transparent #D0C8B8 transparent;
+    -fx-border-width: 1;
+    -fx-font-family: "Courier New", "Consolas", monospace;
+}
+
+.company-list-view .list-cell:selected {
+    -fx-background-color: #FFE500;
+    -fx-text-fill: #0D0D0D;
+}
+
+.company-list-view .list-cell:hover:!selected {
+    -fx-background-color: #EDE8DC;
+}
+
+/* ---- Detail tab pane ---- */
+.detail-tabs {
+    -fx-background-color: #F5F0E8;
+    -fx-tab-min-height: 32px;
+}
+
+.detail-tabs .tab-header-area .tab-header-background {
+    -fx-background-color: #1A1A1A;
+}
+
+.detail-tabs .tab {
+    -fx-background-color: #1A1A1A;
+    -fx-background-radius: 0;
+    -fx-padding: 5 16 5 16;
+}
+
+.detail-tabs .tab .tab-label {
+    -fx-text-fill: #888888;
+    -fx-font-weight: bold;
+    -fx-font-size: 11px;
+    -fx-font-family: "Courier New", "Consolas", monospace;
+}
+
+.detail-tabs .tab:selected {
+    -fx-background-color: #333333;
+}
+
+.detail-tabs .tab:selected .tab-label {
+    -fx-text-fill: #00FF88;
+}
+
+/* ---- Detail table ---- */
+.detail-table {
+    -fx-background-color: #F5F0E8;
+    -fx-font-family: "Courier New", "Consolas", monospace;
+    -fx-font-size: 11px;
+    -fx-border-color: #0D0D0D;
+    -fx-border-width: 0;
+}
+
+.detail-table .column-header-background {
+    -fx-background-color: #0D0D0D;
+}
+
+.detail-table .column-header,
+.detail-table .filler {
+    -fx-background-color: #0D0D0D;
+    -fx-size: 28px;
+    -fx-border-color: transparent #333333 transparent transparent;
+    -fx-border-width: 1;
+}
+
+.detail-table .column-header .label {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-weight: bold;
+    -fx-font-size: 10px;
+    -fx-font-family: "Courier New", "Consolas", monospace;
+}
+
+.detail-table .table-row-cell {
+    -fx-background-color: #F5F0E8;
+    -fx-border-color: transparent transparent #D0C8B8 transparent;
+    -fx-border-width: 1;
+}
+
+.detail-table .table-row-cell:odd {
+    -fx-background-color: #EDE8DC;
+}
+
+.detail-table .table-row-cell:selected {
+    -fx-background-color: #FFE500;
+}
+
+.detail-table .table-cell {
+    -fx-text-fill: #0D0D0D;
+    -fx-padding: 4 8 4 8;
+    -fx-border-color: transparent #D0C8B8 transparent transparent;
+    -fx-border-width: 1;
 }

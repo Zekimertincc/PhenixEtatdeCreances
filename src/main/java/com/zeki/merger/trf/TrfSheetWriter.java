@@ -3,30 +3,69 @@ package com.zeki.merger.trf;
 import com.zeki.merger.trf.model.ClientSummary;
 import com.zeki.merger.trf.model.ConsolidationRow;
 import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.*;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Writes the three-sheet TRF workbook:
- * <ol>
- *   <li>"Consolidation" — verbatim copy of the source sheet</li>
- *   <li>"Feuil1"        — one summary row per client</li>
- *   <li>"TRF"           — main transfer document with virements sections</li>
- * </ol>
+ * Writes the four-sheet TRF workbook:
+ *   Consolidation — verbatim source data with header + per-client SUBTOTAL rows
+ *   Feuil1        — one summary row per client (26-column structure)
+ *   TRF           — main transfer document
+ *   Feuil3        — empty (tab required by reference format)
  */
 public class TrfSheetWriter {
 
     // -------------------------------------------------------------------------
-    // Public entry point
+    // Shared column definitions
     // -------------------------------------------------------------------------
+
+    private static final String[] CONSO_HEADERS = {
+        "CLIENT",
+        "NBRE",
+        "V/REF",
+        "REMIS LE",
+        "ANCIENNETE",
+        "N/REF",
+        "DEBITEUR",
+        "CREANCE PRINCIPALE",
+        "RECOUVRE ET FACTURE",
+        "ETAT",
+        "CLOTURE",
+        "PENALITES",
+        "Extratction du départements de la colonne E",
+        "Transformation de la colonne L en nombre",
+        "CONDITION de calcul de formule 2 :France ou 1 :Export",
+        "DONT EN ATTENTE DE FACTURATION",
+        "Lieu",
+        "Frais de procédure",
+        "Recouvré total",
+        "Déjà facturé",
+        "Depuis le début",
+        "Commissions",
+        "Pénalits",
+        "SOMMES CZ PHENIX",
+        "MONTANT A FACTURER TTC",
+        "SOMMES A REVERSER"
+    };
+    private static final int CONSO_COLS = CONSO_HEADERS.length; // 26
+
+    /** Columns that carry monetary values (0-based), used for #,##0.00 and SUBTOTAL. */
+    private static final Set<Integer> MONEY_COLS =
+        Set.of(7, 8, 11, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25);
+
+    private static boolean isMoneyCol(int c) { return MONEY_COLS.contains(c); }
+
+    // =========================================================================
+    // Public entry point
+    // =========================================================================
 
     public void write(List<ConsolidationRow> allRows,
                       List<ClientSummary>    summaries,
@@ -38,6 +77,7 @@ public class TrfSheetWriter {
             writeConsolidationSheet(wb, allRows, s);
             writeFeuil1Sheet(wb, summaries, s);
             writeTrfSheet(wb, summaries, s);
+            wb.createSheet("Feuil3"); // required empty tab
 
             try (FileOutputStream fos = new FileOutputStream(outputFile)) {
                 wb.write(fos);
@@ -45,56 +85,98 @@ public class TrfSheetWriter {
         }
     }
 
-    // Columns that carry monetary amounts (0-based) — used to apply #,##0.00 format
-    private static final Set<Integer> MONEY_COLS =
-        Set.of(7, 8, 11, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25);
-
-    private static boolean isMoneyCol(int c) { return MONEY_COLS.contains(c); }
-
     // =========================================================================
-    // Sheet 1 — "Consolidation" (verbatim copy)
+    // Sheet 1 — "Consolidation"
     // =========================================================================
 
     private void writeConsolidationSheet(XSSFWorkbook wb,
                                           List<ConsolidationRow> rows,
                                           Styles s) {
         XSSFSheet sheet = wb.createSheet("Consolidation");
-
         int rowIdx = 0;
-        for (ConsolidationRow cr : rows) {
-            XSSFRow row = sheet.createRow(rowIdx++);
-            List<Object> vals = cr.getValues();
 
+        // Fixed 26-column header
+        XSSFRow hdr = sheet.createRow(rowIdx++);
+        for (int c = 0; c < CONSO_COLS; c++) {
+            XSSFCell cell = hdr.createCell(c);
+            cell.setCellValue(CONSO_HEADERS[c]);
+            cell.setCellStyle(s.headerDark);
+        }
+
+        String currentClient = null;
+        int    groupStartRow = -1;
+
+        for (ConsolidationRow cr : rows) {
+            if (cr.isHeaderRow()) continue; // skip source header; we wrote our own
+
+            List<Object> vals = cr.getValues();
+            String colA = vals.isEmpty() ? "" : strOf(vals.get(0));
+
+            if (!colA.isEmpty()) {
+                if (!colA.equals(currentClient)) {
+                    // Flush previous client's subtotal
+                    if (currentClient != null && rowIdx > groupStartRow) {
+                        rowIdx = writeConsoSubtotal(sheet, rowIdx, currentClient, groupStartRow, s);
+                    }
+                    currentClient = colA;
+                    groupStartRow = rowIdx; // first data row of this group
+                }
+            } else {
+                // Blank col A — company header or spacer: flush current client first
+                if (currentClient != null && rowIdx > groupStartRow) {
+                    rowIdx = writeConsoSubtotal(sheet, rowIdx, currentClient, groupStartRow, s);
+                    currentClient = null;
+                    groupStartRow = -1;
+                }
+            }
+
+            // Write source row
+            XSSFRow row = sheet.createRow(rowIdx++);
             for (int c = 0; c < vals.size(); c++) {
                 XSSFCell cell = row.createCell(c);
-                XSSFCellStyle cellStyle;
-                if (cr.isHeaderRow()) {
-                    cellStyle = s.headerDark;
-                } else if (cr.isTotalRow()) {
-                    cellStyle = isMoneyCol(c) ? s.totalMoneyStyle : s.totalStyle;
-                } else {
-                    cellStyle = isMoneyCol(c) ? s.moneyStyle : s.dataStyle;
-                }
-                writeValue(cell, vals.get(c), cellStyle, s.dateStyle);
+                writeValue(cell, vals.get(c),
+                           isMoneyCol(c) ? s.moneyStyle : s.dataStyle, s.dateStyle);
             }
         }
 
-        autoSize(sheet, 26);
+        // Flush final client
+        if (currentClient != null && rowIdx > groupStartRow) {
+            writeConsoSubtotal(sheet, rowIdx, currentClient, groupStartRow, s);
+        }
+
+        autoSize(sheet, CONSO_COLS);
         sheet.createFreezePane(0, 1);
     }
 
-    // =========================================================================
-    // Sheet 2 — "Feuil1" (summary per client)
-    // =========================================================================
+    /**
+     * Writes a "Total [clientName]" row at rowIdx using SUBTOTAL(9,...) for money columns.
+     * Range covers [groupStartRow+1 .. rowIdx] in Excel (1-based).
+     */
+    private int writeConsoSubtotal(XSSFSheet sheet, int rowIdx,
+                                    String clientName, int groupStartRow,
+                                    Styles s) {
+        XSSFRow row = sheet.createRow(rowIdx);
+        row.createCell(0).setCellValue("Total " + clientName);
+        row.getCell(0).setCellStyle(s.totalStyle);
 
-    private static final String[] FEUIL1_HEADERS = {
-        "CLIENT", "NBRE", "CREANCE PRINCIPALE", "RECOUVRE ET FACTURE",
-        "PENALITES", "DONT EN ATTENTE", "Frais procédure",
-        "Recouvré total", "Déjà facturé", "Depuis le début",
-        "Commissions", "Pénalits", "SOMMES CZ PHENIX",
-        "MONTANT A FACTURER TTC", "SOMMES A REVERSER"
-    };
-    private static final int F1_COLS = FEUIL1_HEADERS.length;
+        for (int c = 1; c < CONSO_COLS; c++) {
+            XSSFCell cell = row.createCell(c);
+            if (MONEY_COLS.contains(c)) {
+                String letter = col(c);
+                // Excel rows are 1-based: first data = groupStartRow+1, last data = rowIdx
+                cell.setCellFormula("SUBTOTAL(9," + letter + (groupStartRow + 1)
+                    + ":" + letter + rowIdx + ")");
+                cell.setCellStyle(s.totalMoneyStyle);
+            } else {
+                cell.setCellStyle(s.totalStyle);
+            }
+        }
+        return rowIdx + 1;
+    }
+
+    // =========================================================================
+    // Sheet 2 — "Feuil1" (26-column summary, one row per client)
+    // =========================================================================
 
     private void writeFeuil1Sheet(XSSFWorkbook wb,
                                    List<ClientSummary> summaries,
@@ -102,60 +184,75 @@ public class TrfSheetWriter {
         XSSFSheet sheet = wb.createSheet("Feuil1");
         int rowIdx = 0;
 
-        // Header
+        // Same 26-column header as Consolidation
         XSSFRow hdr = sheet.createRow(rowIdx++);
-        for (int c = 0; c < F1_COLS; c++) {
+        for (int c = 0; c < CONSO_COLS; c++) {
             XSSFCell cell = hdr.createCell(c);
-            cell.setCellValue(FEUIL1_HEADERS[c]);
+            cell.setCellValue(CONSO_HEADERS[c]);
             cell.setCellStyle(s.headerDark);
         }
 
         int dataStart = rowIdx;
 
-        // Data rows
         for (ClientSummary cs : summaries) {
             XSSFRow row = sheet.createRow(rowIdx++);
-            int c = 0;
-            num(row, c++, cs.getClientName(),            s.textStyle);
-            num(row, c++, cs.getClientCode(),            s.textStyle);
-            num(row, c++, cs.getCreancePrincipale(),     s.moneyStyle);
-            num(row, c++, cs.getRecouvreEtFacture(),     s.moneyStyle);
-            num(row, c++, cs.getPenalites(),             s.moneyStyle);
-            num(row, c++, cs.getDontEnAttente(),         s.moneyStyle);
-            num(row, c++, cs.getFraisProcedure(),        s.moneyStyle);
-            num(row, c++, cs.getRecouvreTotol(),         s.moneyStyle);
-            num(row, c++, cs.getDejaFacture(),           s.moneyStyle);
-            num(row, c++, cs.getDepuisLeDebut(),         s.moneyStyle);
-            num(row, c++, cs.getCommissions(),           s.moneyStyle);
-            num(row, c++, cs.getPenalits(),              s.moneyStyle);
-            num(row, c++, cs.getSommesCzPhenix(),        s.moneyStyle);
-            num(row, c++, cs.getMontantAFacturerTtc(),   s.moneyStyle);
-            num(row, c  , cs.getSommesAReverserSrc(),    s.moneyStyle);
+
+            // Col 0 (A): CLIENT name
+            txt(row, 0, cs.getClientName(), s.textStyle);
+            // Col 1 (B): client code (in NBRE position)
+            txt(row, 1, cs.getClientCode(), s.textStyle);
+            // Cols 2–6: blank
+            for (int c = 2; c <= 6; c++) row.createCell(c).setCellStyle(s.dataStyle);
+
+            // Money columns mapped to their Consolidation indices
+            dbl(row, 7,  cs.getCreancePrincipale(),   s.moneyStyle);
+            dbl(row, 8,  cs.getRecouvreEtFacture(),    s.moneyStyle);
+            row.createCell(9).setCellStyle(s.dataStyle);   // ETAT (blank)
+            row.createCell(10).setCellStyle(s.dataStyle);  // CLOTURE (blank)
+            dbl(row, 11, cs.getPenalites(),            s.moneyStyle);
+            row.createCell(12).setCellStyle(s.dataStyle);
+            row.createCell(13).setCellStyle(s.dataStyle);
+            row.createCell(14).setCellStyle(s.dataStyle);
+            dbl(row, 15, cs.getDontEnAttente(),        s.moneyStyle);
+            row.createCell(16).setCellStyle(s.dataStyle);  // Lieu (blank)
+            dbl(row, 17, cs.getFraisProcedure(),       s.moneyStyle);
+            dbl(row, 18, cs.getRecouvreTotol(),        s.moneyStyle);
+            dbl(row, 19, cs.getDejaFacture(),          s.moneyStyle);
+            dbl(row, 20, cs.getDepuisLeDebut(),        s.moneyStyle);
+            dbl(row, 21, cs.getCommissions(),          s.moneyStyle);
+            dbl(row, 22, cs.getPenalits(),             s.moneyStyle);
+            dbl(row, 23, cs.getSommesCzPhenix(),       s.moneyStyle);
+            dbl(row, 24, cs.getMontantAFacturerTtc(),  s.moneyStyle);
+            dbl(row, 25, cs.getSommesAReverserSrc(),   s.moneyStyle);
         }
 
         int dataEnd = rowIdx - 1;
 
-        // Totaux row
+        // TOTAUX row — SUM for each money column
         XSSFRow totRow = sheet.createRow(rowIdx);
         txt(totRow, 0, "TOTAUX", s.totalStyle);
         txt(totRow, 1, "",       s.totalStyle);
-        for (int c = 2; c < F1_COLS; c++) {
+        for (int c = 2; c < CONSO_COLS; c++) {
             XSSFCell cell = totRow.createCell(c);
-            cell.setCellStyle(s.totalMoneyStyle);
-            cell.setCellFormula("SUM(" + col(c) + (dataStart + 1)
-                + ":" + col(c) + (dataEnd + 1) + ")");
+            if (MONEY_COLS.contains(c)) {
+                cell.setCellStyle(s.totalMoneyStyle);
+                cell.setCellFormula("SUM(" + col(c) + (dataStart + 1)
+                    + ":" + col(c) + (dataEnd + 1) + ")");
+            } else {
+                cell.setCellStyle(s.totalStyle);
+            }
         }
 
-        autoSize(sheet, F1_COLS);
+        autoSize(sheet, CONSO_COLS);
         sheet.createFreezePane(0, 1);
     }
 
     // =========================================================================
-    // Sheet 3 — "TRF" (main transfer document)
+    // Sheet 3 — "TRF"
     // =========================================================================
 
     private static final String[] TRF_HEADERS = {
-        "CLIENT",                        // A  0
+        "",                              // A  0 — filled with dynamic label below
         "ENCAISSEMENTS CZ PHENIX",       // B  1
         "MONTANT A FACTURER TTC",        // C  2
         "NOUS DOIT précédemment",        // D  3
@@ -177,83 +274,89 @@ public class TrfSheetWriter {
         int rowIdx = 0;
 
         // ---- Header row -------------------------------------------------
+        LocalDate today = LocalDate.now();
+        String mmyy = String.format("%02d", today.getMonthValue())
+                      + "/" + String.valueOf(today.getYear()).substring(2);
+
         XSSFRow hdr = sheet.createRow(rowIdx++);
-        for (int c = 0; c < TRF_COLS; c++) {
+        XSSFCell colAHdr = hdr.createCell(0);
+        colAHdr.setCellValue("CLIENTS EN FACTURATION " + mmyy);
+        colAHdr.setCellStyle(s.headerDark);
+        for (int c = 1; c < TRF_COLS; c++) {
             XSSFCell cell = hdr.createCell(c);
             cell.setCellValue(TRF_HEADERS[c]);
             cell.setCellStyle(s.headerDark);
         }
 
-        int dataStart = rowIdx; // first client row (Excel row = rowIdx+1)
+        int dataStart = rowIdx;
 
         // ---- One row per client -----------------------------------------
         for (ClientSummary cs : summaries) {
-            int excelRow = rowIdx + 1; // 1-based Excel row
+            int excelRow = rowIdx + 1; // 1-based
             XSSFRow row = sheet.createRow(rowIdx++);
 
-            // A: CLIENT
-            txt(row, 0, cs.getClientName(), s.textStyle);
-
-            // B: ENCAISSEMENTS CZ PHENIX (plain number)
-            dbl(row, 1, cs.getSommesCzPhenix(), s.moneyStyle);
-
-            // C: MONTANT A FACTURER TTC (plain number)
+            txt(row, 0, cs.getClientName(),         s.textStyle);
+            dbl(row, 1, cs.getSommesCzPhenix(),     s.moneyStyle);
             dbl(row, 2, cs.getMontantAFacturerTtc(), s.moneyStyle);
+            dbl(row, 3, cs.getNousDoit_Prec(),      s.moneyStyle);
 
-            // D: NOUS DOIT précédemment (plain number)
-            dbl(row, 3, cs.getNousDoit_Prec(), s.moneyStyle);
-
-            // E: NOUS DOIT MAINTENANT = C + D
+            // E = C + D
             formula(row, 4, "C" + excelRow + "+D" + excelRow, s.moneyStyle);
 
             if (cs.isNonCompensation()) {
-                // F: SOMMES A REVERSER = B (all encaissements returned)
+                // F = B (return all encaissements)
                 formula(row, 5, "B" + excelRow, s.moneyStyle);
-                // G: ENCAISSEMENTS PAR COMPENSATION = 0
+                // G = 0
                 dbl(row, 6, 0.0, s.moneyStyle);
-                // H: NOUS DOIT APRES FACTURATION = E (full invoice still owed)
-                formula(row, 7, "E" + excelRow, s.moneyStyle);
+                // H = E - G
+                formula(row, 7, "E" + excelRow + "-G" + excelRow, s.moneyStyle);
             } else {
-                // F: SOMMES A REVERSER = MAX(0, B - E)
-                formula(row, 5, "MAX(0,B" + excelRow + "-E" + excelRow + ")", s.moneyStyle);
-                // G: ENCAISSEMENTS PAR COMPENSATION = MIN(B, MAX(0,E))
-                formula(row, 6, "MIN(B" + excelRow + ",MAX(0,E" + excelRow + "))", s.moneyStyle);
-                // H: NOUS DOIT APRES FACTURATION = MAX(0, E - G)
-                formula(row, 7, "MAX(0,E" + excelRow + "-G" + excelRow + ")", s.moneyStyle);
+                // F = IF(B=0,0,IF(B<E,0,B-E))
+                formula(row, 5,
+                    "IF(B" + excelRow + "=0,0,IF(B" + excelRow + "<E" + excelRow
+                    + ",0,B" + excelRow + "-E" + excelRow + "))",
+                    s.moneyStyle);
+                // G = IF(B=0,0,IF(B>E,E,B))
+                formula(row, 6,
+                    "IF(B" + excelRow + "=0,0,IF(B" + excelRow + ">E" + excelRow
+                    + ",E" + excelRow + ",B" + excelRow + "))",
+                    s.moneyStyle);
+                // H = E - G
+                formula(row, 7, "E" + excelRow + "-G" + excelRow, s.moneyStyle);
             }
 
-            // I: ETAT DE COMPENSATIONS (computed text)
-            txt(row, 8, cs.getEtatCompensations(), s.textStyle);
+            // I: ETAT DE COMPENSATIONS
+            txt(row, 8, cs.isNonCompensation() ? "NON COMP" : cs.getEtatCompensations(),
+                s.textStyle);
 
-            // J: VIREMENTS = F (client gets money back)
-            formula(row, 9, "F" + excelRow, s.moneyStyle);
+            // J: VIREMENTS — "OUI" if client receives money back, else blank
+            txt(row, 9, cs.getSommesAReverserFinal() > 0.005 ? "OUI" : "", s.textStyle);
 
-            // K: CHEQUES (filled manually, 0 initial)
+            // K: CHEQUES
             dbl(row, 10, cs.getCheques(), s.moneyStyle);
 
             // L: CODE CLIENT
             txt(row, 11, cs.getClientCode(), s.textStyle);
         }
 
-        int dataEnd = rowIdx - 1; // last client row index (0-based)
+        int dataEnd = rowIdx - 1;
 
         // ---- TOTAUX row -------------------------------------------------
-        int totExcelRow = rowIdx + 1;
         XSSFRow totRow = sheet.createRow(rowIdx++);
         txt(totRow, 0, "TOTAUX", s.totalStyle);
         for (int c = 1; c < TRF_COLS; c++) {
             XSSFCell cell = totRow.createCell(c);
-            cell.setCellStyle(c == 8 || c == 11 ? s.totalStyle : s.totalMoneyStyle);
-            if (c != 8 && c != 11) { // skip text columns
+            boolean textCol = (c == 8 || c == 9 || c == 11);
+            cell.setCellStyle(textCol ? s.totalStyle : s.totalMoneyStyle);
+            if (!textCol) {
                 cell.setCellFormula("SUM(" + col(c) + (dataStart + 1)
                     + ":" + col(c) + (dataEnd + 1) + ")");
             }
         }
 
-        // Blank separator
-        sheet.createRow(rowIdx++);
+        sheet.createRow(rowIdx++); // blank separator
 
-        // ---- Virements sections below -----------------------------------
+        // ---- Bottom sections --------------------------------------------
         rowIdx = writeVirementsSection    (sheet, summaries, rowIdx, s);
         rowIdx = writeManuellesSection    (sheet, summaries, rowIdx, s);
         rowIdx = writeNonCompSection      (sheet, summaries, rowIdx, s);
@@ -264,29 +367,26 @@ public class TrfSheetWriter {
         sheet.createFreezePane(0, 1);
     }
 
-    // -------------------------------------------------------------------------
+    // =========================================================================
     // TRF bottom sections
-    // -------------------------------------------------------------------------
+    // =========================================================================
 
-    /** VIREMENTS CLIENTS — non-NonComp, SOMMES A REVERSER > 0, IBAN present */
+    /** VIREMENTS CLIENTS — all clients where sommesAReverserFinal > 0. */
     private int writeVirementsSection(XSSFSheet sheet, List<ClientSummary> summaries,
                                        int rowIdx, Styles s) {
         List<ClientSummary> list = summaries.stream()
-            .filter(ClientSummary::needsAutoVirement)
+            .filter(cs -> cs.getSommesAReverserFinal() > 0.005)
             .collect(Collectors.toList());
 
         rowIdx = writeSectionHeader(sheet, rowIdx, "VIREMENTS CLIENTS", s);
-
-        // Sub-header
-        String[] sh = {"CLIENT", "IBAN", "BIC", "MONTANT"};
-        rowIdx = writeSubHeader(sheet, rowIdx, sh, s);
+        rowIdx = writeSubHeader(sheet, rowIdx, new String[]{"CLIENT", "IBAN", "BIC", "MONTANT"}, s);
 
         int dataStart = rowIdx;
         for (ClientSummary cs : list) {
             XSSFRow row = sheet.createRow(rowIdx++);
-            txt(row, 0, cs.getClientName(),       s.textStyle);
-            txt(row, 1, cs.getIban(),             s.textStyle);
-            txt(row, 2, cs.getBic(),              s.textStyle);
+            txt(row, 0, cs.getClientName(),           s.textStyle);
+            txt(row, 1, cs.getIban(),                 s.textStyle);
+            txt(row, 2, cs.getBic(),                  s.textStyle);
             dbl(row, 3, cs.getSommesAReverserFinal(), s.moneyStyle);
         }
 
@@ -300,17 +400,16 @@ public class TrfSheetWriter {
             tc.setCellFormula("SUM(D" + (dataStart + 1) + ":D" + rowIdx + ")");
         }
 
-        sheet.createRow(rowIdx++); // blank
+        sheet.createRow(rowIdx++);
         return rowIdx;
     }
 
-    /** VIREMENTS MANUELLES — non-NonComp, SOMMES A REVERSER > 0, IBAN absent */
+    /** VIREMENTS MANUELLES — sommesAReverserFinal > 0 but no IBAN. */
     private int writeManuellesSection(XSSFSheet sheet, List<ClientSummary> summaries,
                                        int rowIdx, Styles s) {
         List<ClientSummary> list = summaries.stream()
             .filter(ClientSummary::needsManualVirement)
             .collect(Collectors.toList());
-
         if (list.isEmpty()) return rowIdx;
 
         rowIdx = writeSectionHeader(sheet, rowIdx, "VIREMENTS MANUELLES", s);
@@ -319,10 +418,9 @@ public class TrfSheetWriter {
         int dataStart = rowIdx;
         for (ClientSummary cs : list) {
             XSSFRow row = sheet.createRow(rowIdx++);
-            txt(row, 0, cs.getClientName(),       s.textStyle);
+            txt(row, 0, cs.getClientName(),           s.textStyle);
             dbl(row, 1, cs.getSommesAReverserFinal(), s.moneyStyle);
         }
-
         XSSFRow tot = sheet.createRow(rowIdx++);
         txt(tot, 0, "TOTAL MANUELLES", s.totalStyle);
         XSSFCell tc = tot.createCell(1);
@@ -333,13 +431,12 @@ public class TrfSheetWriter {
         return rowIdx;
     }
 
-    /** NON COMP — clients where NonComp = "OUI" */
+    /** NON COMP — clients where nonCompensation = true. */
     private int writeNonCompSection(XSSFSheet sheet, List<ClientSummary> summaries,
                                      int rowIdx, Styles s) {
         List<ClientSummary> list = summaries.stream()
             .filter(ClientSummary::isNonCompensation)
             .collect(Collectors.toList());
-
         if (list.isEmpty()) return rowIdx;
 
         rowIdx = writeSectionHeader(sheet, rowIdx, "NON COMP", s);
@@ -349,31 +446,27 @@ public class TrfSheetWriter {
         int dataStart = rowIdx;
         for (ClientSummary cs : list) {
             XSSFRow row = sheet.createRow(rowIdx++);
-            txt(row, 0, cs.getClientName(),             s.textStyle);
-            dbl(row, 1, cs.getSommesCzPhenix(),         s.moneyStyle);
+            txt(row, 0, cs.getClientName(),               s.textStyle);
+            dbl(row, 1, cs.getSommesCzPhenix(),           s.moneyStyle);
             dbl(row, 2, cs.getNousDoit_ApreFacturation(), s.moneyStyle);
         }
-
         XSSFRow tot = sheet.createRow(rowIdx++);
         txt(tot, 0, "TOTAL NON COMP", s.totalStyle);
-        XSSFCell tc1 = tot.createCell(1);
-        tc1.setCellStyle(s.totalMoneyStyle);
+        XSSFCell tc1 = tot.createCell(1); tc1.setCellStyle(s.totalMoneyStyle);
         tc1.setCellFormula("SUM(B" + (dataStart + 1) + ":B" + rowIdx + ")");
-        XSSFCell tc2 = tot.createCell(2);
-        tc2.setCellStyle(s.totalMoneyStyle);
+        XSSFCell tc2 = tot.createCell(2); tc2.setCellStyle(s.totalMoneyStyle);
         tc2.setCellFormula("SUM(C" + (dataStart + 1) + ":C" + rowIdx + ")");
 
         sheet.createRow(rowIdx++);
         return rowIdx;
     }
 
-    /** COMP PARTIELLE — partial compensation applied, client still owes remainder */
+    /** COMP PARTIELLE — partial compensation applied but client still owes remainder. */
     private int writeCompPartielleSection(XSSFSheet sheet, List<ClientSummary> summaries,
                                            int rowIdx, Styles s) {
         List<ClientSummary> list = summaries.stream()
             .filter(ClientSummary::isPartiallyCompensated)
             .collect(Collectors.toList());
-
         if (list.isEmpty()) return rowIdx;
 
         rowIdx = writeSectionHeader(sheet, rowIdx, "COMP PARTIELLE", s);
@@ -383,31 +476,27 @@ public class TrfSheetWriter {
         int dataStart = rowIdx;
         for (ClientSummary cs : list) {
             XSSFRow row = sheet.createRow(rowIdx++);
-            txt(row, 0, cs.getClientName(),                  s.textStyle);
+            txt(row, 0, cs.getClientName(),                   s.textStyle);
             dbl(row, 1, cs.getEncaissementsParCompensation(), s.moneyStyle);
-            dbl(row, 2, cs.getNousDoit_ApreFacturation(),    s.moneyStyle);
+            dbl(row, 2, cs.getNousDoit_ApreFacturation(),     s.moneyStyle);
         }
-
         XSSFRow tot = sheet.createRow(rowIdx++);
         txt(tot, 0, "TOTAL COMP PARTIELLE", s.totalStyle);
-        XSSFCell tc1 = tot.createCell(1);
-        tc1.setCellStyle(s.totalMoneyStyle);
+        XSSFCell tc1 = tot.createCell(1); tc1.setCellStyle(s.totalMoneyStyle);
         tc1.setCellFormula("SUM(B" + (dataStart + 1) + ":B" + rowIdx + ")");
-        XSSFCell tc2 = tot.createCell(2);
-        tc2.setCellStyle(s.totalMoneyStyle);
+        XSSFCell tc2 = tot.createCell(2); tc2.setCellStyle(s.totalMoneyStyle);
         tc2.setCellFormula("SUM(C" + (dataStart + 1) + ":C" + rowIdx + ")");
 
         sheet.createRow(rowIdx++);
         return rowIdx;
     }
 
-    /** DEBITEURS — no encaissements this period but still owe Phénix */
+    /** DEBITEURS — no encaissements this period but still owe Phénix. */
     private int writeDebiteursSection(XSSFSheet sheet, List<ClientSummary> summaries,
                                        int rowIdx, Styles s) {
         List<ClientSummary> list = summaries.stream()
             .filter(ClientSummary::isDebtor)
             .collect(Collectors.toList());
-
         if (list.isEmpty()) return rowIdx;
 
         rowIdx = writeSectionHeader(sheet, rowIdx, "DEBITEURS", s);
@@ -420,18 +509,16 @@ public class TrfSheetWriter {
             txt(row, 0, cs.getClientName(),               s.textStyle);
             dbl(row, 1, cs.getNousDoit_ApreFacturation(), s.moneyStyle);
         }
-
         XSSFRow tot = sheet.createRow(rowIdx++);
         txt(tot, 0, "TOTAL DEBITEURS", s.totalStyle);
-        XSSFCell tc = tot.createCell(1);
-        tc.setCellStyle(s.totalMoneyStyle);
+        XSSFCell tc = tot.createCell(1); tc.setCellStyle(s.totalMoneyStyle);
         tc.setCellFormula("SUM(B" + (dataStart + 1) + ":B" + rowIdx + ")");
 
         return rowIdx;
     }
 
     // =========================================================================
-    // Layout helpers for bottom sections
+    // Section layout helpers
     // =========================================================================
 
     private int writeSectionHeader(XSSFSheet sheet, int rowIdx, String title, Styles s) {
@@ -468,22 +555,6 @@ public class TrfSheetWriter {
         cell.setCellStyle(style);
     }
 
-    /** Dual-dispatch helper that routes string or double to the right cell type. */
-    private void num(XSSFRow row, int col, Object val, XSSFCellStyle style) {
-        XSSFCell cell = row.createCell(col);
-        if (val instanceof Double d) {
-            cell.setCellValue(d);
-        } else if (val instanceof Number n) {
-            cell.setCellValue(n.doubleValue());
-        } else if (val instanceof String s && !s.isBlank()) {
-            double d = ConsolidationRow.parseFrenchDouble(s);
-            if (d != 0.0) { cell.setCellValue(d); } else { cell.setCellValue(s); }
-        } else {
-            cell.setCellValue(val != null ? val.toString() : "");
-        }
-        cell.setCellStyle(style);
-    }
-
     private void formula(XSSFRow row, int col, String f, XSSFCellStyle style) {
         XSSFCell cell = row.createCell(col);
         cell.setCellFormula(f);
@@ -492,25 +563,32 @@ public class TrfSheetWriter {
 
     private void writeValue(XSSFCell cell, Object val,
                              XSSFCellStyle defStyle, XSSFCellStyle dateStyle) {
-        if (val instanceof Double d)            { cell.setCellValue(d);             cell.setCellStyle(defStyle);   return; }
-        if (val instanceof Number n)            { cell.setCellValue(n.doubleValue()); cell.setCellStyle(defStyle); return; }
-        if (val instanceof Boolean b)           { cell.setCellValue(b);             cell.setCellStyle(defStyle);   return; }
-        if (val instanceof LocalDateTime ldt)   { cell.setCellValue(ldt);           cell.setCellStyle(dateStyle);  return; }
-        if (val instanceof String s && !s.isBlank()) {
-            double d = ConsolidationRow.parseFrenchDouble(s);
+        if (val instanceof Double d)           { cell.setCellValue(d);              cell.setCellStyle(defStyle);  return; }
+        if (val instanceof Number n)           { cell.setCellValue(n.doubleValue()); cell.setCellStyle(defStyle); return; }
+        if (val instanceof Boolean b)          { cell.setCellValue(b);              cell.setCellStyle(defStyle);  return; }
+        if (val instanceof LocalDateTime ldt)  { cell.setCellValue(ldt);            cell.setCellStyle(dateStyle); return; }
+        if (val instanceof String str && !str.isBlank()) {
+            double d = ConsolidationRow.parseFrenchDouble(str);
             if (d != 0.0) { cell.setCellValue(d); cell.setCellStyle(defStyle); return; }
-            cell.setCellValue(s);
+            cell.setCellValue(str);
             cell.setCellStyle(defStyle);
             return;
         }
         cell.setCellStyle(defStyle);
     }
 
+    private static String strOf(Object v) {
+        if (v == null) return "";
+        String s = v.toString().trim();
+        // Coerced doubles (e.g. "CLIENT" stored as 0.0) → blank
+        try { Double.parseDouble(s); return ""; } catch (NumberFormatException ignored) {}
+        return s;
+    }
+
     // =========================================================================
     // Utilities
     // =========================================================================
 
-    /** Converts 0-based column index to Excel column letter(s). */
     private static String col(int idx) {
         if (idx < 26) return String.valueOf((char) ('A' + idx));
         return String.valueOf((char) ('A' + idx / 26 - 1))
@@ -526,7 +604,7 @@ public class TrfSheetWriter {
     }
 
     // =========================================================================
-    // Styles inner class
+    // Styles
     // =========================================================================
 
     private static class Styles {
@@ -544,7 +622,6 @@ public class TrfSheetWriter {
             DataFormat df = wb.createDataFormat();
             short moneyFmt = df.getFormat("#,##0.00");
 
-            // --- dark blue header (sheet-level headers) ---
             headerDark = wb.createCellStyle();
             {
                 XSSFFont f = wb.createFont();
@@ -557,21 +634,18 @@ public class TrfSheetWriter {
                 headerDark.setFillPattern(FillPatternType.SOLID_FOREGROUND);
                 headerDark.setVerticalAlignment(VerticalAlignment.CENTER);
                 headerDark.setWrapText(true);
-                setBorder(headerDark, wb);
+                setBorder(headerDark);
             }
 
-            // --- default data text ---
             dataStyle = wb.createCellStyle();
             dataStyle.setVerticalAlignment(VerticalAlignment.CENTER);
-            setBorder(dataStyle, wb);
+            setBorder(dataStyle);
 
-            // --- date data ---
             dateStyle = wb.createCellStyle();
             dateStyle.cloneStyleFrom(dataStyle);
             dateStyle.setDataFormat(wb.getCreationHelper().createDataFormat()
                 .getFormat("dd/MM/yyyy"));
 
-            // --- total row (bold, yellow) ---
             totalStyle = wb.createCellStyle();
             {
                 XSSFFont f = wb.createFont();
@@ -582,24 +656,20 @@ public class TrfSheetWriter {
                     new XSSFColor(new byte[]{(byte)0xFF,(byte)0xF2,(byte)0xCC}, null));
                 totalStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
                 totalStyle.setVerticalAlignment(VerticalAlignment.CENTER);
-                setBorder(totalStyle, wb);
+                setBorder(totalStyle);
             }
 
-            // --- total row with money format ---
             totalMoneyStyle = wb.createCellStyle();
             totalMoneyStyle.cloneStyleFrom(totalStyle);
             totalMoneyStyle.setDataFormat(moneyFmt);
 
-            // --- money number format ---
             moneyStyle = wb.createCellStyle();
             moneyStyle.cloneStyleFrom(dataStyle);
             moneyStyle.setDataFormat(moneyFmt);
 
-            // --- plain text data ---
             textStyle = wb.createCellStyle();
             textStyle.cloneStyleFrom(dataStyle);
 
-            // --- section header (light blue) ---
             sectionHeader = wb.createCellStyle();
             {
                 XSSFFont f = wb.createFont();
@@ -612,7 +682,6 @@ public class TrfSheetWriter {
                 sectionHeader.setVerticalAlignment(VerticalAlignment.CENTER);
             }
 
-            // --- sub-header (light grey) ---
             subHeader = wb.createCellStyle();
             {
                 XSSFFont f = wb.createFont();
@@ -623,11 +692,11 @@ public class TrfSheetWriter {
                     new XSSFColor(new byte[]{(byte)0xD9,(byte)0xD9,(byte)0xD9}, null));
                 subHeader.setFillPattern(FillPatternType.SOLID_FOREGROUND);
                 subHeader.setVerticalAlignment(VerticalAlignment.CENTER);
-                setBorder(subHeader, wb);
+                setBorder(subHeader);
             }
         }
 
-        private static void setBorder(XSSFCellStyle s, XSSFWorkbook wb) {
+        private void setBorder(XSSFCellStyle s) {
             XSSFColor bc = new XSSFColor(new byte[]{(byte)0xD9,(byte)0xD9,(byte)0xD9}, null);
             s.setBorderTop   (BorderStyle.THIN); s.setTopBorderColor   (bc);
             s.setBorderBottom(BorderStyle.THIN); s.setBottomBorderColor(bc);

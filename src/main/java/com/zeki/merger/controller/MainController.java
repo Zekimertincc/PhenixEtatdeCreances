@@ -1,6 +1,8 @@
 package com.zeki.merger.controller;
 
 import com.zeki.merger.AppConfig;
+import com.zeki.merger.AppPreferences;
+import com.zeki.merger.db.DatabaseManager;
 import com.zeki.merger.service.EspacePartageFixer;
 import com.zeki.merger.service.EtatPublicGenerator;
 import com.zeki.merger.service.MergeService;
@@ -10,6 +12,7 @@ import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.stage.DirectoryChooser;
+import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
 import java.awt.Desktop;
@@ -19,22 +22,20 @@ import java.time.format.DateTimeFormatter;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/**
- * JavaFX controller for main.fxml.
- * Manages user interaction and delegates work to {@link MergeService} on a
- * background thread, then pushes progress updates back to the FX thread.
- */
 public class MainController {
 
     // ---- FXML injected fields ----
 
     @FXML private TextField inputFolderField;
     @FXML private TextField outputFolderField;
-    @FXML private TextField trfInputFolderField;
     @FXML private Button    browseInputBtn;
     @FXML private Button    browseOutputBtn;
-    @FXML private Button    browseTrfInputBtn;
-    @FXML private Label     configInfoLabel;
+    @FXML private Label     trfConsoPathLabel;
+    @FXML private Label     trfListingPathLabel;
+    @FXML private Label     trfTableauPathLabel;
+    @FXML private Button    trfConsoBtn;
+    @FXML private Button    trfListingBtn;
+    @FXML private Button    trfTableauBtn;
     @FXML private Button    fixPathsBtn;
     @FXML private Button    generateEtatPublicBtn;
     @FXML private Button    generateTrfBtn;
@@ -44,13 +45,14 @@ public class MainController {
     @FXML private HBox      statusBar;
     @FXML private Label     statusLabel;
     @FXML private Button    openFileBtn;
+    @FXML private DashboardController dashboardController;
 
     // ---- private state ----
 
-    private final MergeService         mergeService         = new MergeService();
-    private final EspacePartageFixer   espacePartageFixer   = new EspacePartageFixer();
-    private final EtatPublicGenerator  etatPublicGenerator  = new EtatPublicGenerator();
-    private final TrfGeneratorService  trfGeneratorService  = new TrfGeneratorService();
+    private final MergeService        mergeService        = new MergeService(DatabaseManager.getInstance());
+    private final EspacePartageFixer  espacePartageFixer  = new EspacePartageFixer();
+    private final EtatPublicGenerator etatPublicGenerator = new EtatPublicGenerator();
+    private final TrfGeneratorService trfGeneratorService = new TrfGeneratorService(DatabaseManager.getInstance());
     private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "merge-worker");
         t.setDaemon(true);
@@ -66,50 +68,105 @@ public class MainController {
 
     @FXML
     public void initialize() {
-        inputFolderField.setText(AppConfig.DEFAULT_ROOT_PATH);
-        outputFolderField.setText(AppConfig.DEFAULT_OUTPUT_PATH);
-        trfInputFolderField.setText(AppConfig.DEFAULT_TRF_INPUT_PATH);
+        // Restore persisted folder paths (fall back to AppConfig defaults)
+        String root   = AppPreferences.getMergeRoot();
+        String output = AppPreferences.getOutputFolder();
+        inputFolderField.setText(root.isEmpty()   ? AppConfig.DEFAULT_ROOT_PATH   : root);
+        outputFolderField.setText(output.isEmpty() ? AppConfig.DEFAULT_OUTPUT_PATH : output);
 
-
+        // Restore persisted TRF file paths
+        trfConsoPathLabel.setText(AppPreferences.getTrfConso());
+        trfListingPathLabel.setText(AppPreferences.getTrfListing());
+        trfTableauPathLabel.setText(AppPreferences.getTrfTableau());
 
         progressBar.setProgress(0);
         statusBar.setVisible(false);
     }
 
     // -------------------------------------------------------------------------
-    // FXML action handlers
+    // Folder pickers
     // -------------------------------------------------------------------------
 
     @FXML
     private void browseInput() {
         File chosen = pickDirectory("Select Root Folder to Scan", inputFolderField.getText());
-        if (chosen != null) inputFolderField.setText(chosen.getAbsolutePath());
+        if (chosen != null) {
+            inputFolderField.setText(chosen.getAbsolutePath());
+            AppPreferences.setMergeRoot(chosen.getAbsolutePath());
+        }
     }
 
     @FXML
     private void browseOutput() {
         File chosen = pickDirectory("Select Output Folder", outputFolderField.getText());
-        if (chosen != null) outputFolderField.setText(chosen.getAbsolutePath());
+        if (chosen != null) {
+            outputFolderField.setText(chosen.getAbsolutePath());
+            AppPreferences.setOutputFolder(chosen.getAbsolutePath());
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // TRF file pickers
+    // -------------------------------------------------------------------------
+
+    @FXML
+    private void pickTrfConso() {
+        File f = pickExcelFile("Sélectionner ConsolidationGénérale", AppPreferences.getTrfConso());
+        if (f != null) {
+            AppPreferences.setTrfConso(f.getAbsolutePath());
+            trfConsoPathLabel.setText(f.getAbsolutePath());
+        }
     }
 
     @FXML
-    private void browseTrfInput() {
-        File chosen = pickDirectory("Select TRF Files Folder", trfInputFolderField.getText());
-        if (chosen != null) trfInputFolderField.setText(chosen.getAbsolutePath());
+    private void pickTrfListing() {
+        File f = pickExcelFile("Sélectionner Listing Cabinet Phénix", AppPreferences.getTrfListing());
+        if (f != null) {
+            AppPreferences.setTrfListing(f.getAbsolutePath());
+            trfListingPathLabel.setText(f.getAbsolutePath());
+        }
     }
+
+    @FXML
+    private void pickTrfTableau() {
+        File f = pickExcelFile("Sélectionner Tableau de Bord", AppPreferences.getTrfTableau());
+        if (f != null) {
+            AppPreferences.setTrfTableau(f.getAbsolutePath());
+            trfTableauPathLabel.setText(f.getAbsolutePath());
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Action handlers
+    // -------------------------------------------------------------------------
 
     @FXML
     private void generateTrf() {
-        File trfInputFolder = new File(trfInputFolderField.getText().trim());
-        File outputFolder   = new File(outputFolderField.getText().trim());
+        String consoPath   = AppPreferences.getTrfConso();
+        String listingPath = AppPreferences.getTrfListing();
+        String tableauPath = AppPreferences.getTrfTableau();
+        String outputPath  = outputFolderField.getText().trim();
 
-        if (!trfInputFolder.isDirectory()) {
-            appendLog("ERROR: TRF input folder does not exist — " + trfInputFolder.getAbsolutePath());
+        if (consoPath.isEmpty() || listingPath.isEmpty() || tableauPath.isEmpty()) {
+            appendLog("ERROR: Sélectionnez les trois fichiers TRF avant de générer.");
             return;
         }
+        File consoFile   = new File(consoPath);
+        File listingFile = new File(listingPath);
+        File tableauFile = new File(tableauPath);
+        File outputFolder = new File(outputPath);
+
+        if (!consoFile.exists()) {
+            appendLog("ERROR: Fichier introuvable — " + consoPath); return;
+        }
+        if (!listingFile.exists()) {
+            appendLog("ERROR: Fichier introuvable — " + listingPath); return;
+        }
+        if (!tableauFile.exists()) {
+            appendLog("ERROR: Fichier introuvable — " + tableauPath); return;
+        }
         if (!outputFolder.isDirectory()) {
-            appendLog("ERROR: Output folder does not exist — " + outputFolder.getAbsolutePath());
-            return;
+            appendLog("ERROR: Output folder does not exist — " + outputPath); return;
         }
 
         setAllButtonsDisabled(true);
@@ -120,9 +177,10 @@ public class MainController {
 
         executor.submit(() -> {
             try {
-                File result = trfGeneratorService.generate(trfInputFolder, outputFolder,
-                    (progress, msg) -> Platform.runLater(() -> {
-                        progressBar.setProgress(progress);
+                File result = trfGeneratorService.generate(
+                    consoFile, listingFile, tableauFile, outputFolder,
+                    (prog, msg) -> Platform.runLater(() -> {
+                        progressBar.setProgress(prog);
                         appendLog(msg);
                     }));
 
@@ -132,6 +190,7 @@ public class MainController {
                         statusLabel.setText("TRF Output: " + result.getAbsolutePath());
                         openFileBtn.setVisible(true);
                         statusBar.setVisible(true);
+                        if (dashboardController != null) dashboardController.refresh();
                     }
                     setAllButtonsDisabled(false);
                 });
@@ -168,7 +227,6 @@ public class MainController {
                 );
 
                 Platform.runLater(() -> {
-                    // Multiple files produced — no single file to open
                     statusLabel.setText("Etat Public files written to EspacePartagé paths.");
                     openFileBtn.setVisible(false);
                     statusBar.setVisible(true);
@@ -236,7 +294,6 @@ public class MainController {
             return;
         }
 
-        // Reset UI state
         setAllButtonsDisabled(true);
         statusBar.setVisible(false);
         progressBar.setProgress(0);
@@ -258,6 +315,7 @@ public class MainController {
                         statusLabel.setText("Output: " + result.getAbsolutePath());
                         openFileBtn.setVisible(true);
                         statusBar.setVisible(true);
+                        if (dashboardController != null) dashboardController.refresh();
                     }
                     setAllButtonsDisabled(false);
                 });
@@ -292,6 +350,19 @@ public class MainController {
         if (initial.isDirectory()) dc.setInitialDirectory(initial);
         Stage stage = (Stage) browseInputBtn.getScene().getWindow();
         return dc.showDialog(stage);
+    }
+
+    private File pickExcelFile(String title, String lastPath) {
+        FileChooser fc = new FileChooser();
+        fc.setTitle(title);
+        fc.getExtensionFilters().add(
+            new FileChooser.ExtensionFilter("Excel Files", "*.xlsx", "*.xls"));
+        if (!lastPath.isEmpty()) {
+            File parent = new File(lastPath).getParentFile();
+            if (parent != null && parent.isDirectory()) fc.setInitialDirectory(parent);
+        }
+        Stage stage = (Stage) browseInputBtn.getScene().getWindow();
+        return fc.showOpenDialog(stage);
     }
 
     private void setAllButtonsDisabled(boolean disabled) {

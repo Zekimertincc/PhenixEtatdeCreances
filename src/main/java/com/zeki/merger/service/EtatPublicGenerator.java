@@ -1,5 +1,14 @@
 package com.zeki.merger.service;
 
+import com.itextpdf.kernel.colors.ColorConstants;
+import com.itextpdf.kernel.colors.DeviceRgb;
+import com.itextpdf.kernel.geom.PageSize;
+import com.itextpdf.kernel.pdf.PdfDocument;
+import com.itextpdf.kernel.pdf.PdfWriter;
+import com.itextpdf.layout.Document;
+import com.itextpdf.layout.element.Paragraph;
+import com.itextpdf.layout.element.Table;
+import com.itextpdf.layout.properties.UnitValue;
 import com.zeki.merger.AppConfig;
 import com.zeki.merger.trf.model.ConsolidationRow;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
@@ -12,18 +21,17 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.text.Normalizer;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
+import java.util.Locale;
 import java.util.function.BiConsumer;
 
 /**
  * For each company discovered by FolderScanner:
- *   1. Locate the "Espace partagé" subfolder (accent-insensitive).
- *   2. Inside it, find or create the "Etat des créances" subfolder.
- *   3. Read fixed header rows and data rows from the company's "Créances" sheet.
- *   4. Write L_ETAT_DE_CREANCES_[company].xlsx into that subfolder.
+ *   1. Locate the destination folder via resolveDestDir().
+ *   2. Read fixed header rows and data rows from the company's "Créances" sheet.
+ *   3. Write L_ETAT_DE_CREANCES_[company].xlsx + .pdf into that folder.
  */
 public class EtatPublicGenerator {
 
@@ -37,10 +45,12 @@ public class EtatPublicGenerator {
     private static final int[] SOURCE_COL_MAP = {0, 1, 2, 3, 5, 6, 7, 8, 17, 9, 10};
 
     private static final int OUT_COLS         = OUTPUT_HEADERS.length;
-    private static final int OUT_COL_DEBITEUR = 5;   // "TOTAUX :" label
-    private static final int OUT_COL_CREANCE  = 6;   // CREANCE PRINCIPALE → SUM
-    private static final int OUT_COL_RECOUVRE = 7;   // RECOUVRE → SUM
-    private static final int OUT_COL_ATTENTE  = 8;   // DONT EN ATTENTE → SUM
+    private static final int OUT_COL_DEBITEUR = 5;
+    private static final int OUT_COL_CREANCE  = 6;
+    private static final int OUT_COL_RECOUVRE = 7;
+    private static final int OUT_COL_ATTENTE  = 8;
+
+    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private final FolderScanner scanner = new FolderScanner();
 
@@ -68,16 +78,12 @@ public class EtatPublicGenerator {
 
             try {
                 File companyDir = new File(rootFolder, cf.companyName());
-
-                Optional<File> espacePartageDir = findEspacePartageDir(companyDir);
-                if (espacePartageDir.isEmpty()) {
-                    progress.accept(prog,
-                        "  SKIP: no 'Espace partagé' subfolder in " + cf.companyName());
+                File destDir    = resolveDestDir(companyDir);
+                if (destDir == null) {
+                    progress.accept(prog, "  SKIP: cannot resolve destination for " + cf.companyName());
                     skipped++;
                     continue;
                 }
-
-                File destDir = resolveEtatCreancesDir(espacePartageDir.get());
 
                 // Delete old L_ETAT files before writing the new one
                 File[] oldFiles = destDir.listFiles(f -> {
@@ -91,12 +97,12 @@ public class EtatPublicGenerator {
                     }
                 }
 
-                File outputFile = new File(destDir,
-                    AppConfig.ETAT_PUBLIC_FILENAME_PREFIX + sanitize(cf.companyName()) + ".xlsx");
+                String baseName  = AppConfig.ETAT_PUBLIC_FILENAME_PREFIX + sanitize(cf.companyName());
+                File   outputFile = new File(destDir, baseName + ".xlsx");
+                File   pdfFile    = new File(destDir, baseName + ".pdf");
 
-                generateForClient(cf.companyName(), cf.excelFile(), outputFile);
-                progress.accept(prog, "  → " + outputFile.getAbsolutePath());
-                convertToPdf(outputFile, destDir, prog, progress);
+                generateForClient(cf.companyName(), cf.excelFile(), outputFile, pdfFile);
+                progress.accept(prog, "  → " + outputFile.getName() + " + PDF");
                 done++;
             } catch (Exception e) {
                 progress.accept(prog, "  ERROR: " + e.getMessage());
@@ -113,34 +119,41 @@ public class EtatPublicGenerator {
     // -------------------------------------------------------------------------
 
     /**
-     * Finds the first direct subdirectory of {@code companyDir} whose
-     * normalised name contains both "espace" and "partage".
+     * Resolves the output directory for a company using a 3-level fallback:
+     * 1. "Espace partagé" subfolder → "Etat des créances" inside it
+     * 2. A direct "Etat des créances"-like subfolder in the company dir
+     * 3. Creates "Etat des créances" directly inside the company dir
      */
-    private Optional<File> findEspacePartageDir(File companyDir) {
+    private File resolveDestDir(File companyDir) {
         File[] subDirs = companyDir.listFiles(File::isDirectory);
-        if (subDirs == null) return Optional.empty();
-        return Arrays.stream(subDirs)
-            .filter(d -> {
-                String n = normalize(d.getName());
-                return n.contains("espace") && n.contains("partage");
-            })
-            .findFirst();
+        if (subDirs == null) return null;
+        for (File d : subDirs) {
+            String n = normalize(d.getName());
+            if (n.contains("espace") && n.contains("partage")) {
+                return resolveEtatCreancesDir(d);
+            }
+        }
+        for (File d : subDirs) {
+            String n = normalize(d.getName());
+            if (n.contains("etat") && n.contains("cr")) return d;
+        }
+        File created = new File(companyDir, "Etat des créances");
+        created.mkdir();
+        return created;
     }
 
     /**
-     * Inside {@code espacePartageDir}, finds an existing subdirectory whose
-     * normalised name contains "etat" and "cr" (same rule as FolderScanner), or
-     * creates a new one with the exact canonical name "Etat des créances".
+     * Inside a parent folder, finds or creates an "Etat des créances" subdirectory.
      */
-    private File resolveEtatCreancesDir(File espacePartageDir) {
-        File[] subDirs = espacePartageDir.listFiles(File::isDirectory);
+    private File resolveEtatCreancesDir(File parentDir) {
+        File[] subDirs = parentDir.listFiles(File::isDirectory);
         if (subDirs != null) {
             for (File d : subDirs) {
                 String n = normalize(d.getName());
                 if (n.contains("etat") && n.contains("cr")) return d;
             }
         }
-        File created = new File(espacePartageDir, "Etat des créances");
+        File created = new File(parentDir, "Etat des créances");
         created.mkdir();
         return created;
     }
@@ -149,8 +162,8 @@ public class EtatPublicGenerator {
     // Per-client logic
     // -------------------------------------------------------------------------
 
-    private void generateForClient(String companyName, File sourceFile, File outputFile)
-            throws IOException {
+    private void generateForClient(String companyName, File sourceFile,
+                                    File outputFile, File pdfFile) throws Exception {
 
         try (Workbook srcWb = openWorkbook(sourceFile)) {
             Sheet src = srcWb.getSheet(AppConfig.CREANCES_SHEET_NAME);
@@ -159,10 +172,10 @@ public class EtatPublicGenerator {
                     + "\" not found in " + sourceFile.getName());
             }
 
-            DataFormatter fmt  = new DataFormatter();
+            DataFormatter    fmt  = new DataFormatter();
             FormulaEvaluator eval = srcWb.getCreationHelper().createFormulaEvaluator();
 
-            String company     = getCellString(src, 3, 7, fmt, eval);
+            String company      = getCellString(src, 3, 7, fmt, eval);
             String addressLine1 = getCellString(src, 4, 7, fmt, eval);
             String addressLine2 = getCellString(src, 5, 7, fmt, eval);
             String contactName  = getCellString(src, 7, 7, fmt, eval);
@@ -187,11 +200,13 @@ public class EtatPublicGenerator {
 
             writeOutput(company, addressLine1, addressLine2,
                 contactName, codeClient, dataRows, outputFile);
+            writePdf(company, addressLine1, addressLine2,
+                contactName, codeClient, dataRows, pdfFile);
         }
     }
 
     // -------------------------------------------------------------------------
-    // Writer
+    // XLSX writer
     // -------------------------------------------------------------------------
 
     private void writeOutput(String companyName, String addr1, String addr2,
@@ -269,6 +284,98 @@ public class EtatPublicGenerator {
     }
 
     // -------------------------------------------------------------------------
+    // PDF writer (iText7, landscape A4)
+    // -------------------------------------------------------------------------
+
+    private void writePdf(String companyName, String addr1, String addr2,
+                           String contactName, String codeClient,
+                           List<Object[]> dataRows, File pdfFile) throws Exception {
+
+        PdfDocument pdfDoc = new PdfDocument(new PdfWriter(pdfFile.getAbsolutePath()));
+        try (Document doc = new Document(pdfDoc, PageSize.A4.rotate())) {
+
+            doc.setMargins(20, 20, 20, 20);
+
+            // Company info block
+            doc.add(new Paragraph(companyName).setBold().setFontSize(11));
+            if (!addr1.isBlank())       doc.add(new Paragraph(addr1).setFontSize(9));
+            if (!addr2.isBlank())       doc.add(new Paragraph(addr2).setFontSize(9));
+            if (!contactName.isBlank()) doc.add(new Paragraph(contactName).setFontSize(9));
+            if (!codeClient.isBlank())
+                doc.add(new Paragraph("Code client : " + codeClient).setFontSize(9));
+            doc.add(new Paragraph(" "));
+
+            // Table — A4 landscape ~841 pt wide minus 40 pt margins = ~801 pt
+            float[] colWidths = {38, 58, 58, 58, 58, 130, 78, 78, 92, 58, 58};
+            Table table = new Table(UnitValue.createPointArray(colWidths))
+                .useAllAvailableWidth();
+
+            // Header row — dark-blue background, white bold text
+            DeviceRgb darkBlue = new DeviceRgb(0x1F, 0x4E, 0x79);
+            for (String h : OUTPUT_HEADERS) {
+                table.addHeaderCell(
+                    new com.itextpdf.layout.element.Cell()
+                        .add(new Paragraph(h).setBold().setFontSize(7.5f)
+                            .setFontColor(ColorConstants.WHITE))
+                        .setBackgroundColor(darkBlue)
+                        .setPadding(3));
+            }
+
+            // Data rows — alternating white / light-grey
+            DeviceRgb white     = new DeviceRgb(0xFF, 0xFF, 0xFF);
+            DeviceRgb lightGrey = new DeviceRgb(0xF2, 0xF2, 0xF2);
+
+            double totCreance = 0, totRecouvre = 0, totAttente = 0;
+
+            for (int i = 0; i < dataRows.size(); i++) {
+                Object[]  dr    = dataRows.get(i);
+                DeviceRgb color = (i % 2 == 0) ? white : lightGrey;
+                for (int c = 0; c < OUT_COLS; c++) {
+                    table.addCell(new com.itextpdf.layout.element.Cell()
+                        .add(new Paragraph(fmtPdf(dr[c])).setFontSize(7.5f))
+                        .setBackgroundColor(color)
+                        .setPadding(2));
+                    if (dr[c] instanceof Number n) {
+                        double v = n.doubleValue();
+                        if      (c == OUT_COL_CREANCE)  totCreance  += v;
+                        else if (c == OUT_COL_RECOUVRE) totRecouvre += v;
+                        else if (c == OUT_COL_ATTENTE)  totAttente  += v;
+                    }
+                }
+            }
+
+            // TOTAUX row — yellow background, bold
+            DeviceRgb yellow = new DeviceRgb(0xFF, 0xF2, 0xCC);
+            for (int c = 0; c < OUT_COLS; c++) {
+                String text = "";
+                if      (c == OUT_COL_DEBITEUR) text = "TOTAUX :";
+                else if (c == OUT_COL_CREANCE)  text = fmt2(totCreance);
+                else if (c == OUT_COL_RECOUVRE) text = fmt2(totRecouvre);
+                else if (c == OUT_COL_ATTENTE)  text = fmt2(totAttente);
+                table.addCell(new com.itextpdf.layout.element.Cell()
+                    .add(new Paragraph(text).setBold().setFontSize(7.5f))
+                    .setBackgroundColor(yellow)
+                    .setPadding(2));
+            }
+
+            doc.add(table);
+        }
+    }
+
+    private String fmtPdf(Object val) {
+        if (val == null)                    return "";
+        if (val instanceof Double d)        return fmt2(d);
+        if (val instanceof Number n)        return fmt2(n.doubleValue());
+        if (val instanceof LocalDateTime t) return t.toLocalDate().format(DATE_FMT);
+        if (val instanceof Boolean b)       return b ? "OUI" : "NON";
+        return val.toString().trim();
+    }
+
+    private static String fmt2(double v) {
+        return String.format(Locale.FRANCE, "%,.2f", v);
+    }
+
+    // -------------------------------------------------------------------------
     // Reading helpers
     // -------------------------------------------------------------------------
 
@@ -305,7 +412,7 @@ public class EtatPublicGenerator {
     }
 
     // -------------------------------------------------------------------------
-    // Write helpers
+    // XLSX write helpers
     // -------------------------------------------------------------------------
 
     private void putString(XSSFRow row, int col, String value, XSSFCellStyle style) {
@@ -316,10 +423,10 @@ public class EtatPublicGenerator {
 
     private void writeValue(XSSFCell cell, Object val,
                              XSSFCellStyle def, XSSFCellStyle dateStyle) {
-        if (val instanceof Double d)            { cell.setCellValue(d);              cell.setCellStyle(def);       return; }
-        if (val instanceof Number n)            { cell.setCellValue(n.doubleValue()); cell.setCellStyle(def);      return; }
-        if (val instanceof Boolean b)           { cell.setCellValue(b);              cell.setCellStyle(def);       return; }
-        if (val instanceof LocalDateTime ldt)   { cell.setCellValue(ldt);            cell.setCellStyle(dateStyle); return; }
+        if (val instanceof Double d)            { cell.setCellValue(d);               cell.setCellStyle(def);       return; }
+        if (val instanceof Number n)            { cell.setCellValue(n.doubleValue());  cell.setCellStyle(def);       return; }
+        if (val instanceof Boolean b)           { cell.setCellValue(b);               cell.setCellStyle(def);       return; }
+        if (val instanceof LocalDateTime ldt)   { cell.setCellValue(ldt);             cell.setCellStyle(dateStyle); return; }
         if (val instanceof String s && !s.isBlank()) {
             double d = ConsolidationRow.parseFrenchDouble(s);
             if (d != 0.0) { cell.setCellValue(d); cell.setCellStyle(def); return; }
@@ -336,7 +443,7 @@ public class EtatPublicGenerator {
     }
 
     // -------------------------------------------------------------------------
-    // Style builders
+    // XLSX style builders
     // -------------------------------------------------------------------------
 
     private XSSFCellStyle buildPlainStyle(XSSFWorkbook wb) {
@@ -404,36 +511,12 @@ public class EtatPublicGenerator {
     }
 
     // -------------------------------------------------------------------------
-    // PDF conversion via LibreOffice headless
-    // -------------------------------------------------------------------------
-
-    private void convertToPdf(File xlsxFile, File outputDir,
-                               double prog, BiConsumer<Double, String> progress) {
-        try {
-            ProcessBuilder pb = new ProcessBuilder(
-                "soffice", "--headless", "--convert-to", "pdf",
-                "--outdir", outputDir.getAbsolutePath(),
-                xlsxFile.getAbsolutePath()
-            );
-            pb.redirectErrorStream(true);
-            int exitCode = pb.start().waitFor();
-            if (exitCode == 0) {
-                progress.accept(prog, "  → PDF generated");
-            } else {
-                progress.accept(prog, "  [WARN] PDF conversion failed (exit " + exitCode + ")");
-            }
-        } catch (Exception e) {
-            progress.accept(prog, "  [WARN] LibreOffice not available — PDF skipped");
-        }
-    }
-
-    // -------------------------------------------------------------------------
     // Utility
     // -------------------------------------------------------------------------
 
     private static String normalize(String s) {
         return Normalizer.normalize(s, Normalizer.Form.NFD)
-            .replaceAll("\\p{M}", "")
+            .replaceAll("\\p{InCombiningDiacriticalMarks}+", "")
             .toLowerCase();
     }
 

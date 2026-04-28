@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+
+<HBox xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.zeki.merger.controller.DashboardController"
+      styleClass="dashboard-pane"
+      spacing="0">
+
+    <!-- LEFT: company search + list -->
+    <VBox styleClass="company-panel" prefWidth="230" minWidth="180" spacing="6">
+        <padding><Insets top="12" right="8" bottom="12" left="8"/></padding>
+        <Label text="SOCIÉTÉS" styleClass="field-label"/>
+        <TextField fx:id="searchField"
+                   promptText="Rechercher…"
+                   styleClass="path-field"/>
+        <ListView fx:id="companyListView"
+                  styleClass="company-list-view"
+                  VBox.vgrow="ALWAYS"/>
+    </VBox>
+
+    <!-- RIGHT: detail tabs -->
+    <TabPane styleClass="detail-tabs"
+             HBox.hgrow="ALWAYS"
+             tabClosingPolicy="UNAVAILABLE">
+
+        <Tab text="CRÉANCES">
+            <TableView fx:id="creanceTable" styleClass="detail-table">
+                <placeholder><Label text="Sélectionnez une société" styleClass="field-label"/></placeholder>
+            </TableView>
+        </Tab>
+
+        <Tab text="TRF">
+            <TableView fx:id="trfTable" styleClass="detail-table">
+                <placeholder><Label text="Aucun résumé TRF" styleClass="field-label"/></placeholder>
+            </TableView>
+        </Tab>
+
+    </TabPane>
+</HBox>
