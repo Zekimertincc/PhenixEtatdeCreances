@@ -65,7 +65,7 @@ public class ConsolidationRow {
     public static double parseFrenchDouble(String s) {
         if (s == null || s.isBlank()) return 0.0;
         // Strip currency symbols and non-breaking spaces
-        String c = s.replaceAll("[€$£¥₺ ]", "").trim();
+        String c = s.replaceAll("[€$£¥₺  ]", "").trim();
         if (c.isEmpty()) return 0.0;
 
         boolean hasComma = c.contains(",");
@@ -87,7 +87,7 @@ public class ConsolidationRow {
             c = c.replace(",", ".");
         }
         // Remove any remaining whitespace (thousands space separator)
-        c = c.replaceAll("\\s", "");
+        c = c.replaceAll("[\\s  ]", "");
 
         try {
             return Double.parseDouble(c);

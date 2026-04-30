@@ -568,8 +568,12 @@ public class TrfSheetWriter {
         if (val instanceof Boolean b)          { cell.setCellValue(b);              cell.setCellStyle(defStyle);  return; }
         if (val instanceof LocalDateTime ldt)  { cell.setCellValue(ldt);            cell.setCellStyle(dateStyle); return; }
         if (val instanceof String str && !str.isBlank()) {
-            double d = ConsolidationRow.parseFrenchDouble(str);
-            if (d != 0.0) { cell.setCellValue(d); cell.setCellStyle(defStyle); return; }
+            String stripped = str.replaceAll("[€$£¥₺  \\s]", "");
+            if (!stripped.isEmpty() && stripped.matches("[-+]?[\\d.,]+")) {
+                cell.setCellValue(ConsolidationRow.parseFrenchDouble(str));
+                cell.setCellStyle(defStyle);
+                return;
+            }
             cell.setCellValue(str);
             cell.setCellStyle(defStyle);
             return;

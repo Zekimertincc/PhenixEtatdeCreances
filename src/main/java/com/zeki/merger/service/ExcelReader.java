@@ -192,9 +192,6 @@ public class ExcelReader {
                             .toInstant()
                             .atZone(java.time.ZoneId.systemDefault())
                             .toLocalDateTime());
-                    } else if (isCurrencyFormat(cell.getCellStyle().getDataFormatString())) {
-                        // Preserve € symbol — format the evaluated numeric value
-                        values.add(fmt.formatCellValue(cell, evaluator));
                     } else {
                         values.add(numericResult);
                     }

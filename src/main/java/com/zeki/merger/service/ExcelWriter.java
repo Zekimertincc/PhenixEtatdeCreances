@@ -161,8 +161,12 @@ public class ExcelWriter {
         if (val instanceof Boolean b)           { cell.setCellValue(b);              cell.setCellStyle(defaultStyle); return; }
         if (val instanceof LocalDateTime ldt)   { cell.setCellValue(ldt);            cell.setCellStyle(dateStyle);    return; }
         if (val instanceof String s && !s.isBlank()) {
-            double d = ConsolidationRow.parseFrenchDouble(s);
-            if (d != 0.0) { cell.setCellValue(d); cell.setCellStyle(defaultStyle); return; }
+            String stripped = s.replaceAll("[€$£¥₺  \\s]", "");
+            if (!stripped.isEmpty() && stripped.matches("[-+]?[\\d.,]+")) {
+                cell.setCellValue(ConsolidationRow.parseFrenchDouble(s));
+                cell.setCellStyle(defaultStyle);
+                return;
+            }
             cell.setCellValue(s);
             cell.setCellStyle(defaultStyle);
             return;
