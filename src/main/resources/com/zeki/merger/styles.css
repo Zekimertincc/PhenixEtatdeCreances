@@ -410,3 +410,59 @@
     -fx-border-color: transparent #D0C8B8 transparent transparent;
     -fx-border-width: 1;
 }
+
+/* ---- Files card ---- */
+.files-card {
+    -fx-background-color: #F5F0E8;
+    -fx-border-color: #0D0D0D;
+    -fx-border-width: 3;
+    -fx-padding: 14 16 14 16;
+}
+
+.files-card-title {
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #888888;
+    -fx-font-family: "Courier New", "Consolas", monospace;
+    -fx-padding: 0 0 2 0;
+}
+
+/* ---- Status badges ---- */
+.badge-ok {
+    -fx-background-color: #0D0D0D;
+    -fx-text-fill: #00FF88;
+    -fx-padding: 3 10 3 10;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-font-family: "Courier New", "Consolas", monospace;
+}
+
+.badge-missing {
+    -fx-background-color: #0D0D0D;
+    -fx-text-fill: #FF4444;
+    -fx-padding: 3 10 3 10;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-font-family: "Courier New", "Consolas", monospace;
+}
+
+.missing-label {
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #FF4444;
+    -fx-font-family: "Courier New", "Consolas", monospace;
+}
+
+/* ---- Action button text inside graphic ---- */
+.action-btn-name {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-font-family: "Courier New", "Consolas", monospace;
+    -fx-text-fill: inherit;
+}
+
+.action-btn-desc {
+    -fx-font-size: 10px;
+    -fx-text-fill: #888888;
+    -fx-font-family: "Courier New", "Consolas", monospace;
+}

@@ -1,11 +1,12 @@
 package com.zeki.merger.trf.model;
 
 public class ClientInfo {
-    private final String name;
-    private final String code;
-    private final String nonCompensation;
-    private final String iban;
-    private final String bic;
+    private final String  name;
+    private final String  code;
+    private final String  nonCompensation;
+    private final String  iban;
+    private final String  bic;
+    private final boolean paiementParCheque;
 
     public ClientInfo(String name, String code, String nonCompensation, String iban, String bic) {
         this.name           = name           != null ? name.trim()           : "";
@@ -13,13 +14,15 @@ public class ClientInfo {
         this.nonCompensation= nonCompensation!= null ? nonCompensation.trim(): "";
         this.iban           = iban           != null ? iban.trim()           : "";
         this.bic            = bic            != null ? bic.trim()            : "";
+        this.paiementParCheque = !this.code.isBlank() && this.code.matches("\\d+");
     }
 
-    public String getName()            { return name; }
-    public String getCode()            { return code; }
-    public String getNonCompensation() { return nonCompensation; }
-    public String getIban()            { return iban; }
-    public String getBic()             { return bic; }
+    public String  getName()               { return name; }
+    public String  getCode()               { return code; }
+    public String  getNonCompensation()    { return nonCompensation; }
+    public String  getIban()               { return iban; }
+    public String  getBic()                { return bic; }
+    public boolean isPaiementParCheque()   { return paiementParCheque; }
 
     public boolean isNonCompensation() {
         return "OUI".equalsIgnoreCase(nonCompensation);

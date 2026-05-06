@@ -26,90 +26,25 @@
                         <VBox styleClass="content-box" spacing="10">
                             <padding><Insets top="20" right="24" bottom="12" left="24"/></padding>
 
-                            <!-- INPUT FOLDER -->
-                            <Label text="Root Folder (to scan)" styleClass="field-label"/>
-                            <HBox spacing="8" alignment="CENTER_LEFT">
-                                <TextField fx:id="inputFolderField"
-                                           styleClass="path-field"
-                                           promptText="/path/to/ZEKI IT"
-                                           HBox.hgrow="ALWAYS"/>
-                                <Button fx:id="browseInputBtn"
-                                        text="Browse…"
-                                        styleClass="secondary-btn"
-                                        onAction="#browseInput"/>
+                            <!-- FILES CARD -->
+                            <HBox styleClass="files-card" alignment="CENTER_LEFT" spacing="12">
+                                <VBox HBox.hgrow="ALWAYS" spacing="6">
+                                    <Label text="Fichiers configurés" styleClass="files-card-title"/>
+                                    <HBox fx:id="badgesBox" spacing="6" alignment="CENTER_LEFT"/>
+                                    <Label fx:id="missingFilesLabel" styleClass="missing-label"
+                                           text="" visible="false" managed="false"/>
+                                </VBox>
+                                <Button text="⚙ Configurer" styleClass="secondary-btn"
+                                        onAction="#openFileConfig"/>
                             </HBox>
 
-                            <!-- OUTPUT FOLDER -->
-                            <Label text="Output Folder" styleClass="field-label"/>
-                            <HBox spacing="8" alignment="CENTER_LEFT">
-                                <TextField fx:id="outputFolderField"
-                                           styleClass="path-field"
-                                           promptText="/path/to/output"
-                                           HBox.hgrow="ALWAYS"/>
-                                <Button fx:id="browseOutputBtn"
-                                        text="Browse…"
-                                        styleClass="secondary-btn"
-                                        onAction="#browseOutput"/>
-                            </HBox>
-
-                            <!-- TRF FILE PICKERS -->
-                            <Label text="CONSOLIDATION GÉNÉRALE" styleClass="field-label"/>
-                            <HBox spacing="8" alignment="CENTER_LEFT">
-                                <Label fx:id="trfConsoPathLabel"
-                                       styleClass="path-label"
-                                       text=""
-                                       HBox.hgrow="ALWAYS"/>
-                                <Button fx:id="trfConsoBtn"
-                                        text="PARCOURIR"
-                                        styleClass="secondary-btn"
-                                        onAction="#pickTrfConso"/>
-                            </HBox>
-
-                            <Label text="LISTING CABINET PHÉNIX" styleClass="field-label"/>
-                            <HBox spacing="8" alignment="CENTER_LEFT">
-                                <Label fx:id="trfListingPathLabel"
-                                       styleClass="path-label"
-                                       text=""
-                                       HBox.hgrow="ALWAYS"/>
-                                <Button fx:id="trfListingBtn"
-                                        text="PARCOURIR"
-                                        styleClass="secondary-btn"
-                                        onAction="#pickTrfListing"/>
-                            </HBox>
-
-                            <Label text="TABLEAU DE BORD" styleClass="field-label"/>
-                            <HBox spacing="8" alignment="CENTER_LEFT">
-                                <Label fx:id="trfTableauPathLabel"
-                                       styleClass="path-label"
-                                       text=""
-                                       HBox.hgrow="ALWAYS"/>
-                                <Button fx:id="trfTableauBtn"
-                                        text="PARCOURIR"
-                                        styleClass="secondary-btn"
-                                        onAction="#pickTrfTableau"/>
-                            </HBox>
-
-                            <!-- BUTTONS ROW -->
-                            <HBox alignment="CENTER_RIGHT" spacing="10">
-                                <padding><Insets top="6" bottom="2"/></padding>
-                                <Button fx:id="fixPathsBtn"
-                                        text="Fix EspacePartage Paths"
-                                        styleClass="secondary-btn"
-                                        onAction="#fixPaths"/>
-                                <Button fx:id="generateEtatPublicBtn"
-                                        text="Generate Etat Public"
-                                        styleClass="secondary-btn"
-                                        onAction="#generateEtatPublic"/>
-                                <Button fx:id="generateTrfBtn"
-                                        text="Generate TRF"
-                                        styleClass="secondary-btn"
-                                        onAction="#generateTrf"/>
-                                <Button fx:id="runBtn"
-                                        text="Run Merge"
-                                        styleClass="run-btn"
-                                        onAction="#run"
-                                        defaultButton="true"/>
-                            </HBox>
+                            <!-- ACTIONS GRID (populated programmatically in initialize()) -->
+                            <GridPane fx:id="actionsGrid" hgap="10" vgap="10">
+                                <columnConstraints>
+                                    <ColumnConstraints hgrow="ALWAYS" percentWidth="50"/>
+                                    <ColumnConstraints hgrow="ALWAYS" percentWidth="50"/>
+                                </columnConstraints>
+                            </GridPane>
 
                             <!-- PROGRESS BAR -->
                             <ProgressBar fx:id="progressBar"

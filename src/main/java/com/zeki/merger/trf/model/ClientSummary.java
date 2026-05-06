@@ -41,9 +41,9 @@ public class ClientSummary {
     private double sommesAReverserFinal;           // = max(0, sommesCzPhenix - nousDoit_Maintenant)
     private double encaissementsParCompensation;   // = min(sommesCzPhenix, nousDoit_Maintenant)  [0 if nonComp]
     private double nousDoit_ApreFacturation;       // = max(0, nousDoit_Maintenant - encaissementsParComp)
-    private String etatCompensations = "";
-    private double virements;
-    private double cheques;
+    private String  etatCompensations  = "";
+    private double  virements;
+    private boolean paiementParCheque;
 
     // ---- Getters / Setters --------------------------------------------------
 
@@ -122,8 +122,8 @@ public class ClientSummary {
     public double  getVirements()                  { return virements; }
     public void    setVirements(double v)          { virements = v; }
 
-    public double  getCheques()                    { return cheques; }
-    public void    setCheques(double v)            { cheques = v; }
+    public boolean isPaiementParCheque()           { return paiementParCheque; }
+    public void    setPaiementParCheque(boolean v) { paiementParCheque = v; }
 
     // ---- Convenience helpers ------------------------------------------------
 

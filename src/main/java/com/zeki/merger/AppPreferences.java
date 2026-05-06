@@ -7,11 +7,13 @@ public class AppPreferences {
     private static final Preferences PREFS =
         Preferences.userNodeForPackage(AppPreferences.class);
 
-    private static final String KEY_MERGE_ROOT    = "merge_root_folder";
-    private static final String KEY_OUTPUT_FOLDER = "output_folder";
-    private static final String KEY_TRF_CONSO     = "trf_consolidation_file";
-    private static final String KEY_TRF_LISTING   = "trf_listing_file";
-    private static final String KEY_TRF_TABLEAU   = "trf_tableau_file";
+    private static final String KEY_MERGE_ROOT      = "merge_root_folder";
+    private static final String KEY_OUTPUT_FOLDER  = "output_folder";
+    private static final String KEY_TRF_CONSO      = "trf_consolidation_file";
+    private static final String KEY_TRF_LISTING    = "trf_listing_file";
+    private static final String KEY_TRF_TABLEAU    = "trf_tableau_file";
+    private static final String KEY_PROCREANCES    = "procreancesPath";
+    private static final String KEY_CONSO_COMPARE  = "consoComparePath";
 
     public static String getMergeRoot()             { return PREFS.get(KEY_MERGE_ROOT,    ""); }
     public static void   setMergeRoot(String p)     { PREFS.put(KEY_MERGE_ROOT, p);           }
@@ -25,6 +27,12 @@ public class AppPreferences {
     public static String getTrfListing()            { return PREFS.get(KEY_TRF_LISTING,  ""); }
     public static void   setTrfListing(String p)    { PREFS.put(KEY_TRF_LISTING, p);          }
 
-    public static String getTrfTableau()            { return PREFS.get(KEY_TRF_TABLEAU,  ""); }
-    public static void   setTrfTableau(String p)    { PREFS.put(KEY_TRF_TABLEAU, p);          }
+    public static String getTrfTableau()             { return PREFS.get(KEY_TRF_TABLEAU,   ""); }
+    public static void   setTrfTableau(String p)     { PREFS.put(KEY_TRF_TABLEAU, p);           }
+
+    public static String getProcreancesPath()        { return PREFS.get(KEY_PROCREANCES,   ""); }
+    public static void   setProcreancesPath(String p){ PREFS.put(KEY_PROCREANCES, p);           }
+
+    public static String getConsoComparePath()        { return PREFS.get(KEY_CONSO_COMPARE, ""); }
+    public static void   setConsoComparePath(String p){ PREFS.put(KEY_CONSO_COMPARE, p);         }
 }

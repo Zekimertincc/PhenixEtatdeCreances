@@ -428,8 +428,15 @@ public class EtatPublicGenerator {
         if (val instanceof Boolean b)           { cell.setCellValue(b);               cell.setCellStyle(def);       return; }
         if (val instanceof LocalDateTime ldt)   { cell.setCellValue(ldt);             cell.setCellStyle(dateStyle); return; }
         if (val instanceof String s && !s.isBlank()) {
-            String stripped = s.replaceAll("[€$£¥₺  \\s]", "");
-            if (!stripped.isEmpty() && stripped.matches("[-+]?[\\d.,]+")) {
+            String stripped = s
+                .replaceAll("[€$£¥₺]", "")
+                .replaceAll("\\p{Z}", "")
+                .trim();
+            if (stripped.isEmpty() || stripped.equals("-")) {
+                cell.setCellStyle(def);
+                return;
+            }
+            if (stripped.matches("[-+]?[\\d.,]+")) {
                 cell.setCellValue(ConsolidationRow.parseFrenchDouble(s));
                 cell.setCellStyle(def);
                 return;

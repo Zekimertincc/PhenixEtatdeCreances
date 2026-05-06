@@ -86,6 +86,7 @@ public class TrfCalculator {
             cs.setIban(ci.getIban());
             cs.setBic(ci.getBic());
             cs.setNonCompensation(ci.isNonCompensation());
+            cs.setPaiementParCheque(ci.isPaiementParCheque());
 
             // Previous balance from Tableau de Bord
             double prevBalance = dr.findBalance(clientName, balanceMap);
@@ -127,7 +128,6 @@ public class TrfCalculator {
             cs.setNousDoit_ApreFacturation(nousDoit_Maintenant);   // full invoice still owed
             cs.setSommesAReverserFinal(enc);                        // all encaissements returned
             cs.setVirements(enc);
-            cs.setCheques(0.0);
             cs.setEtatCompensations("NON COMP");
         } else {
             double compApplied       = Math.min(enc, Math.max(0, nousDoit_Maintenant));
@@ -138,30 +138,23 @@ public class TrfCalculator {
             cs.setSommesAReverserFinal(reverserFinal);
             cs.setNousDoit_ApreFacturation(nousDoit_Apre);
             cs.setVirements(reverserFinal);
-            cs.setCheques(0.0);
             cs.setEtatCompensations(determineEtat(cs, enc, compApplied, reverserFinal, nousDoit_Apre));
         }
     }
 
     private String determineEtat(ClientSummary cs, double enc,
                                   double compApplied, double reverserFinal, double nousDoit_Apre) {
+        String compLabel = cs.isPaiementParCheque() ? "Comp CB" : "Comp VRT";
         if (reverserFinal > EPS) {
-            // Client gets money back → compensation done, virement needed
-            return "Comp Vrt";
+            return compLabel;
         }
         if (compApplied > EPS && nousDoit_Apre > EPS) {
-            // Only partial compensation was possible
             return String.format(java.util.Locale.FRENCH,
                 "Comp partielle de %.2f, reste nous devoir %.2f",
                 compApplied, nousDoit_Apre);
         }
         if (compApplied > EPS) {
-            // Perfectly compensated — no transfer in either direction
-            return "Comp Vrt";
-        }
-        if (enc < EPS && cs.getNousDoit_Maintenant() > EPS) {
-            // No encaissements this period, client owes Phénix
-            return "";
+            return compLabel;
         }
         return "";
     }

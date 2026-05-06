@@ -326,14 +326,15 @@ public class TrfSheetWriter {
             }
 
             // I: ETAT DE COMPENSATIONS
-            txt(row, 8, cs.isNonCompensation() ? "NON COMP" : cs.getEtatCompensations(),
-                s.textStyle);
+            String etat = cs.isNonCompensation() ? "NON COMP" : cs.getEtatCompensations();
+            txt(row, 8, etat, s.textStyle);
 
-            // J: VIREMENTS — "OUI" if client receives money back, else blank
-            txt(row, 9, cs.getSommesAReverserFinal() > 0.005 ? "OUI" : "", s.textStyle);
+            // J: VIREMENTS — "OUI" if Comp VRT and client receives money back
+            txt(row, 9,  "Comp VRT".equals(etat) && cs.getSommesAReverserFinal() > 0.005
+                             ? "OUI" : "", s.textStyle);
 
-            // K: CHEQUES
-            dbl(row, 10, cs.getCheques(), s.moneyStyle);
+            // K: CHEQUES — "OUI" if Comp CB
+            txt(row, 10, "Comp CB".equals(etat) ? "OUI" : "", s.textStyle);
 
             // L: CODE CLIENT
             txt(row, 11, cs.getClientCode(), s.textStyle);
@@ -346,7 +347,7 @@ public class TrfSheetWriter {
         txt(totRow, 0, "TOTAUX", s.totalStyle);
         for (int c = 1; c < TRF_COLS; c++) {
             XSSFCell cell = totRow.createCell(c);
-            boolean textCol = (c == 8 || c == 9 || c == 11);
+            boolean textCol = (c == 8 || c == 9 || c == 10 || c == 11);
             cell.setCellStyle(textCol ? s.totalStyle : s.totalMoneyStyle);
             if (!textCol) {
                 cell.setCellFormula("SUM(" + col(c) + (dataStart + 1)
@@ -379,25 +380,23 @@ public class TrfSheetWriter {
             .collect(Collectors.toList());
 
         rowIdx = writeSectionHeader(sheet, rowIdx, "VIREMENTS CLIENTS", s);
-        rowIdx = writeSubHeader(sheet, rowIdx, new String[]{"CLIENT", "IBAN", "BIC", "MONTANT"}, s);
+        rowIdx = writeSubHeader(sheet, rowIdx, new String[]{"CLIENT", "IBAN", "MONTANT"}, s);
 
         int dataStart = rowIdx;
         for (ClientSummary cs : list) {
             XSSFRow row = sheet.createRow(rowIdx++);
             txt(row, 0, cs.getClientName(),           s.textStyle);
             txt(row, 1, cs.getIban(),                 s.textStyle);
-            txt(row, 2, cs.getBic(),                  s.textStyle);
-            dbl(row, 3, cs.getSommesAReverserFinal(), s.moneyStyle);
+            dbl(row, 2, cs.getSommesAReverserFinal(), s.moneyStyle);
         }
 
         if (!list.isEmpty()) {
             XSSFRow tot = sheet.createRow(rowIdx++);
             txt(tot, 0, "TOTAL VIREMENTS", s.totalStyle);
             txt(tot, 1, "", s.totalStyle);
-            txt(tot, 2, "", s.totalStyle);
-            XSSFCell tc = tot.createCell(3);
+            XSSFCell tc = tot.createCell(2);
             tc.setCellStyle(s.totalMoneyStyle);
-            tc.setCellFormula("SUM(D" + (dataStart + 1) + ":D" + rowIdx + ")");
+            tc.setCellFormula("SUM(C" + (dataStart + 1) + ":C" + rowIdx + ")");
         }
 
         sheet.createRow(rowIdx++);
@@ -568,8 +567,15 @@ public class TrfSheetWriter {
         if (val instanceof Boolean b)          { cell.setCellValue(b);              cell.setCellStyle(defStyle);  return; }
         if (val instanceof LocalDateTime ldt)  { cell.setCellValue(ldt);            cell.setCellStyle(dateStyle); return; }
         if (val instanceof String str && !str.isBlank()) {
-            String stripped = str.replaceAll("[€$£¥₺  \\s]", "");
-            if (!stripped.isEmpty() && stripped.matches("[-+]?[\\d.,]+")) {
+            String stripped = str
+                .replaceAll("[€$£¥₺]", "")
+                .replaceAll("\\p{Z}", "")
+                .trim();
+            if (stripped.isEmpty() || stripped.equals("-")) {
+                cell.setCellStyle(defStyle);
+                return;
+            }
+            if (stripped.matches("[-+]?[\\d.,]+")) {
                 cell.setCellValue(ConsolidationRow.parseFrenchDouble(str));
                 cell.setCellStyle(defStyle);
                 return;
