@@ -14,6 +14,8 @@ public class AppPreferences {
     private static final String KEY_TRF_TABLEAU    = "trf_tableau_file";
     private static final String KEY_PROCREANCES    = "procreancesPath";
     private static final String KEY_CONSO_COMPARE  = "consoComparePath";
+    private static final String KEY_CONTROLE_PATH  = "controlePath";
+    private static final String KEY_RECUP_FACTURE  = "recupFacturePath";
 
     public static String getMergeRoot()             { return PREFS.get(KEY_MERGE_ROOT,    ""); }
     public static void   setMergeRoot(String p)     { PREFS.put(KEY_MERGE_ROOT, p);           }
@@ -35,4 +37,10 @@ public class AppPreferences {
 
     public static String getConsoComparePath()        { return PREFS.get(KEY_CONSO_COMPARE, ""); }
     public static void   setConsoComparePath(String p){ PREFS.put(KEY_CONSO_COMPARE, p);         }
+
+    public static String getControlePath()            { return PREFS.get(KEY_CONTROLE_PATH, ""); }
+    public static void   setControlePath(String p)    { PREFS.put(KEY_CONTROLE_PATH, p);          }
+
+    public static String getRecupFacturePath()        { return PREFS.get(KEY_RECUP_FACTURE, ""); }
+    public static void   setRecupFacturePath(String p){ PREFS.put(KEY_RECUP_FACTURE, p);          }
 }

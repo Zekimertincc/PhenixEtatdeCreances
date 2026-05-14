@@ -2,10 +2,13 @@ package com.zeki.merger.controller;
 
 import com.zeki.merger.AppPreferences;
 import com.zeki.merger.db.DatabaseManager;
+import com.zeki.merger.service.ClientInfoService;
+import com.zeki.merger.service.ConsoControleComparator;
 import com.zeki.merger.service.EspacePartageFixer;
 import com.zeki.merger.service.EtatPublicGenerator;
 import com.zeki.merger.service.MergeService;
 import com.zeki.merger.service.ProcreancesComparator;
+import com.zeki.merger.service.RecupNumFactureService;
 import com.zeki.merger.trf.TrfGeneratorService;
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
@@ -150,6 +153,10 @@ public class MainController {
      */
     private Button runActionBtn;
 
+    private Button controleBtn;
+    private Button recupBtn;
+    private Button infoBtn;
+
     // =========================================================================
     // Services métier — instanciés une seule fois à la création du contrôleur
     // =========================================================================
@@ -190,7 +197,10 @@ public class MainController {
      * PROCREANCES (.xls) et du fichier ConsolidationGénérale (.xlsx), produit
      * un rapport Excel détaillant les écarts supérieurs à 0,05 €.
      */
-    private final ProcreancesComparator procreancesComparator = new ProcreancesComparator();
+    private final ProcreancesComparator   procreancesComparator   = new ProcreancesComparator();
+    private final ConsoControleComparator consoControleComparator = new ConsoControleComparator();
+    private final RecupNumFactureService  recupNumFactureService  = new RecupNumFactureService();
+    private final ClientInfoService       clientInfoService       = new ClientInfoService();
 
     // =========================================================================
     // Fil de fond et utilitaires
@@ -262,17 +272,25 @@ public class MainController {
         etatBtn      = createActionBtn("États Publics",               "Exporter vers EspacePartagé",            "secondary-btn", e -> generateEtatPublic());
         cmpBtn       = createActionBtn("Comparer des fichiers Excel", "Détecter les écarts PROCREANCES",        "secondary-btn", e -> compareProcreances());
         fixBtn       = createActionBtn("Corriger EspacePartagé",      "Mettre à jour les chemins",              "secondary-btn", e -> fixPaths());
+        controleBtn  = createActionBtn("Contrôle Facturation",        "Comparer Contrôle vs Consolidation",     "secondary-btn", e -> compareConsoControle());
+        recupBtn     = createActionBtn("Récup. Factures",             "Écrire N° facture → D13",               "secondary-btn", e -> recupNumFacture());
+        infoBtn      = createActionBtn("Info Clients",                "Créer feuille Infos depuis Listing",     "secondary-btn", e -> clientInfo());
         runActionBtn = createActionBtn("▶  CONSOLIDER",               "Lire les états → ConsolidationGénérale", "run-btn",       e -> run());
 
-        // Placement des boutons dans la grille (2 colonnes × 3 rangées)
-        actionsGrid.add(trfBtn,       0, 0); // ligne 0, colonne 0
-        actionsGrid.add(etatBtn,      1, 0); // ligne 0, colonne 1
-        actionsGrid.add(cmpBtn,       0, 1); // ligne 1, colonne 0
-        actionsGrid.add(fixBtn,       1, 1); // ligne 1, colonne 1
+        // Placement des boutons dans la grille
+        actionsGrid.add(trfBtn,       0, 0);
+        actionsGrid.add(etatBtn,      1, 0);
+        actionsGrid.add(cmpBtn,       0, 1);
+        actionsGrid.add(fixBtn,       1, 1);
 
-        // Le bouton CONSOLIDER occupe toute la largeur de la grille (2 colonnes)
+        GridPane.setColumnSpan(controleBtn, 2);
+        actionsGrid.add(controleBtn,  0, 2);
+
+        actionsGrid.add(recupBtn,     0, 3);
+        actionsGrid.add(infoBtn,      1, 3);
+
         GridPane.setColumnSpan(runActionBtn, 2);
-        actionsGrid.add(runActionBtn, 0, 2); // ligne 2, colonnes 0 et 1
+        actionsGrid.add(runActionBtn, 0, 4);
     }
 
     // =========================================================================
@@ -311,18 +329,21 @@ public class MainController {
             AppPreferences.getTrfConso(),
             AppPreferences.getTrfListing(),
             AppPreferences.getTrfTableau(),
-            AppPreferences.getProcreancesPath()
+            AppPreferences.getProcreancesPath(),
+            AppPreferences.getControlePath(),
+            AppPreferences.getRecupFacturePath()
         };
 
         // Libellés affichés devant chaque champ de sélection
-        String[]  labels = {"Dossier source",        "Dossier de sortie",       "ConsolidationGénérale",
-                             "Listing Cabinet Phénix", "Tableau de Bord",        "Export PROCREANCES"};
+        String[]  labels = {"Dossier source",        "Dossier de sortie",        "ConsolidationGénérale",
+                             "Listing Cabinet Phénix", "Tableau de Bord",         "Export PROCREANCES",
+                             "Contrôle Facturation",  "Récup. Num Facture"};
 
         // true = sélecteur de dossier, false = sélecteur de fichier
-        boolean[] isDir  = {true,  true,  false, false, false, false};
+        boolean[] isDir  = {true,  true,  false, false, false, false, false, false};
 
         // Extensions autorisées pour les sélecteurs de fichiers (null = pas de filtre)
-        String[]  exts   = {null,  null,  "xlsx", "xlsx", "xlsx", "xls"};
+        String[]  exts   = {null,  null,  "xlsx", "xlsx", "xlsx", "xls", "xlsx", "xlsx"};
 
         // Création de la fenêtre modale de configuration
         Stage dialog = new Stage();
@@ -398,6 +419,8 @@ public class MainController {
             AppPreferences.setTrfListing(paths[3]);
             AppPreferences.setTrfTableau(paths[4]);
             AppPreferences.setProcreancesPath(paths[5]);
+            AppPreferences.setControlePath(paths[6]);
+            AppPreferences.setRecupFacturePath(paths[7]);
             dialog.close();
             // Mise à jour des badges pour refléter les nouveaux chemins
             refreshFileBadges();
@@ -438,6 +461,8 @@ public class MainController {
         missing += addBadge("Listing",               AppPreferences.getTrfListing(),      false);
         missing += addBadge("Tableau de bord",       AppPreferences.getTrfTableau(),      false);
         missing += addBadge("PROCREANCES",           AppPreferences.getProcreancesPath(), false);
+        missing += addBadge("Contrôle Fact.",        AppPreferences.getControlePath(),    false);
+        missing += addBadge("Récup Factures",        AppPreferences.getRecupFacturePath(), false);
 
         // Affichage ou masquage du compteur de fichiers manquants
         if (missing > 0) {
@@ -780,6 +805,134 @@ public class MainController {
     }
 
     /**
+     * Lance la comparaison Contrôle_Facturation vs ConsolidationGénérale dans un fil de fond.
+     */
+    private void compareConsoControle() {
+        String controlePath = AppPreferences.getControlePath();
+        String consoPath    = AppPreferences.getTrfConso();
+        String outputPath   = AppPreferences.getOutputFolder();
+
+        if (controlePath.isEmpty() || consoPath.isEmpty()) {
+            appendLog("ERROR: Configurez Contrôle Facturation et ConsolidationGénérale avant de comparer."); return;
+        }
+
+        File controleFile  = new File(controlePath);
+        File consoFile     = new File(consoPath);
+        File outputFolder  = new File(outputPath);
+
+        if (!controleFile.exists())      { appendLog("ERROR: Fichier introuvable — " + controlePath);  return; }
+        if (!consoFile.exists())         { appendLog("ERROR: Fichier introuvable — " + consoPath);      return; }
+        if (!outputFolder.isDirectory()) { appendLog("ERROR: Dossier sortie introuvable — " + outputPath); return; }
+
+        setAllButtonsDisabled(true);
+        statusBar.setVisible(false);
+        progressBar.setProgress(0);
+        logArea.clear();
+        lastOutputFile = null;
+
+        executor.submit(() -> {
+            try {
+                File report = consoControleComparator.compare(controleFile, consoFile, outputFolder,
+                    (prog, msg) -> Platform.runLater(() -> { progressBar.setProgress(prog); appendLog(msg); }));
+
+                Platform.runLater(() -> {
+                    setAllButtonsDisabled(false);
+                    if (report != null) {
+                        lastOutputFile = report;
+                        statusLabel.setText("Rapport: " + report.getAbsolutePath());
+                        openFileBtn.setVisible(true);
+                        statusBar.setVisible(true);
+                        try { Desktop.getDesktop().open(report); } catch (Exception ignored) {}
+                    }
+                });
+            } catch (Exception ex) {
+                Platform.runLater(() -> { appendLog("FATAL: " + ex.getMessage()); setAllButtonsDisabled(false); });
+            }
+        });
+    }
+
+    /**
+     * Lance la récupération des numéros de facture dans un fil de fond.
+     * Lit RecupNumFacture.xlsx et écrit chaque N° en D13 de la feuille
+     * "Facture en préparation" de chaque dossier société.
+     */
+    private void recupNumFacture() {
+        String recupPath  = AppPreferences.getRecupFacturePath();
+        String rootPath   = AppPreferences.getMergeRoot();
+
+        if (recupPath.isEmpty()) {
+            appendLog("ERROR: Configurez le fichier Récup. Num Facture avant de lancer."); return;
+        }
+        File recupFile  = new File(recupPath);
+        File rootFolder = new File(rootPath);
+
+        if (!recupFile.exists())          { appendLog("ERROR: Fichier introuvable — " + recupPath); return; }
+        if (!rootFolder.isDirectory())    { appendLog("ERROR: Dossier source introuvable — " + rootPath); return; }
+
+        setAllButtonsDisabled(true);
+        statusBar.setVisible(false);
+        progressBar.setProgress(0);
+        logArea.clear();
+        lastOutputFile = null;
+
+        executor.submit(() -> {
+            try {
+                java.util.List<String> log = recupNumFactureService.apply(recupFile, rootFolder,
+                    (prog, msg) -> Platform.runLater(() -> { progressBar.setProgress(prog); appendLog(msg); }));
+                Platform.runLater(() -> {
+                    log.forEach(this::appendLog);
+                    statusLabel.setText("Récup. Factures terminée — " + log.size() + " dossier(s).");
+                    openFileBtn.setVisible(false);
+                    statusBar.setVisible(true);
+                    setAllButtonsDisabled(false);
+                });
+            } catch (Exception ex) {
+                Platform.runLater(() -> { appendLog("FATAL: " + ex.getMessage()); setAllButtonsDisabled(false); });
+            }
+        });
+    }
+
+    /**
+     * Lance la création des feuilles Info Clients dans un fil de fond.
+     * Lit le Listing et écrit une feuille "Infos" dans chaque dossier société.
+     */
+    private void clientInfo() {
+        String listingPath = AppPreferences.getTrfListing();
+        String rootPath    = AppPreferences.getMergeRoot();
+
+        if (listingPath.isEmpty()) {
+            appendLog("ERROR: Configurez le fichier Listing avant de lancer."); return;
+        }
+        File listingFile = new File(listingPath);
+        File rootFolder  = new File(rootPath);
+
+        if (!listingFile.exists())        { appendLog("ERROR: Fichier introuvable — " + listingPath); return; }
+        if (!rootFolder.isDirectory())    { appendLog("ERROR: Dossier source introuvable — " + rootPath); return; }
+
+        setAllButtonsDisabled(true);
+        statusBar.setVisible(false);
+        progressBar.setProgress(0);
+        logArea.clear();
+        lastOutputFile = null;
+
+        executor.submit(() -> {
+            try {
+                java.util.List<String> log = clientInfoService.apply(listingFile, rootFolder,
+                    (prog, msg) -> Platform.runLater(() -> { progressBar.setProgress(prog); appendLog(msg); }));
+                Platform.runLater(() -> {
+                    log.forEach(this::appendLog);
+                    statusLabel.setText("Info Clients terminée — " + log.size() + " dossier(s).");
+                    openFileBtn.setVisible(false);
+                    statusBar.setVisible(true);
+                    setAllButtonsDisabled(false);
+                });
+            } catch (Exception ex) {
+                Platform.runLater(() -> { appendLog("FATAL: " + ex.getMessage()); setAllButtonsDisabled(false); });
+            }
+        });
+    }
+
+    /**
      * Ouvre le dernier fichier produit avec l'application système par défaut.
      *
      * <p>Cette méthode est référencée dans {@code main.fxml} via l'attribut
@@ -939,6 +1092,9 @@ public class MainController {
         if (etatBtn != null)      etatBtn.setDisable(disabled);
         if (cmpBtn != null)       cmpBtn.setDisable(disabled);
         if (fixBtn != null)       fixBtn.setDisable(disabled);
+        if (controleBtn != null)  controleBtn.setDisable(disabled);
+        if (recupBtn != null)     recupBtn.setDisable(disabled);
+        if (infoBtn != null)      infoBtn.setDisable(disabled);
         if (runActionBtn != null) runActionBtn.setDisable(disabled);
     }
 

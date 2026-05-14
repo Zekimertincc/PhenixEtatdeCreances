@@ -41,16 +41,35 @@ public class TrfCalculator {
 
         // Accumulate per-client column sums in insertion order
         Map<String, double[]> groupSums = new LinkedHashMap<>();
-        int[] sumCols = {7, 8, 11, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25};
+        int[] sumCols = {7, 8, 11, 15, 17, 18, 19, 20, 21};
 
         for (ConsolidationRow row : consolidationRows) {
             if (row.isHeaderRow()) continue;
             String colA = row.getString(0);
             if (colA.isBlank()) continue;  // group-header row (col A null, col B = label)
 
-            double[] sums = groupSums.computeIfAbsent(colA, k -> new double[26]);
+            double[] sums = groupSums.computeIfAbsent(colA, k -> new double[30]);
             for (int c : sumCols) {
                 sums[c] += row.getDouble(c);
+            }
+
+            // Derived columns — computed from source values, not read as Excel formulas
+            double commissions   = row.getDouble(21); // col V = commission hors taxe
+            double fraisProc     = row.getDouble(17); // col R = frais de procédure
+            double dontEnAttente = row.getDouble(15); // col P = dont en attente
+            String lieu          = row.getString(16); // col Q = Lieu (AG / CL / NA)
+
+            // col W (22) = Commission TTC = V * 1.2
+            if (commissions != 0) {
+                sums[22] += commissions * 1.2;
+            }
+            // col X (23) = SOMMES CZ PHENIX = SI(Q="AG"; P; SI(Q="CL"; 0; SI(Q="NA"; 0)))
+            if ("AG".equalsIgnoreCase(lieu.trim())) {
+                sums[23] += dontEnAttente;
+            }
+            // col Y (24) = MONTANT A FACTURER TTC = SI(ESTNUM(V); (V + R) * 1.2; "")
+            if (commissions != 0) {
+                sums[24] += (commissions + fraisProc) * 1.2;
             }
         }
 
@@ -71,7 +90,8 @@ public class TrfCalculator {
             cs.setDejaFacture         (sums[19]);
             cs.setDepuisLeDebut       (sums[20]);
             cs.setCommissions         (sums[21]);
-            cs.setPenalits            (sums[22]);
+            cs.setCommissionTtc       (sums[22]);
+            cs.setPenalits            (sums[22]); // alias for compat
             cs.setSommesCzPhenix      (sums[23]);
             cs.setMontantAFacturerTtc (sums[24]);
             cs.setSommesAReverserSrc  (sums[25]);
@@ -114,7 +134,7 @@ public class TrfCalculator {
      * Populates all calculated fields of a ClientSummary from its input values.
      * NonComp clients skip the compensation step entirely.
      */
-    void calculate(ClientSummary cs) {
+    public void calculate(ClientSummary cs) {
         double enc      = cs.getSommesCzPhenix();
         double montant  = cs.getMontantAFacturerTtc();
         double prevDoit = cs.getNousDoit_Prec();
