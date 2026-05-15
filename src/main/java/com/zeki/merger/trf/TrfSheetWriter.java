@@ -33,7 +33,7 @@ public class TrfSheetWriter {
         "V/REF",
         "REMIS LE",
         "ANCIENNETE",
-        "N/REF",
+        "",          // col 5 (N/REF) — not written
         "DEBITEUR",
         "CREANCE PRINCIPALE",
         "RECOUVRE ET FACTURE",
@@ -49,11 +49,17 @@ public class TrfSheetWriter {
         "Recouvré total",
         "Déjà facturé",
         "Depuis le début",
-        "Commissions",
+        "Commission hors taxe",
         "Pénalits",
         "SOMMES CZ PHENIX",
         "MONTANT A FACTURER TTC",
-        "SOMMES A REVERSER"
+        "Commission"
+    };
+
+    // Extra columns written only in Feuil1 (beyond the standard 26)
+    private static final String[] FEUIL1_EXTRA_HEADERS = {
+        "Commission TTC",
+        "Frais de procédure"
     };
     private static final int CONSO_COLS = CONSO_HEADERS.length; // 26
 
@@ -130,9 +136,10 @@ public class TrfSheetWriter {
                 }
             }
 
-            // Write source row
+            // Write source row (skip col 5 = N/REF)
             XSSFRow row = sheet.createRow(rowIdx++);
             for (int c = 0; c < vals.size(); c++) {
+                if (c == 5) { row.createCell(c).setCellStyle(s.dataStyle); continue; }
                 XSSFCell cell = row.createCell(c);
                 writeValue(cell, vals.get(c),
                            isMoneyCol(c) ? s.moneyStyle : s.dataStyle, s.dateStyle);
@@ -183,12 +190,18 @@ public class TrfSheetWriter {
                                    Styles s) {
         XSSFSheet sheet = wb.createSheet("Feuil1");
         int rowIdx = 0;
+        int totalCols = CONSO_COLS + FEUIL1_EXTRA_HEADERS.length; // 28
 
-        // Same 26-column header as Consolidation
+        // Header row: standard 26 cols + 2 extra
         XSSFRow hdr = sheet.createRow(rowIdx++);
         for (int c = 0; c < CONSO_COLS; c++) {
             XSSFCell cell = hdr.createCell(c);
             cell.setCellValue(CONSO_HEADERS[c]);
+            cell.setCellStyle(s.headerDark);
+        }
+        for (int i = 0; i < FEUIL1_EXTRA_HEADERS.length; i++) {
+            XSSFCell cell = hdr.createCell(CONSO_COLS + i);
+            cell.setCellValue(FEUIL1_EXTRA_HEADERS[i]);
             cell.setCellStyle(s.headerDark);
         }
 
@@ -197,44 +210,44 @@ public class TrfSheetWriter {
         for (ClientSummary cs : summaries) {
             XSSFRow row = sheet.createRow(rowIdx++);
 
-            // Col 0 (A): CLIENT name
             txt(row, 0, cs.getClientName(), s.textStyle);
-            // Col 1 (B): client code (in NBRE position)
             txt(row, 1, cs.getClientCode(), s.textStyle);
-            // Cols 2–6: blank
             for (int c = 2; c <= 6; c++) row.createCell(c).setCellStyle(s.dataStyle);
 
-            // Money columns mapped to their Consolidation indices
             dbl(row, 7,  cs.getCreancePrincipale(),   s.moneyStyle);
             dbl(row, 8,  cs.getRecouvreEtFacture(),    s.moneyStyle);
-            row.createCell(9).setCellStyle(s.dataStyle);   // ETAT (blank)
-            row.createCell(10).setCellStyle(s.dataStyle);  // CLOTURE (blank)
+            row.createCell(9).setCellStyle(s.dataStyle);
+            row.createCell(10).setCellStyle(s.dataStyle);
             dbl(row, 11, cs.getPenalites(),            s.moneyStyle);
             row.createCell(12).setCellStyle(s.dataStyle);
             row.createCell(13).setCellStyle(s.dataStyle);
             row.createCell(14).setCellStyle(s.dataStyle);
             dbl(row, 15, cs.getDontEnAttente(),        s.moneyStyle);
-            row.createCell(16).setCellStyle(s.dataStyle);  // Lieu (blank)
+            row.createCell(16).setCellStyle(s.dataStyle);
             dbl(row, 17, cs.getFraisProcedure(),       s.moneyStyle);
             dbl(row, 18, cs.getRecouvreTotol(),        s.moneyStyle);
             dbl(row, 19, cs.getDejaFacture(),          s.moneyStyle);
             dbl(row, 20, cs.getDepuisLeDebut(),        s.moneyStyle);
-            dbl(row, 21, cs.getCommissions(),          s.moneyStyle);
-            dbl(row, 22, cs.getPenalits(),             s.moneyStyle);
+            dbl(row, 21, cs.getCommissions(),          s.moneyStyle); // Commission hors taxe
+            dbl(row, 22, cs.getCommissionTtc(),        s.moneyStyle); // Commission TTC = V*1.2
             dbl(row, 23, cs.getSommesCzPhenix(),       s.moneyStyle);
             dbl(row, 24, cs.getMontantAFacturerTtc(),  s.moneyStyle);
             dbl(row, 25, cs.getSommesAReverserSrc(),   s.moneyStyle);
+            // Extra cols
+            dbl(row, 26, cs.getCommissionTtc(),        s.moneyStyle); // Commission TTC (explicit)
+            dbl(row, 27, cs.getFraisProcedure(),       s.moneyStyle); // Frais de procédure
         }
 
         int dataEnd = rowIdx - 1;
 
-        // TOTAUX row — SUM for each money column
+        // TOTAUX row
         XSSFRow totRow = sheet.createRow(rowIdx);
         txt(totRow, 0, "TOTAUX", s.totalStyle);
         txt(totRow, 1, "",       s.totalStyle);
-        for (int c = 2; c < CONSO_COLS; c++) {
+        for (int c = 2; c < totalCols; c++) {
             XSSFCell cell = totRow.createCell(c);
-            if (MONEY_COLS.contains(c)) {
+            boolean isMoney = MONEY_COLS.contains(c) || c == 26 || c == 27;
+            if (isMoney) {
                 cell.setCellStyle(s.totalMoneyStyle);
                 cell.setCellFormula("SUM(" + col(c) + (dataStart + 1)
                     + ":" + col(c) + (dataEnd + 1) + ")");
@@ -243,7 +256,7 @@ public class TrfSheetWriter {
             }
         }
 
-        autoSize(sheet, CONSO_COLS);
+        autoSize(sheet, totalCols);
         sheet.createFreezePane(0, 1);
     }
 
@@ -372,11 +385,11 @@ public class TrfSheetWriter {
     // TRF bottom sections
     // =========================================================================
 
-    /** VIREMENTS CLIENTS — all clients where sommesAReverserFinal > 0. */
+    /** VIREMENTS CLIENTS — auto-virement: IBAN present, not NON COMP, sommes > 0. */
     private int writeVirementsSection(XSSFSheet sheet, List<ClientSummary> summaries,
                                        int rowIdx, Styles s) {
         List<ClientSummary> list = summaries.stream()
-            .filter(cs -> cs.getSommesAReverserFinal() > 0.005)
+            .filter(ClientSummary::needsAutoVirement)
             .collect(Collectors.toList());
 
         rowIdx = writeSectionHeader(sheet, rowIdx, "VIREMENTS CLIENTS", s);

@@ -316,7 +316,7 @@ public class DataReader {
         if (s == null || s.isBlank()) return "";
         return Normalizer.normalize(s.trim(), Normalizer.Form.NFD)
             .replaceAll("\\p{M}", "")
-            .toLowerCase()
+            .toLowerCase(java.util.Locale.ROOT)
             .replaceAll("\\s+", " ");
     }
 }

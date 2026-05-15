@@ -95,7 +95,10 @@ public class DashboardController {
             protected void updateItem(CompanyRecord item, boolean empty) {
                 super.updateItem(item, empty);
                 if (empty || item == null) { setText(null); return; }
-                setText(item.name() + "  (" + item.rowCount() + ")");
+                String syncTime = item.lastSync() != null && item.lastSync().length() >= 19
+                    ? item.lastSync().substring(11, 19)
+                    : "—";
+                setText(item.name() + "  (" + item.rowCount() + " dossiers)  |  " + syncTime);
             }
         });
 

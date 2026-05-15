@@ -17,27 +17,20 @@ public class ProcreancesComparator {
 
     private static final double TOLERANCE = 0.05;
 
-    // PROCREANCES columns (0-based):
-    // header = [_, N° Client, Nom, N° Dossier, Nom.1, Hono. TTC, Disponible, V, Reversement]
-    private static final int PC_CODE  = 1;
-    private static final int PC_NOM   = 2;
-    private static final int PC_HONO  = 5;
-    private static final int PC_DISPO = 6;
-    private static final int PC_REV   = 8;
+    // PROCREANCES columns (0-based)
+    private static final int PC_CODE = 1;
+    private static final int PC_NOM  = 2;
+    private static final int PC_HONO = 5; // Hono. TTC
 
-    // ConsolidationGenerale columns (0-based):
-    private static final int CS_NAME        = 0;
-    private static final int CS_CODE_COL    = 1;
-    private static final int CS_COMM_FEUIL1 = 2;   // Feuil1 sheet — col C = Commissions TTC
-    private static final int CS_COMM_CONSO  = 21;  // Consolidation sheet — col V = Commissions
-    private static final int CS_CZ          = 23;  // col X — Sommes CZ Phenix
-    private static final int CS_SOMMES_REV  = 25;  // col Z — Sommes a reverser
+    // ConsolidationGenerale columns (0-based)
+    private static final int CS_NAME       = 0;
+    private static final int CS_CODE_COL   = 1;
+    private static final int CS_COMM_FEUIL1 = 2;  // Feuil1 sheet — col C
+    private static final int CS_COMM_CONSO  = 22; // Consolidation sheet — col W = Commission TTC (V*1.2)
 
     private static final String[] COL_HEADERS = {
         "CLIENT", "N° CLIENT",
-        "PROC Hono.TTC", "CONSO Commissions", "DIFF Hono",
-        "PROC Disponible", "CONSO CZ Phénix", "DIFF Disponible",
-        "PROC Reversement", "CONSO Sommes Reverser", "DIFF Reversement"
+        "PROC Hono.TTC", "CONSO Commission TTC", "DIFF"
     };
 
     private static double round2(double v) { return Math.round(v * 100.0) / 100.0; }
@@ -69,12 +62,9 @@ public class ProcreancesComparator {
                 if (name.startsWith("Total")) continue;
 
                 String key = DataReader.normalize(name);
-                procSums.computeIfAbsent(key, k -> new double[3]);
+                procSums.computeIfAbsent(key, k -> new double[1]);
                 procMeta.putIfAbsent(key, new String[]{name, code});
-                double[] s = procSums.get(key);
-                s[0] += cellDouble(row, PC_HONO,  fmt, ev);
-                s[1] += cellDouble(row, PC_DISPO, fmt, ev);
-                s[2] += cellDouble(row, PC_REV,   fmt, ev);
+                procSums.get(key)[0] += cellDouble(row, PC_HONO, fmt, ev);
             }
         }
         progress.accept(0.2, procSums.size() + " clients lus depuis PROCREANCES.");
@@ -102,15 +92,12 @@ public class ProcreancesComparator {
 
                 String key  = DataReader.normalize(name);
                 String code = cellStr(row, CS_CODE_COL, fmt, ev);
-                double comm = cellDouble(row, colComm,       fmt, ev);
-                double cz   = cellDouble(row, CS_CZ,         fmt, ev);
-                double rev  = cellDouble(row, CS_SOMMES_REV, fmt, ev);
+                double comm = cellDouble(row, colComm, fmt, ev);
 
                 if (consoSums.containsKey(key)) {
-                    double[] s = consoSums.get(key);
-                    s[0] += comm; s[1] += cz; s[2] += rev;
+                    consoSums.get(key)[0] += comm;
                 } else {
-                    consoSums.put(key, new double[]{comm, cz, rev});
+                    consoSums.put(key, new double[]{comm});
                     consoMeta.put(key, new String[]{name, code});
                 }
             }
@@ -138,33 +125,21 @@ public class ProcreancesComparator {
                 }
             }
             if (cSums == null) {
-                unmatchedProc.add(new UnmatchedProcRow(
-                    pMeta[0], pMeta[1],
-                    round2(pSums[0]), round2(pSums[1]), round2(pSums[2])));
+                unmatchedProc.add(new UnmatchedProcRow(pMeta[0], pMeta[1], round2(pSums[0])));
                 continue;
             }
             matchedConso.add(cKey);
 
             double pH = round2(pSums[0]), cH = round2(cSums[0]);
-            double pD = round2(pSums[1]), cD = round2(cSums[1]);
-            double pR = round2(pSums[2]), cR = round2(cSums[2]);
             double diffH = round2(pH - cH);
-            double diffD = round2(pD - cD);
-            double diffR = round2(pR - cR);
-            boolean discrep = Math.abs(diffH) > TOLERANCE
-                           || Math.abs(diffD) > TOLERANCE
-                           || Math.abs(diffR) > TOLERANCE;
+            boolean discrep = Math.abs(diffH) > TOLERANCE;
 
-            String[] cMeta      = consoMeta.get(cKey);
-            String   consoName  = cMeta != null ? cMeta[0] : pMeta[0];
-            String   clientCode = !pMeta[1].isBlank() ? pMeta[1]
-                                  : (cMeta != null ? cMeta[1] : "");
+            String[] cMeta     = consoMeta.get(cKey);
+            String consoName   = cMeta != null ? cMeta[0] : pMeta[0];
+            String clientCode  = !pMeta[1].isBlank() ? pMeta[1]
+                                 : (cMeta != null ? cMeta[1] : "");
 
-            allRows.add(new DiffRow(consoName, clientCode,
-                pH, cH, diffH,
-                pD, cD, diffD,
-                pR, cR, diffR,
-                discrep));
+            allRows.add(new DiffRow(consoName, clientCode, pH, cH, diffH, discrep));
         }
 
         List<UnmatchedConsoRow> unmatchedConso = consoSums.entrySet().stream()
@@ -172,8 +147,7 @@ public class ProcreancesComparator {
             .map(e -> {
                 String[] m  = consoMeta.get(e.getKey());
                 double[] cs = e.getValue();
-                return new UnmatchedConsoRow(m[0], m[1],
-                    round2(cs[0]), round2(cs[1]), round2(cs[2]));
+                return new UnmatchedConsoRow(m[0], m[1], round2(cs[0]));
             })
             .collect(Collectors.toList());
 
@@ -191,26 +165,21 @@ public class ProcreancesComparator {
             unmatchedProc.size() + unmatchedConso.size()));
 
         if (!discrepancies.isEmpty()) {
-            progress.accept(0.7, "");
             progress.accept(0.7, "── Écarts ──");
             for (DiffRow dr : discrepancies) {
                 progress.accept(0.75, String.format(
-                    "⚠ %-25s  Hono: %+9.2f  |  Dispo: %+9.2f  |  Reverser: %+9.2f",
-                    dr.clientName(), dr.diffHono(), dr.diffDisponible(), dr.diffReversement()));
+                    "⚠ %-25s  Hono: %+9.2f", dr.clientName(), dr.diff()));
             }
         }
         if (!unmatchedProc.isEmpty()) {
-            progress.accept(0.8, "");
             progress.accept(0.8, "── Non appariés (PROCREANCES) ──");
-            for (UnmatchedProcRow r : unmatchedProc) {
+            for (UnmatchedProcRow r : unmatchedProc)
                 progress.accept(0.8, "  " + r.name() + (r.code().isBlank() ? "" : " (" + r.code() + ")"));
-            }
         }
         if (!unmatchedConso.isEmpty()) {
             progress.accept(0.8, "── Non appariés (Conso) ──");
-            for (UnmatchedConsoRow r : unmatchedConso) {
+            for (UnmatchedConsoRow r : unmatchedConso)
                 progress.accept(0.8, "  " + r.name() + (r.code().isBlank() ? "" : " (" + r.code() + ")"));
-            }
         }
 
         // 5. Write report
@@ -259,38 +228,26 @@ public class ProcreancesComparator {
         int rowIdx = 1;
         for (DiffRow dr : sorted) {
             XSSFRow row = sheet.createRow(rowIdx++);
-            str(row, 0,  dr.clientName(),         s.text);
-            str(row, 1,  dr.clientCode(),          s.text);
-            num(row, 2,  dr.procHonoTtc(),         s.money);
-            num(row, 3,  dr.consoCommissions(),    s.money);
-            numDiff(row, 4,  dr.diffHono(),        s);
-            num(row, 5,  dr.procDisponible(),      s.money);
-            num(row, 6,  dr.consoSommesCz(),       s.money);
-            numDiff(row, 7,  dr.diffDisponible(),  s);
-            num(row, 8,  dr.procReversement(),     s.money);
-            num(row, 9,  dr.consoSommesReverser(), s.money);
-            numDiff(row, 10, dr.diffReversement(), s);
+            str(row, 0, dr.clientName(),  s.text);
+            str(row, 1, dr.clientCode(),  s.text);
+            num(row, 2, dr.procHono(),    s.money);
+            num(row, 3, dr.consoCommTtc(), s.money);
+            numDiff(row, 4, dr.diff(),    s);
         }
 
         if (withSummary && !rows.isEmpty()) {
-            rowIdx++; // blank separator
+            rowIdx++;
             XSSFRow sumRow = sheet.createRow(rowIdx);
             str(sumRow, 0, "TOTAUX", s.totalText);
-            double tPH = 0, tCH = 0, tDH = 0, tPD = 0, tCD = 0, tDD = 0, tPR = 0, tCR = 0, tDR = 0;
+            double tPH = 0, tCH = 0, tD = 0;
             for (DiffRow dr : rows) {
-                tPH += dr.procHonoTtc();     tCH += dr.consoCommissions();  tDH += dr.diffHono();
-                tPD += dr.procDisponible();   tCD += dr.consoSommesCz();     tDD += dr.diffDisponible();
-                tPR += dr.procReversement();  tCR += dr.consoSommesReverser(); tDR += dr.diffReversement();
+                tPH += dr.procHono();
+                tCH += dr.consoCommTtc();
+                tD  += dr.diff();
             }
-            num(sumRow, 2,  round2(tPH), s.totalMoney);
-            num(sumRow, 3,  round2(tCH), s.totalMoney);
-            num(sumRow, 4,  round2(tDH), s.totalMoney);
-            num(sumRow, 5,  round2(tPD), s.totalMoney);
-            num(sumRow, 6,  round2(tCD), s.totalMoney);
-            num(sumRow, 7,  round2(tDD), s.totalMoney);
-            num(sumRow, 8,  round2(tPR), s.totalMoney);
-            num(sumRow, 9,  round2(tCR), s.totalMoney);
-            num(sumRow, 10, round2(tDR), s.totalMoney);
+            num(sumRow, 2, round2(tPH), s.totalMoney);
+            num(sumRow, 3, round2(tCH), s.totalMoney);
+            num(sumRow, 4, round2(tD),  s.totalMoney);
         }
 
         sheet.setColumnWidth(0, 28 * 256);
@@ -315,7 +272,7 @@ public class ProcreancesComparator {
 
         // Table 1 — PROCREANCES side
         str(sheet.createRow(rowIdx++), 0, "Dans PROCREANCES, absent de Conso", s.sectionLabel);
-        String[] procCols = {"CLIENT", "N° CLIENT", "Hono.TTC", "Disponible", "Reversement"};
+        String[] procCols = {"CLIENT", "N° CLIENT", "Hono.TTC"};
         XSSFRow t1hdr = sheet.createRow(rowIdx++);
         for (int c = 0; c < procCols.length; c++) {
             XSSFCell cell = t1hdr.createCell(c);
@@ -327,19 +284,17 @@ public class ProcreancesComparator {
         } else {
             for (UnmatchedProcRow r : unmatchedProc) {
                 XSSFRow row = sheet.createRow(rowIdx++);
-                str(row, 0, r.name(),        s.text);
-                str(row, 1, r.code(),        s.text);
-                num(row, 2, r.honoTtc(),     s.money);
-                num(row, 3, r.disponible(),  s.money);
-                num(row, 4, r.reversement(), s.money);
+                str(row, 0, r.name(),    s.text);
+                str(row, 1, r.code(),    s.text);
+                num(row, 2, r.honoTtc(), s.money);
             }
         }
 
-        rowIdx++; // blank separator
+        rowIdx++;
 
         // Table 2 — Conso side
         str(sheet.createRow(rowIdx++), 0, "Dans Conso, absent de PROCREANCES", s.sectionLabel);
-        String[] consoCols = {"CLIENT", "N° CLIENT", "Commissions", "CZ Phénix", "Sommes Reverser"};
+        String[] consoCols = {"CLIENT", "N° CLIENT", "Commission TTC"};
         XSSFRow t2hdr = sheet.createRow(rowIdx++);
         for (int c = 0; c < consoCols.length; c++) {
             XSSFCell cell = t2hdr.createCell(c);
@@ -351,17 +306,15 @@ public class ProcreancesComparator {
         } else {
             for (UnmatchedConsoRow r : unmatchedConso) {
                 XSSFRow row = sheet.createRow(rowIdx++);
-                str(row, 0, r.name(),            s.text);
-                str(row, 1, r.code(),            s.text);
-                num(row, 2, r.commissions(),     s.money);
-                num(row, 3, r.sommesCz(),        s.money);
-                num(row, 4, r.sommesReverser(),  s.money);
+                str(row, 0, r.name(),    s.text);
+                str(row, 1, r.code(),    s.text);
+                num(row, 2, r.commTtc(), s.money);
             }
         }
 
         sheet.setColumnWidth(0, 28 * 256);
         sheet.setColumnWidth(1, 10 * 256);
-        for (int c = 2; c <= 4; c++) sheet.setColumnWidth(c, 14 * 256);
+        sheet.setColumnWidth(2, 14 * 256);
     }
 
     // =========================================================================
@@ -433,7 +386,6 @@ public class ProcreancesComparator {
             money.cloneStyleFrom(text);
             money.setDataFormat(moneyFmt);
 
-            // Positive diff: green fill #C6EFCE, bold text #276221
             XSSFFont greenFont = wb.createFont();
             greenFont.setBold(true);
             greenFont.setColor(new XSSFColor(new byte[]{(byte)0x27,(byte)0x62,(byte)0x21}, null));
@@ -445,7 +397,6 @@ public class ProcreancesComparator {
             ecartGreen.setDataFormat(moneyFmt);
             ecartGreen.setVerticalAlignment(VerticalAlignment.CENTER);
 
-            // Negative diff: red fill #FFC7CE, bold text #9C0006
             XSSFFont redFont = wb.createFont();
             redFont.setBold(true);
             redFont.setColor(new XSSFColor(new byte[]{(byte)0x9C,(byte)0x00,(byte)0x06}, null));

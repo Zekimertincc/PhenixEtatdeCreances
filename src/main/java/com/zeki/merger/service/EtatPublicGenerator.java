@@ -45,10 +45,13 @@ public class EtatPublicGenerator {
     private static final int[] SOURCE_COL_MAP = {0, 1, 2, 3, 5, 6, 7, 8, 17, 9, 10};
 
     private static final int OUT_COLS         = OUTPUT_HEADERS.length;
-    private static final int OUT_COL_DEBITEUR = 5;
-    private static final int OUT_COL_CREANCE  = 6;
-    private static final int OUT_COL_RECOUVRE = 7;
-    private static final int OUT_COL_ATTENTE  = 8;
+    private static final int OUT_COL_DEBITEUR  = 5;
+    private static final int OUT_COL_CREANCE   = 6;
+    private static final int OUT_COL_RECOUVRE  = 7;
+    private static final int OUT_COL_ATTENTE   = 8;
+    private static final int OUT_COL_CLOTURE   = 10;
+    private static final int OUT_COL_ANCIENNETE = 3;
+    private static final int OUT_COL_NREF       = 4;
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
@@ -195,8 +198,27 @@ public class EtatPublicGenerator {
                         Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
                     out[oc] = readCellValue(cell, fmt, eval);
                 }
+                // CLOTURE: blank source value → show "NON" explicitly
+                if (out[OUT_COL_CLOTURE] == null
+                        || out[OUT_COL_CLOTURE].toString().isBlank()) {
+                    out[OUT_COL_CLOTURE] = "NON";
+                }
+
                 dataRows.add(out);
             }
+
+            // Sort by REMIS LE (output col 2) descending — most recent first
+            dataRows.sort((a, b) -> {
+                Object va = a[2];
+                Object vb = b[2];
+                if (va instanceof LocalDateTime ta && vb instanceof LocalDateTime tb) {
+                    return tb.compareTo(ta);
+                }
+                if (va instanceof Number na && vb instanceof Number nb) {
+                    return Double.compare(nb.doubleValue(), na.doubleValue());
+                }
+                return 0;
+            });
 
             writeOutput(company, addressLine1, addressLine2,
                 contactName, codeClient, dataRows, outputFile);
@@ -219,6 +241,7 @@ public class EtatPublicGenerator {
             XSSFCellStyle plain = buildPlainStyle(wb);
             XSSFCellStyle hdr   = buildHeaderStyle(wb);
             XSSFCellStyle data  = buildDataStyle(wb);
+            XSSFCellStyle money = buildMoneyStyle(wb, data);
             XSSFCellStyle date  = buildDateStyle(wb, data);
             XSSFCellStyle total = buildTotalStyle(wb);
 
@@ -247,7 +270,9 @@ public class EtatPublicGenerator {
             for (Object[] dr : dataRows) {
                 XSSFRow row = sheet.createRow(rowIdx++);
                 for (int c = 0; c < OUT_COLS; c++) {
-                    writeValue(row.createCell(c), dr[c], data, date);
+                    boolean isMoneyCol = (c == OUT_COL_CREANCE || c == OUT_COL_RECOUVRE
+                                         || c == OUT_COL_ATTENTE);
+                    writeValue(row.createCell(c), dr[c], isMoneyCol ? money : data, date);
                 }
             }
             int dataEndRow = rowIdx - 1;
@@ -332,7 +357,7 @@ public class EtatPublicGenerator {
                 DeviceRgb color = (i % 2 == 0) ? white : lightGrey;
                 for (int c = 0; c < OUT_COLS; c++) {
                     table.addCell(new com.itextpdf.layout.element.Cell()
-                        .add(new Paragraph(fmtPdf(dr[c])).setFontSize(7.5f))
+                        .add(new Paragraph(fmtPdf(dr[c], c)).setFontSize(7.5f))
                         .setBackgroundColor(color)
                         .setPadding(2));
                     if (dr[c] instanceof Number n) {
@@ -362,8 +387,12 @@ public class EtatPublicGenerator {
         }
     }
 
-    private String fmtPdf(Object val) {
-        if (val == null)                    return "";
+    private String fmtPdf(Object val, int colIndex) {
+        if (val == null) return "";
+        if (colIndex == OUT_COL_ANCIENNETE || colIndex == OUT_COL_NREF) {
+            if (val instanceof Number n) return String.valueOf(n.intValue());
+            return val.toString().trim();
+        }
         if (val instanceof Double d)        return fmt2(d);
         if (val instanceof Number n)        return fmt2(n.doubleValue());
         if (val instanceof LocalDateTime t) return t.toLocalDate().format(DATE_FMT);
@@ -489,6 +518,13 @@ public class EtatPublicGenerator {
         s.setLeftBorderColor(bc);
         s.setRightBorderColor(bc);
         s.setVerticalAlignment(VerticalAlignment.CENTER);
+        return s;
+    }
+
+    private XSSFCellStyle buildMoneyStyle(XSSFWorkbook wb, XSSFCellStyle base) {
+        XSSFCellStyle s = wb.createCellStyle();
+        s.cloneStyleFrom(base);
+        s.setDataFormat(wb.getCreationHelper().createDataFormat().getFormat("#,##0.00"));
         return s;
     }
 

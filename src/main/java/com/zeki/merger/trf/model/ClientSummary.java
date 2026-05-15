@@ -25,8 +25,9 @@ public class ClientSummary {
     private double recouvreTotol;          // col S (index 18)
     private double dejaFacture;            // col T (index 19)
     private double depuisLeDebut;          // col U (index 20)
-    private double commissions;            // col V (index 21)
-    private double penalits;               // col W (index 22)
+    private double commissions;            // col V (index 21) — commission hors taxe
+    private double commissionTtc;          // col W computed = col V * 1.2
+    private double penalits;               // col W (index 22) — kept for compat, same value as commissionTtc
     private double sommesCzPhenix;         // col X (index 23)
     private double montantAFacturerTtc;    // col Y (index 24)
     private double sommesAReverserSrc;     // col Z (index 25)
@@ -88,6 +89,9 @@ public class ClientSummary {
 
     public double  getCommissions()                { return commissions; }
     public void    setCommissions(double v)        { commissions = v; }
+
+    public double  getCommissionTtc()              { return commissionTtc; }
+    public void    setCommissionTtc(double v)      { commissionTtc = v; }
 
     public double  getPenalits()                   { return penalits; }
     public void    setPenalits(double v)           { penalits = v; }
