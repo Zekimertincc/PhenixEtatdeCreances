@@ -1,5 +1,6 @@
 package com.zeki.merger;
 
+import com.zeki.merger.controller.MainController;
 import com.zeki.merger.db.DatabaseManager;
 import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
@@ -20,6 +21,8 @@ public class App extends Application {
             getClass().getResource("/com/zeki/merger/main.fxml"));
         Parent root = loader.load();
 
+        MainController ctrl = loader.getController();
+
         Scene scene = new Scene(root, 920, 680);
         scene.getStylesheets().add(
             getClass().getResource("/com/zeki/merger/styles.css").toExternalForm());
@@ -28,6 +31,7 @@ public class App extends Application {
         primaryStage.setScene(scene);
         primaryStage.setMinWidth(720);
         primaryStage.setMinHeight(540);
+        primaryStage.setOnCloseRequest(e -> ctrl.shutdown());
         primaryStage.show();
     }
 

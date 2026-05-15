@@ -5,7 +5,9 @@ import com.zeki.merger.db.DatabaseManager;
 import com.zeki.merger.service.ClientInfoService;
 import com.zeki.merger.service.ConsoControleComparator;
 import com.zeki.merger.service.EspacePartageFixer;
+import com.zeki.merger.service.EtatCreancesSyncService;
 import com.zeki.merger.service.EtatPublicGenerator;
+import com.zeki.merger.service.FolderWatchService;
 import com.zeki.merger.service.MergeService;
 import com.zeki.merger.service.ProcreancesComparator;
 import com.zeki.merger.service.RecupNumFactureService;
@@ -156,6 +158,8 @@ public class MainController {
     private Button controleBtn;
     private Button recupBtn;
     private Button infoBtn;
+    private Button syncDbBtn;
+    private Button watchToggleBtn;
 
     // =========================================================================
     // Services métier — instanciés une seule fois à la création du contrôleur
@@ -198,9 +202,11 @@ public class MainController {
      * un rapport Excel détaillant les écarts supérieurs à 0,05 €.
      */
     private final ProcreancesComparator   procreancesComparator   = new ProcreancesComparator();
-    private final ConsoControleComparator consoControleComparator = new ConsoControleComparator();
-    private final RecupNumFactureService  recupNumFactureService  = new RecupNumFactureService();
-    private final ClientInfoService       clientInfoService       = new ClientInfoService();
+    private final ConsoControleComparator  consoControleComparator = new ConsoControleComparator();
+    private final RecupNumFactureService   recupNumFactureService  = new RecupNumFactureService();
+    private final ClientInfoService        clientInfoService       = new ClientInfoService();
+    private final EtatCreancesSyncService  syncService             = new EtatCreancesSyncService(DatabaseManager.getInstance());
+    private final FolderWatchService       watchService            = new FolderWatchService(syncService, this::onWatchEvent);
 
     // =========================================================================
     // Fil de fond et utilitaires
@@ -289,8 +295,28 @@ public class MainController {
         actionsGrid.add(recupBtn,     0, 3);
         actionsGrid.add(infoBtn,      1, 3);
 
+        syncDbBtn      = createActionBtn("DB Güncelle",   "Synchroniser toutes les sociétés",  "secondary-btn", e -> syncDatabase());
+        watchToggleBtn = createActionBtn("▶ Surveiller",  "Surveillance automatique",           "secondary-btn", e -> toggleWatch());
+        actionsGrid.add(syncDbBtn,      0, 4);
+        actionsGrid.add(watchToggleBtn, 1, 4);
+
         GridPane.setColumnSpan(runActionBtn, 2);
-        actionsGrid.add(runActionBtn, 0, 4);
+        actionsGrid.add(runActionBtn, 0, 5);
+        controleBtn.setVisible(false);
+        controleBtn.setManaged(false);
+        recupBtn.setVisible(false);
+        recupBtn.setManaged(false);
+        infoBtn.setVisible(false);
+        infoBtn.setManaged(false);
+
+        if (AppPreferences.isWatchEnabled()) {
+            File root = new File(AppPreferences.getMergeRoot());
+            if (root.isDirectory()) {
+                watchService.start(root);
+                updateWatchToggleLabel(true);
+                appendLog("Surveillance automatique activée.");
+            }
+        }
     }
 
     // =========================================================================
@@ -932,18 +958,67 @@ public class MainController {
         });
     }
 
-    /**
-     * Ouvre le dernier fichier produit avec l'application système par défaut.
-     *
-     * <p>Cette méthode est référencée dans {@code main.fxml} via l'attribut
-     * {@code onAction} du bouton "Ouvrir" dans la barre d'état, d'où la nécessité
-     * de l'annotation {@code @FXML}. Elle délègue l'ouverture à
-     * {@code java.awt.Desktop}, qui lance l'application associée à l'extension
-     * du fichier (ex. Excel pour .xlsx, Finder/Explorer pour un dossier).
-     *
-     * <p>Si {@link #lastOutputFile} est {@code null} ou n'existe plus sur le disque,
-     * un message d'erreur est inscrit dans le journal.
-     */
+    private void syncDatabase() {
+        File root = new File(AppPreferences.getMergeRoot());
+        if (!root.isDirectory()) {
+            appendLog("ERROR: Dossier source introuvable. Configurez le chemin.");
+            return;
+        }
+        syncDbBtn.setDisable(true);
+        appendLog("Synchronisation DB en cours...");
+        executor.submit(() -> {
+            try {
+                syncService.syncAll(root, (pct, msg) ->
+                    Platform.runLater(() -> { progressBar.setProgress(pct); appendLog(msg); }));
+            } catch (Exception e) {
+                Platform.runLater(() -> appendLog("ERREUR sync : " + e.getMessage()));
+            } finally {
+                Platform.runLater(() -> {
+                    syncDbBtn.setDisable(false);
+                    if (dashboardController != null) dashboardController.refresh();
+                });
+            }
+        });
+    }
+
+    private void toggleWatch() {
+        if (watchService.isRunning()) {
+            watchService.stop();
+            updateWatchToggleLabel(false);
+            appendLog("Surveillance arrêtée.");
+            AppPreferences.setWatchEnabled(false);
+        } else {
+            File root = new File(AppPreferences.getMergeRoot());
+            if (!root.isDirectory()) {
+                appendLog("ERROR: Dossier source introuvable."); return;
+            }
+            watchService.start(root);
+            updateWatchToggleLabel(true);
+            appendLog("Surveillance démarrée : " + root.getAbsolutePath());
+            AppPreferences.setWatchEnabled(true);
+        }
+    }
+
+    private void updateWatchToggleLabel(boolean active) {
+        if (watchToggleBtn == null) return;
+        Label lName = (Label) ((javafx.scene.layout.VBox) watchToggleBtn.getGraphic()).getChildren().get(0);
+        lName.setText(active ? "⏹ Arrêter" : "▶ Surveiller");
+    }
+
+    private void onWatchEvent(String companyName, String message) {
+        Platform.runLater(() -> {
+            appendLog("[WATCH] " + companyName + " — " + message);
+            if (message.startsWith("✓") && dashboardController != null) {
+                dashboardController.refresh();
+            }
+        });
+    }
+
+    public void shutdown() {
+        watchService.stop();
+        executor.shutdownNow();
+    }
+
     @FXML
     private void openFile() {
         if (lastOutputFile != null && lastOutputFile.exists()) {
@@ -1095,6 +1170,7 @@ public class MainController {
         if (controleBtn != null)  controleBtn.setDisable(disabled);
         if (recupBtn != null)     recupBtn.setDisable(disabled);
         if (infoBtn != null)      infoBtn.setDisable(disabled);
+        if (syncDbBtn != null)    syncDbBtn.setDisable(disabled);
         if (runActionBtn != null) runActionBtn.setDisable(disabled);
     }
 

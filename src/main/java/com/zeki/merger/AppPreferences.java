@@ -43,4 +43,8 @@ public class AppPreferences {
 
     public static String getRecupFacturePath()        { return PREFS.get(KEY_RECUP_FACTURE, ""); }
     public static void   setRecupFacturePath(String p){ PREFS.put(KEY_RECUP_FACTURE, p);          }
+
+    private static final String KEY_WATCH_ENABLED = "watchEnabled";
+    public static boolean isWatchEnabled()           { return PREFS.getBoolean(KEY_WATCH_ENABLED, false); }
+    public static void    setWatchEnabled(boolean v) { PREFS.putBoolean(KEY_WATCH_ENABLED, v); }
 }
