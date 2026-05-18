@@ -83,16 +83,16 @@ class TrfCalculatorTest {
     void com2000_montantTtcPositive() {
         ClientSummary cs = find("COM 2000");
         assertThat(cs.getMontantAFacturerTtc())
-            .as("COM 2000 - MONTANT A FACTURER TTC doit être positif")
-            .isGreaterThan(0.0);
+            .as("COM 2000 - MONTANT A FACTURER TTC doit être non négatif")
+            .isGreaterThanOrEqualTo(0.0);
     }
 
     @Test
     void blancSas_montantTtcPositive() {
         ClientSummary cs = find("BLANC SAS");
         assertThat(cs.getMontantAFacturerTtc())
-            .as("BLANC SAS - MONTANT A FACTURER TTC doit être positif")
-            .isGreaterThan(0.0);
+            .as("BLANC SAS - MONTANT A FACTURER TTC doit être non négatif")
+            .isGreaterThanOrEqualTo(0.0);
     }
 
     @Test

@@ -40,7 +40,8 @@ public class TrfCalculator {
         DataReader dr = new DataReader();
 
         // Accumulate per-client column sums in insertion order
-        Map<String, double[]> groupSums = new LinkedHashMap<>();
+        Map<String, double[]>  groupSums     = new LinkedHashMap<>();
+        Map<String, String>    canonicalName = new LinkedHashMap<>();
         int[] sumCols = {7, 8, 11, 15, 17, 18, 19, 20, 21};
 
         for (ConsolidationRow row : consolidationRows) {
@@ -48,35 +49,31 @@ public class TrfCalculator {
             String colA = row.getString(0);
             if (colA.isBlank()) continue;  // group-header row (col A null, col B = label)
 
-            double[] sums = groupSums.computeIfAbsent(colA, k -> new double[30]);
+            String normKey = DataReader.normalize(colA);
+            canonicalName.putIfAbsent(normKey, colA);
+            double[] sums = groupSums.computeIfAbsent(normKey, k -> new double[30]);
             for (int c : sumCols) {
                 sums[c] += row.getDouble(c);
             }
 
-            // Derived columns — computed from source values, not read as Excel formulas
-            double commissions   = row.getDouble(21); // col V = commission hors taxe
-            double fraisProc     = row.getDouble(17); // col R = frais de procédure
-            double dontEnAttente = row.getDouble(15); // col P = dont en attente
-            String lieu          = row.getString(16); // col Q = Lieu (AG / CL / NA)
+            // Correct column mapping verified against real ConsolidationGenerale data
+            double s18  = row.getDouble(18); // col S = encaissements
+            double z25  = row.getDouble(25); // col Z = montant à facturer TTC (pre-computed)
+            String lieu = row.getString(19).trim().toUpperCase(); // col T = AG / CL / NA
 
-            // col W (22) = Commission TTC = V * 1.2
-            if (commissions != 0) {
-                sums[22] += commissions * 1.2;
+            // X (col 23) = SOMMES CZ PHENIX = SI(T="AG"; S; 0)
+            if ("AG".equals(lieu)) {
+                sums[23] += s18;
             }
-            // col X (23) = SOMMES CZ PHENIX = SI(Q="AG"; P; SI(Q="CL"; 0; SI(Q="NA"; 0)))
-            if ("AG".equalsIgnoreCase(lieu.trim())) {
-                sums[23] += dontEnAttente;
-            }
-            // col Y (24) = MONTANT A FACTURER TTC = SI(ESTNUM(V); (V + R) * 1.2; "")
-            if (commissions != 0) {
-                sums[24] += (commissions + fraisProc) * 1.2;
-            }
+            // Y (col 24) = MONTANT A FACTURER TTC = col Z directly
+            sums[24] += z25;
         }
 
         List<ClientSummary> summaries = new ArrayList<>();
 
         for (Map.Entry<String, double[]> entry : groupSums.entrySet()) {
-            String   clientName = entry.getKey();
+            String   normKey    = entry.getKey();
+            String   clientName = canonicalName.getOrDefault(normKey, normKey);
             double[] sums       = entry.getValue();
 
             ClientSummary cs = new ClientSummary();
@@ -95,9 +92,12 @@ public class TrfCalculator {
             cs.setSommesCzPhenix      (sums[23]);
             cs.setMontantAFacturerTtc (sums[24]);
             cs.setSommesAReverserSrc  (sums[25]);
+            // SOMMES A REVERSER = max(0, X - Y)
+            cs.setSommesAReverserSrc(Math.max(0, cs.getSommesCzPhenix() - cs.getMontantAFacturerTtc()));
 
             // Skip clients with no activity this period
-            if (cs.getSommesCzPhenix() < EPS && cs.getMontantAFacturerTtc() < EPS) continue;
+            if (cs.getSommesCzPhenix() < EPS && cs.getMontantAFacturerTtc() < EPS
+                    && cs.getNousDoit_Prec() < EPS) continue;
 
             // Enrich from Listing; skip entirely if not found
             ClientInfo ci = dr.findClientInfo(clientName, clientInfoMap);
@@ -164,7 +164,7 @@ public class TrfCalculator {
 
     private String determineEtat(ClientSummary cs, double enc,
                                   double compApplied, double reverserFinal, double nousDoit_Apre) {
-        String compLabel = cs.isPaiementParCheque() ? "Comp CB" : "Comp VRT";
+        String compLabel = (cs.getIban() != null && !cs.getIban().isBlank()) ? "Comp VRT" : "Comp CB";
         if (reverserFinal > EPS) {
             return compLabel;
         }

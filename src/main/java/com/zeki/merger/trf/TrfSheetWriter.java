@@ -53,19 +53,22 @@ public class TrfSheetWriter {
         "Pénalits",
         "SOMMES CZ PHENIX",
         "MONTANT A FACTURER TTC",
-        "Commission"
+        "SOMMES A REVERSER"
     };
 
     // Extra columns written only in Feuil1 (beyond the standard 26)
     private static final String[] FEUIL1_EXTRA_HEADERS = {
-        "Commission TTC",
-        "Frais de procédure"
+        "Commission TTC",     // col 26
+        "Frais de procédure", // col 27
+        "NON COMPENSATION",   // col 28
+        "IBAN",               // col 29
+        "NOUS DOIT"           // col 30
     };
     private static final int CONSO_COLS = CONSO_HEADERS.length; // 26
 
     /** Columns that carry monetary values (0-based), used for #,##0.00 and SUBTOTAL. */
     private static final Set<Integer> MONEY_COLS =
-        Set.of(7, 8, 11, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25);
+        Set.of(7, 8, 9, 14, 18, 20, 22, 24, 25);
 
     private static boolean isMoneyCol(int c) { return MONEY_COLS.contains(c); }
 
@@ -236,6 +239,9 @@ public class TrfSheetWriter {
             // Extra cols
             dbl(row, 26, cs.getCommissionTtc(),        s.moneyStyle); // Commission TTC (explicit)
             dbl(row, 27, cs.getFraisProcedure(),       s.moneyStyle); // Frais de procédure
+            txt(row, 28, cs.isNonCompensation() ? "OUI" : "", s.textStyle);
+            txt(row, 29, cs.getIban(),                         s.textStyle);
+            dbl(row, 30, cs.getNousDoit_Prec(),                s.moneyStyle);
         }
 
         int dataEnd = rowIdx - 1;
@@ -246,7 +252,7 @@ public class TrfSheetWriter {
         txt(totRow, 1, "",       s.totalStyle);
         for (int c = 2; c < totalCols; c++) {
             XSSFCell cell = totRow.createCell(c);
-            boolean isMoney = MONEY_COLS.contains(c) || c == 26 || c == 27;
+            boolean isMoney = MONEY_COLS.contains(c) || c == 26 || c == 27 || c == 30;
             if (isMoney) {
                 cell.setCellStyle(s.totalMoneyStyle);
                 cell.setCellFormula("SUM(" + col(c) + (dataStart + 1)
