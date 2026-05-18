@@ -127,7 +127,7 @@ public class DataReader {
                 String iban    = cellStr(row, 21, fmt, eval);
                 String bic     = cellStr(row, 22, fmt, eval);
 
-                map.put(normalize(name), new ClientInfo(name, code, nonComp, iban, bic));
+                map.putIfAbsent(normalize(name), new ClientInfo(name, code, nonComp, iban, bic));
             }
         }
         return map;

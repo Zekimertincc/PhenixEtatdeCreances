@@ -90,9 +90,13 @@ public class EtatPublicGenerator {
 
                 // Delete old L_ETAT files before writing the new one
                 File[] oldFiles = destDir.listFiles(f -> {
+                    if (!f.isFile()) return false;
                     String lower = f.getName().toLowerCase();
-                    return f.isFile() && lower.startsWith("l_etat")
-                        && (lower.endsWith(".xlsx") || lower.endsWith(".xls") || lower.endsWith(".pdf"));
+                    boolean isExcelOrPdf = lower.endsWith(".xlsx") || lower.endsWith(".xls") || lower.endsWith(".pdf");
+                    boolean isEtatFile   = lower.startsWith("l_etat") || lower.startsWith("l'etat")
+                                           || lower.startsWith("letat") || lower.contains("etat de creances")
+                                           || lower.contains("etat des creances");
+                    return isExcelOrPdf && isEtatFile;
                 });
                 if (oldFiles != null) {
                     for (File old : oldFiles) {
@@ -237,6 +241,19 @@ public class EtatPublicGenerator {
 
         try (XSSFWorkbook wb = new XSSFWorkbook()) {
             XSSFSheet sheet = wb.createSheet("Etat Public");
+
+            // Print setup: landscape A4, fit all columns on 1 page wide
+            sheet.getPrintSetup().setPaperSize(PrintSetup.A4_PAPERSIZE);
+            sheet.getPrintSetup().setLandscape(true);
+            sheet.getPrintSetup().setFitWidth((short) 1);
+            sheet.getPrintSetup().setFitHeight((short) 0); // 0 = unlimited height pages
+            sheet.setAutobreaks(true);
+            sheet.setFitToPage(true);
+            // Margins in inches
+            sheet.setMargin(Sheet.TopMargin,    0.5);
+            sheet.setMargin(Sheet.BottomMargin, 0.5);
+            sheet.setMargin(Sheet.LeftMargin,   0.5);
+            sheet.setMargin(Sheet.RightMargin,  0.5);
 
             XSSFCellStyle plain = buildPlainStyle(wb);
             XSSFCellStyle hdr   = buildHeaderStyle(wb);
