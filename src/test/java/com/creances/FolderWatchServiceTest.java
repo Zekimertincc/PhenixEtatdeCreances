@@ -47,7 +47,7 @@ class FolderWatchServiceTest {
             }
         };
 
-        FolderWatchService svc = new FolderWatchService(sync, (c, m) -> {});
+        FolderWatchService svc = new FolderWatchService(sync, (c, m) -> {}, 500);
         svc.start(tempDir.toFile());
         Thread.sleep(500);
 
@@ -74,7 +74,7 @@ class FolderWatchServiceTest {
             }
         };
 
-        FolderWatchService svc = new FolderWatchService(sync, (c, m) -> {});
+        FolderWatchService svc = new FolderWatchService(sync, (c, m) -> {}, 500);
         svc.start(tempDir.toFile());
         Thread.sleep(500);
 

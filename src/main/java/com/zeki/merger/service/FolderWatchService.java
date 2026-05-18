@@ -15,6 +15,7 @@ public class FolderWatchService {
     private final EtatCreancesSyncService    syncService;
     private final FolderScanner              scanner;
     private final BiConsumer<String, String> onEvent;
+    private final long                      debounceMs;
 
     private Thread           watchThread;
     private volatile boolean running = false;
@@ -25,9 +26,16 @@ public class FolderWatchService {
 
     public FolderWatchService(EtatCreancesSyncService syncService,
                                BiConsumer<String, String> onEvent) {
+        this(syncService, onEvent, 5000);
+    }
+
+    public FolderWatchService(EtatCreancesSyncService syncService,
+                              BiConsumer<String, String> onEvent,
+                              long debounceMs) {
         this.syncService = syncService;
         this.scanner     = new FolderScanner();
         this.onEvent     = onEvent;
+        this.debounceMs  = debounceMs;
     }
 
     public synchronized void start(File root) {
@@ -59,7 +67,7 @@ public class FolderWatchService {
 
                         if ((name.endsWith(".xlsx") || name.endsWith(".xls"))
                                 && !name.startsWith("~$")) {
-                            pending.put(changed, System.currentTimeMillis() + 5000);
+                            pending.put(changed, System.currentTimeMillis() + debounceMs);
                         }
                         if (event.kind() == ENTRY_CREATE && changed.toFile().isDirectory()) {
                             registerAll(changed, ws);
@@ -135,7 +143,7 @@ public class FolderWatchService {
                 long current = cf.excelFile().lastModified();
                 Long previous = lastModified.get(p);
                 if (previous != null && current != previous) {
-                    pending.put(p, System.currentTimeMillis() + 2000);
+                    pending.put(p, System.currentTimeMillis() + Math.min(debounceMs, 2000));
                     onEvent.accept(cf.companyName(), "[POLL] Changement détecté");
                 }
                 lastModified.put(p, current);
