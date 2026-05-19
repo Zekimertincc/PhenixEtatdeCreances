@@ -1,468 +1,543 @@
-/* =========================================================
-   Neo-Brutalist Theme — Cabinet Phénix
-   Palette:
-     off-white  : #F5F0E8
-     black      : #0D0D0D
-     yellow     : #FFE500
-     dark-log   : #1A1A1A
-     green-log  : #00FF88
-   ========================================================= */
+/* =============================================================
+   Cabinet Phénix — Design System
+   Background primary  : #FAFAF8
+   Background secondary: #F2F0EB
+   Background sidebar  : #1a1a2e
+   Border              : 1px solid rgba(0,0,0,0.10)
+   Text primary        : #1a1a1a
+   Text secondary      : #6B6B6B
+   Text tertiary       : #9B9B9B
+   Accent blue         : #185FA5 / #0C447C / #E6F1FB
+   Accent green        : #3B6D11 / #27500A / #EAF3DE
+   Border radius       : 8px cards, 20px chips
+   ============================================================= */
 
 /* ---- Root ---- */
 .root-pane {
-    -fx-background-color: #F5F0E8;
-    -fx-font-family: "Courier New", "Consolas", monospace;
+    -fx-background-color: #FAFAF8;
 }
 
-/* ---- Header band (thick black strip) ---- */
-.header-band {
-    -fx-background-color: #0D0D0D;
-    -fx-padding: 8 24 8 24;
-    -fx-min-height: 40px;
+/* =============================================================
+   Sidebar
+   ============================================================= */
+.sidebar {
+    -fx-background-color: #1a1a2e;
+    -fx-min-width: 200px;
+    -fx-max-width: 200px;
+    -fx-padding: 16px 12px 16px 12px;
 }
 
-.app-title {
-    -fx-font-size: 18px;
-    -fx-font-weight: bold;
-    -fx-text-fill: #FFFFFF;
-    -fx-font-family: "Courier New", "Consolas", monospace;
-}
-
-/* ---- Config info banner ---- */
-.config-banner {
-    -fx-background-color: #F5F0E8;
-    -fx-padding: 6 24 6 24;
-    -fx-border-color: #0D0D0D;
-    -fx-border-width: 0 0 3 0;
-}
-
-.config-info {
-    -fx-font-size: 11px;
-    -fx-font-weight: bold;
-    -fx-text-fill: #0D0D0D;
-    -fx-font-family: "Courier New", "Consolas", monospace;
-}
-
-/* ---- Content area ---- */
-.content-box {
-    -fx-background-color: #F5F0E8;
-}
-
-/* ---- Field labels ---- */
-.field-label {
-    -fx-font-size: 12px;
-    -fx-font-weight: bold;
-    -fx-text-fill: #0D0D0D;
-    -fx-padding: 4 0 0 0;
-    -fx-font-family: "Courier New", "Consolas", monospace;
-}
-
-/* ---- Path text fields ---- */
-.path-field {
-    -fx-background-color: #F5F0E8;
-    -fx-text-fill: #0D0D0D;
-    -fx-prompt-text-fill: #888888;
-    -fx-border-color: #0D0D0D;
-    -fx-border-width: 3;
-    -fx-border-radius: 0;
-    -fx-background-radius: 0;
-    -fx-padding: 8 12 8 12;
+/* logo */
+.sidebar-logo        { /* layout only */ }
+.sidebar-logo-title,
+.logo-text {
+    -fx-text-fill: rgba(255,255,255,0.9);
     -fx-font-size: 13px;
-    -fx-font-family: "Courier New", "Consolas", monospace;
-}
-
-.path-field:focused {
-    -fx-background-color: #FFFDE8;
-    -fx-border-color: #0D0D0D;
-}
-
-/* ---- Read-only path label (TRF file pickers) ---- */
-.path-label {
-    -fx-background-color: #F5F0E8;
-    -fx-text-fill: #0D0D0D;
-    -fx-border-color: #0D0D0D;
-    -fx-border-width: 3;
-    -fx-padding: 8 12 8 12;
-    -fx-font-size: 12px;
-    -fx-font-family: "Courier New", "Consolas", monospace;
-    -fx-text-overrun: leading-ellipsis;
-    -fx-min-height: 36px;
-}
-
-/* ---- Secondary / action buttons ---- */
-.secondary-btn {
-    -fx-background-color: #F5F0E8;
-    -fx-text-fill: #0D0D0D;
-    -fx-border-color: #0D0D0D;
-    -fx-border-width: 3;
-    -fx-border-radius: 0;
-    -fx-background-radius: 0;
-    -fx-padding: 12 24 12 24;
-    -fx-font-size: 12px;
     -fx-font-weight: bold;
+}
+.sidebar-logo-sub,
+.logo-sub {
+    -fx-text-fill: rgba(255,255,255,0.35);
+    -fx-font-size: 10px;
+}
+
+/* section headers */
+.nav-section-label {
+    -fx-text-fill: rgba(255,255,255,0.25);
+    -fx-font-size: 10px;
+    -fx-padding: 12px 8px 4px 8px;
+}
+
+/* nav buttons */
+.nav-item {
+    -fx-background-color: transparent;
+    -fx-text-fill: rgba(255,255,255,0.45);
+    -fx-font-size: 12px;
+    -fx-padding: 8px 10px 8px 10px;
+    -fx-background-radius: 7px;
     -fx-cursor: hand;
-    -fx-font-family: "Courier New", "Consolas", monospace;
-}
-
-.secondary-btn:hover {
-    -fx-background-color: #FFE500;
-    -fx-text-fill: #0D0D0D;
-}
-
-.secondary-btn:pressed {
-    -fx-background-color: #0D0D0D;
-    -fx-text-fill: #FFFFFF;
-}
-
-.secondary-btn:disabled {
-    -fx-background-color: #E0DBD0;
-    -fx-text-fill: #999999;
-    -fx-border-color: #AAAAAA;
-}
-
-/* ---- Run button ---- */
-.run-btn {
-    -fx-background-color: #0D0D0D;
-    -fx-text-fill: #FFFFFF;
-    -fx-font-weight: bold;
-    -fx-font-size: 14px;
-    -fx-padding: 12 24 12 24;
-    -fx-border-color: #0D0D0D;
-    -fx-border-width: 3;
-    -fx-border-radius: 0;
-    -fx-background-radius: 0;
-    -fx-cursor: hand;
-    -fx-font-family: "Courier New", "Consolas", monospace;
-}
-
-.run-btn:hover {
-    -fx-background-color: #FFE500;
-    -fx-text-fill: #0D0D0D;
-    -fx-border-color: #0D0D0D;
-}
-
-.run-btn:pressed {
-    -fx-background-color: #333333;
-    -fx-text-fill: #FFFFFF;
-}
-
-.run-btn:disabled {
-    -fx-background-color: #999999;
-    -fx-text-fill: #CCCCCC;
-    -fx-border-color: #999999;
-}
-
-/* ---- Progress bar ---- */
-.merge-progress {
-    -fx-accent: #FFE500;
-    -fx-border-color: #0D0D0D;
-    -fx-border-width: 3;
-    -fx-border-radius: 0;
-    -fx-background-radius: 0;
-}
-
-.merge-progress > .bar {
-    -fx-background-color: #FFE500;
-    -fx-background-radius: 0;
-    -fx-background-insets: 0;
-    -fx-padding: 0;
-}
-
-.merge-progress > .track {
-    -fx-background-color: #0D0D0D;
-    -fx-background-radius: 0;
-    -fx-background-insets: 0;
-}
-
-/* ---- Log text area ---- */
-.log-area {
-    -fx-control-inner-background: #1A1A1A;
-    -fx-background-color: #1A1A1A;
-    -fx-text-fill: #00FF88;
-    -fx-font-family: "Courier New", "Consolas", monospace;
-    -fx-font-size: 12px;
-    -fx-border-color: #0D0D0D;
-    -fx-border-width: 3;
-    -fx-border-radius: 0;
-    -fx-background-radius: 0;
-}
-
-.log-area .content {
-    -fx-background-color: #1A1A1A;
-    -fx-background-radius: 0;
-}
-
-.log-area:focused {
-    -fx-border-color: #FFE500;
-}
-
-.log-area .scroll-bar:vertical,
-.log-area .scroll-bar:horizontal {
-    -fx-background-color: #0D0D0D;
-}
-
-.log-area .scroll-bar .thumb {
-    -fx-background-color: #333333;
-    -fx-background-radius: 0;
-}
-
-.log-area .scroll-bar .thumb:hover {
-    -fx-background-color: #FFE500;
-}
-
-/* ---- Status bar ---- */
-.status-bar {
-    -fx-background-color: #F5F0E8;
-    -fx-border-color: #0D0D0D;
-    -fx-border-width: 3 0 0 0;
-    -fx-min-height: 42px;
-}
-
-.status-label {
-    -fx-text-fill: #0D0D0D;
-    -fx-font-size: 11px;
-    -fx-font-weight: bold;
-    -fx-font-family: "Courier New", "Consolas", monospace;
-}
-
-/* ---- Open-file button ---- */
-.open-btn {
-    -fx-background-color: #F5F0E8;
-    -fx-text-fill: #0D0D0D;
-    -fx-font-weight: bold;
-    -fx-font-size: 12px;
-    -fx-padding: 7 18 7 18;
-    -fx-border-color: #0D0D0D;
-    -fx-border-width: 3;
-    -fx-border-radius: 0;
-    -fx-background-radius: 0;
-    -fx-cursor: hand;
-    -fx-font-family: "Courier New", "Consolas", monospace;
-}
-
-.open-btn:hover {
-    -fx-background-color: #FFE500;
-    -fx-text-fill: #0D0D0D;
-}
-
-.open-btn:pressed {
-    -fx-background-color: #0D0D0D;
-    -fx-text-fill: #FFFFFF;
-}
-
-/* ---- Main tab pane ---- */
-.main-tabs {
-    -fx-background-color: #F5F0E8;
-    -fx-tab-min-height: 36px;
-}
-
-.main-tabs .tab-header-area .tab-header-background {
-    -fx-background-color: #0D0D0D;
-}
-
-.main-tabs .tab {
-    -fx-background-color: #0D0D0D;
-    -fx-background-radius: 0;
+    -fx-alignment: CENTER_LEFT;
     -fx-border-color: transparent;
-    -fx-padding: 6 20 6 20;
-}
-
-.main-tabs .tab .tab-label {
-    -fx-text-fill: #888888;
-    -fx-font-weight: bold;
-    -fx-font-size: 12px;
-    -fx-font-family: "Courier New", "Consolas", monospace;
-}
-
-.main-tabs .tab:selected {
-    -fx-background-color: #FFE500;
-}
-
-.main-tabs .tab:selected .tab-label {
-    -fx-text-fill: #0D0D0D;
-}
-
-.main-tabs .tab:hover .tab-label {
-    -fx-text-fill: #FFFFFF;
-}
-
-.main-tabs .tab:selected:hover .tab-label {
-    -fx-text-fill: #0D0D0D;
-}
-
-/* ---- Dashboard pane ---- */
-.dashboard-pane {
-    -fx-background-color: #F5F0E8;
-}
-
-/* ---- Company left panel ---- */
-.company-panel {
-    -fx-background-color: #F5F0E8;
-    -fx-border-color: #0D0D0D;
-    -fx-border-width: 0 3 0 0;
-}
-
-/* ---- Company list view ---- */
-.company-list-view {
-    -fx-background-color: #F5F0E8;
-    -fx-border-color: #0D0D0D;
-    -fx-border-width: 3;
-    -fx-border-radius: 0;
-    -fx-background-radius: 0;
-    -fx-font-family: "Courier New", "Consolas", monospace;
-    -fx-font-size: 12px;
-}
-
-.company-list-view .list-cell {
-    -fx-background-color: #F5F0E8;
-    -fx-text-fill: #0D0D0D;
-    -fx-padding: 7 10 7 10;
-    -fx-border-color: transparent transparent #D0C8B8 transparent;
-    -fx-border-width: 1;
-    -fx-font-family: "Courier New", "Consolas", monospace;
-}
-
-.company-list-view .list-cell:selected {
-    -fx-background-color: #FFE500;
-    -fx-text-fill: #0D0D0D;
-}
-
-.company-list-view .list-cell:hover:!selected {
-    -fx-background-color: #EDE8DC;
-}
-
-/* ---- Detail tab pane ---- */
-.detail-tabs {
-    -fx-background-color: #F5F0E8;
-    -fx-tab-min-height: 32px;
-}
-
-.detail-tabs .tab-header-area .tab-header-background {
-    -fx-background-color: #1A1A1A;
-}
-
-.detail-tabs .tab {
-    -fx-background-color: #1A1A1A;
-    -fx-background-radius: 0;
-    -fx-padding: 5 16 5 16;
-}
-
-.detail-tabs .tab .tab-label {
-    -fx-text-fill: #888888;
-    -fx-font-weight: bold;
-    -fx-font-size: 11px;
-    -fx-font-family: "Courier New", "Consolas", monospace;
-}
-
-.detail-tabs .tab:selected {
-    -fx-background-color: #333333;
-}
-
-.detail-tabs .tab:selected .tab-label {
-    -fx-text-fill: #00FF88;
-}
-
-/* ---- Detail table ---- */
-.detail-table {
-    -fx-background-color: #F5F0E8;
-    -fx-font-family: "Courier New", "Consolas", monospace;
-    -fx-font-size: 11px;
-    -fx-border-color: #0D0D0D;
     -fx-border-width: 0;
 }
-
-.detail-table .column-header-background {
-    -fx-background-color: #0D0D0D;
+.nav-item:hover {
+    -fx-background-color: rgba(255,255,255,0.07);
+    -fx-text-fill: rgba(255,255,255,0.8);
+}
+.nav-active {
+    -fx-background-color: rgba(255,255,255,0.12);
+    -fx-text-fill: white;
+}
+.nav-active:hover {
+    -fx-background-color: rgba(255,255,255,0.15);
+    -fx-text-fill: white;
 }
 
-.detail-table .column-header,
-.detail-table .filler {
-    -fx-background-color: #0D0D0D;
-    -fx-size: 28px;
-    -fx-border-color: transparent #333333 transparent transparent;
-    -fx-border-width: 1;
+/* divider line */
+.sidebar-divider-line,
+.nav-divider {
+    -fx-background-color: rgba(255,255,255,0.08);
+    -fx-min-height: 1px;
+    -fx-max-height: 1px;
 }
 
-.detail-table .column-header .label {
-    -fx-text-fill: #FFFFFF;
+/* =============================================================
+   Top bar
+   ============================================================= */
+.top-bar,
+.page-topbar {
+    -fx-background-color: #FAFAF8;
+    -fx-border-color: rgba(0,0,0,0.10);
+    -fx-border-width: 0 0 1px 0;
+    -fx-min-height: 48px;
+    -fx-max-height: 48px;
+    -fx-padding: 0 20px 0 20px;
+}
+.page-title {
+    -fx-font-size: 14px;
     -fx-font-weight: bold;
-    -fx-font-size: 10px;
-    -fx-font-family: "Courier New", "Consolas", monospace;
+    -fx-text-fill: #1a1a1a;
 }
 
-.detail-table .table-row-cell {
-    -fx-background-color: #F5F0E8;
-    -fx-border-color: transparent transparent #D0C8B8 transparent;
-    -fx-border-width: 1;
+/* =============================================================
+   Content area / page VBoxes
+   ============================================================= */
+.content-box,
+.content-area {
+    -fx-background-color: #FAFAF8;
 }
 
-.detail-table .table-row-cell:odd {
-    -fx-background-color: #EDE8DC;
-}
-
-.detail-table .table-row-cell:selected {
-    -fx-background-color: #FFE500;
-}
-
-.detail-table .table-cell {
-    -fx-text-fill: #0D0D0D;
-    -fx-padding: 4 8 4 8;
-    -fx-border-color: transparent #D0C8B8 transparent transparent;
-    -fx-border-width: 1;
-}
-
-/* ---- Files card ---- */
-.files-card {
-    -fx-background-color: #F5F0E8;
-    -fx-border-color: #0D0D0D;
-    -fx-border-width: 3;
-    -fx-padding: 14 16 14 16;
-}
-
+.section-label,
 .files-card-title {
-    -fx-font-size: 10px;
-    -fx-font-weight: bold;
-    -fx-text-fill: #888888;
-    -fx-font-family: "Courier New", "Consolas", monospace;
-    -fx-padding: 0 0 2 0;
+    -fx-font-size: 11px;
+    -fx-text-fill: #9B9B9B;
+    -fx-padding: 0 0 6px 0;
 }
 
-/* ---- Status badges ---- */
+/* files card container */
+.files-card {
+    -fx-background-color: #FAFAF8;
+    -fx-border-color: rgba(0,0,0,0.10);
+    -fx-border-width: 1px;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-padding: 10px 12px 10px 12px;
+}
+
+/* =============================================================
+   File chips / badges
+   ============================================================= */
+.file-chip {
+    -fx-background-color: #F2F0EB;
+    -fx-border-color: rgba(0,0,0,0.10);
+    -fx-border-width: 1px;
+    -fx-border-radius: 20px;
+    -fx-background-radius: 20px;
+    -fx-padding: 3px 10px 3px 10px;
+    -fx-font-size: 11px;
+    -fx-text-fill: #6B6B6B;
+}
+
 .badge-ok {
-    -fx-background-color: #0D0D0D;
-    -fx-text-fill: #00FF88;
-    -fx-padding: 3 10 3 10;
+    -fx-background-color: #EAF3DE;
+    -fx-border-radius: 20px;
+    -fx-background-radius: 20px;
+    -fx-padding: 3px 10px 3px 10px;
     -fx-font-size: 11px;
-    -fx-font-weight: bold;
-    -fx-font-family: "Courier New", "Consolas", monospace;
+    -fx-text-fill: #27500A;
 }
-
 .badge-missing {
-    -fx-background-color: #0D0D0D;
-    -fx-text-fill: #FF4444;
-    -fx-padding: 3 10 3 10;
+    -fx-background-color: #FCEBEB;
+    -fx-border-radius: 20px;
+    -fx-background-radius: 20px;
+    -fx-padding: 3px 10px 3px 10px;
     -fx-font-size: 11px;
-    -fx-font-weight: bold;
-    -fx-font-family: "Courier New", "Consolas", monospace;
+    -fx-text-fill: #791F1F;
 }
-
 .missing-label {
     -fx-font-size: 11px;
-    -fx-font-weight: bold;
-    -fx-text-fill: #FF4444;
-    -fx-font-family: "Courier New", "Consolas", monospace;
+    -fx-text-fill: #791F1F;
 }
 
-/* ---- Action button text inside graphic ---- */
-.action-btn-name {
+/* =============================================================
+   Action cards (operations grid)
+   ============================================================= */
+.action-card {
+    -fx-background-color: #FAFAF8;
+    -fx-border-color: rgba(0,0,0,0.10);
+    -fx-border-width: 1px;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-padding: 12px 14px 12px 14px;
+    -fx-cursor: hand;
+}
+.action-card:hover {
+    -fx-background-color: #F2F0EB;
+    -fx-border-color: rgba(0,0,0,0.18);
+}
+.action-card:pressed  { -fx-background-color: #EAE8E0; }
+.action-card:disabled { -fx-opacity: 0.5; }
+
+.action-card-primary {
+    -fx-background-color: #E6F1FB;
+    -fx-border-color: #185FA5;
+    -fx-border-width: 1px;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-padding: 12px 14px 12px 14px;
+    -fx-cursor: hand;
+}
+.action-card-primary:hover   { -fx-background-color: #D0E6F9; }
+.action-card-primary:pressed { -fx-background-color: #B5D4F4; }
+.action-card-primary:disabled { -fx-opacity: 0.5; }
+
+.action-card-title          { -fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #1a1a1a; }
+.action-card-subtitle       { -fx-font-size: 11px; -fx-text-fill: #6B6B6B; }
+.action-card-title-primary  { -fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #0C447C; }
+.action-card-subtitle-primary { -fx-font-size: 11px; -fx-text-fill: #185FA5; }
+
+/* compat aliases used by old code */
+.action-btn-name { -fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: inherit; }
+.action-btn-desc { -fx-font-size: 11px; -fx-text-fill: #6B6B6B; }
+
+/* CONSOLIDER dark card */
+.consolider-card {
+    -fx-background-color: #1a1a1a;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-padding: 12px 16px 12px 16px;
+    -fx-cursor: hand;
+}
+.consolider-card:hover   { -fx-background-color: #2a2a2a; }
+.consolider-card:pressed { -fx-background-color: #333333; }
+.consolider-card:disabled { -fx-opacity: 0.5; }
+.consolider-title    { -fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: white; }
+.consolider-subtitle { -fx-font-size: 11px; -fx-text-fill: rgba(255,255,255,0.5); }
+
+/* =============================================================
+   Generic buttons (dialogs, config)
+   ============================================================= */
+.secondary-btn {
+    -fx-background-color: #F2F0EB;
+    -fx-border-color: rgba(0,0,0,0.15);
+    -fx-border-width: 1px;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-text-fill: #1a1a1a;
+    -fx-font-size: 12px;
+    -fx-padding: 7px 14px 7px 14px;
+    -fx-cursor: hand;
+}
+.secondary-btn:hover   { -fx-background-color: #E8E6E0; }
+.secondary-btn:pressed { -fx-background-color: #D8D6D0; }
+
+.run-btn {
+    -fx-background-color: #1a1a1a;
+    -fx-border-color: transparent;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-text-fill: white;
     -fx-font-size: 13px;
     -fx-font-weight: bold;
-    -fx-font-family: "Courier New", "Consolas", monospace;
-    -fx-text-fill: inherit;
+    -fx-padding: 10px 20px 10px 20px;
+    -fx-cursor: hand;
+}
+.run-btn:hover   { -fx-background-color: #2a2a2a; }
+.run-btn:pressed { -fx-background-color: #333333; }
+.run-btn:disabled { -fx-opacity: 0.5; }
+
+.save-btn {
+    -fx-background-color: #E6F1FB;
+    -fx-border-color: #185FA5;
+    -fx-border-width: 1px;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-text-fill: #0C447C;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-padding: 8px 20px 8px 20px;
+    -fx-cursor: hand;
+}
+.save-btn:hover   { -fx-background-color: #B5D4F4; }
+.save-btn:pressed { -fx-background-color: #8ABDE8; }
+
+.browse-btn {
+    -fx-background-color: transparent;
+    -fx-border-color: rgba(0,0,0,0.18);
+    -fx-border-width: 1px;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-text-fill: #6B6B6B;
+    -fx-font-size: 11px;
+    -fx-padding: 6px 12px 6px 12px;
+    -fx-cursor: hand;
+}
+.browse-btn:hover { -fx-background-color: #F2F0EB; }
+
+.cloture-btn {
+    -fx-background-color: #E6F1FB;
+    -fx-border-color: #185FA5;
+    -fx-border-width: 1px;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-text-fill: #0C447C;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-padding: 5px 12px 5px 12px;
+    -fx-cursor: hand;
+}
+.cloture-btn:hover { -fx-background-color: #B5D4F4; }
+
+.open-btn {
+    -fx-background-color: transparent;
+    -fx-border-color: rgba(0,0,0,0.18);
+    -fx-border-width: 1px;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-text-fill: #6B6B6B;
+    -fx-font-size: 11px;
+    -fx-padding: 6px 12px 6px 12px;
+    -fx-cursor: hand;
+}
+.open-btn:hover { -fx-background-color: #F2F0EB; }
+
+/* =============================================================
+   Progress bar
+   ============================================================= */
+.merge-progress > .bar {
+    -fx-background-color: #185FA5;
+    -fx-background-radius: 4px;
+    -fx-background-insets: 0;
+}
+.merge-progress > .track {
+    -fx-background-color: #E8E6E0;
+    -fx-background-radius: 4px;
+    -fx-background-insets: 0;
 }
 
-.action-btn-desc {
+/* =============================================================
+   Status bar
+   ============================================================= */
+.status-bar {
+    -fx-background-color: #F2F0EB;
+    -fx-border-color: rgba(0,0,0,0.10);
+    -fx-border-width: 1px 0 0 0;
+    -fx-min-height: 40px;
+}
+.status-label {
+    -fx-font-size: 11px;
+    -fx-text-fill: #6B6B6B;
+}
+
+/* =============================================================
+   Log box (TextArea)
+   ============================================================= */
+.log-box,
+.log-area {
+    -fx-control-inner-background: #1a1a1a;
+    -fx-background-color: #1a1a1a;
+    -fx-text-fill: #A8F0B0;
+    -fx-font-family: "Menlo", "Courier New", monospace;
+    -fx-font-size: 11px;
+    -fx-border-color: transparent;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+}
+.log-box .content,
+.log-area .content {
+    -fx-background-color: #1a1a1a;
+    -fx-background-radius: 8px;
+}
+.log-box:focused,
+.log-area:focused {
+    -fx-border-color: transparent;
+}
+.log-box .scroll-bar:vertical,
+.log-area .scroll-bar:vertical {
+    -fx-background-color: #2a2a2a;
+}
+.log-box .scroll-bar .thumb,
+.log-area .scroll-bar .thumb {
+    -fx-background-color: #444;
+    -fx-background-radius: 4px;
+}
+
+/* =============================================================
+   KPI cards
+   ============================================================= */
+.kpi-card {
+    -fx-background-color: #F2F0EB;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-background-radius: 8px;
+    -fx-padding: 12px 14px 12px 14px;
+}
+.kpi-label      { -fx-font-size: 11px; -fx-text-fill: #9B9B9B; }
+.kpi-value      { -fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #1a1a1a; }
+.kpi-delta-up   { -fx-font-size: 11px; -fx-text-fill: #3B6D11; }
+.kpi-delta-down { -fx-font-size: 11px; -fx-text-fill: #A32D2D; }
+
+/* =============================================================
+   Company list (dashboard left panel)
+   ============================================================= */
+.company-list-container {
+    -fx-background-color: #FAFAF8;
+    -fx-border-color: rgba(0,0,0,0.10);
+    -fx-border-width: 1px;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+}
+.company-list-header {
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #6B6B6B;
+    -fx-background-color: #F2F0EB;
+    -fx-padding: 8px 12px 8px 12px;
+}
+.company-list-item {
+    -fx-font-size: 12px;
+    -fx-text-fill: #1a1a1a;
+    -fx-padding: 8px 12px 8px 12px;
+    -fx-background-color: transparent;
+    -fx-cursor: hand;
+    -fx-alignment: CENTER_LEFT;
+    -fx-max-width: Infinity;
+}
+.company-list-item:hover { -fx-background-color: #F2F0EB; }
+.company-list-selected {
+    -fx-background-color: #E6F1FB;
+    -fx-text-fill: #0C447C;
+    -fx-font-weight: bold;
+}
+
+/* compat */
+.company-list-btn {
+    -fx-font-size: 12px;
+    -fx-text-fill: #1a1a1a;
+    -fx-padding: 8px 12px 8px 12px;
+    -fx-background-color: transparent;
+    -fx-cursor: hand;
+    -fx-alignment: CENTER_LEFT;
+}
+.company-list-btn:hover { -fx-background-color: #F2F0EB; }
+
+/* =============================================================
+   Detail panel (dashboard right)
+   ============================================================= */
+.detail-panel {
+    -fx-background-color: #FAFAF8;
+    -fx-border-color: rgba(0,0,0,0.10);
+    -fx-border-width: 1px;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+}
+.detail-header {
+    -fx-background-color: #F2F0EB;
+    -fx-padding: 12px 16px 12px 16px;
+}
+.detail-company-name {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #1a1a1a;
+}
+.detail-company-code {
+    -fx-font-size: 11px;
+    -fx-text-fill: #9B9B9B;
+    -fx-font-family: "Menlo", monospace;
+}
+
+/* metric cards */
+.dp-metric-card,
+.metric-card {
+    -fx-background-color: #F2F0EB;
+    -fx-background-radius: 8px;
+    -fx-padding: 10px 12px 10px 12px;
+}
+.dp-metric-label,
+.metric-label {
     -fx-font-size: 10px;
-    -fx-text-fill: #888888;
-    -fx-font-family: "Courier New", "Consolas", monospace;
+    -fx-text-fill: #9B9B9B;
+}
+.dp-metric-value,
+.metric-value {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #1a1a1a;
+}
+.dp-metric-value-success { -fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: #3B6D11; }
+
+/* =============================================================
+   Etat badges
+   ============================================================= */
+.etat-badge {
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-padding: 3px 9px 3px 9px;
+    -fx-background-radius: 20px;
+}
+.etat-comp    { -fx-background-color: #EAF3DE; -fx-text-fill: #27500A; }
+.etat-noncomp { -fx-background-color: #FAEEDA; -fx-text-fill: #633806; }
+.etat-debit   { -fx-background-color: #FCEBEB; -fx-text-fill: #791F1F; }
+
+/* =============================================================
+   Historique / month cards
+   ============================================================= */
+.month-card {
+    -fx-background-color: #FAFAF8;
+    -fx-border-color: rgba(0,0,0,0.10);
+    -fx-border-width: 1px;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+}
+.month-card-header {
+    -fx-background-color: #F2F0EB;
+    -fx-padding: 12px 16px 12px 16px;
+    -fx-cursor: hand;
+}
+.month-card-header:hover { -fx-background-color: #EAE8DC; }
+
+.month-name,
+.month-card-title { -fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #1a1a1a; }
+.month-stat,
+.month-card-stats { -fx-font-size: 11px; -fx-text-fill: #6B6B6B; }
+
+.badge-open {
+    -fx-background-color: #E6F1FB;
+    -fx-text-fill: #0C447C;
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-padding: 2px 8px 2px 8px;
+    -fx-background-radius: 20px;
+}
+.badge-closed {
+    -fx-background-color: #EAF3DE;
+    -fx-text-fill: #27500A;
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-padding: 2px 8px 2px 8px;
+    -fx-background-radius: 20px;
+}
+
+.month-card-body { -fx-background-color: #F2F0EB; }
+.month-card-client-row { -fx-font-size: 11px; -fx-text-fill: #1a1a1a; }
+
+/* =============================================================
+   Configuration page
+   ============================================================= */
+.config-label {
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #6B6B6B;
+}
+.config-input {
+    -fx-font-size: 12px;
+    -fx-background-color: #F2F0EB;
+    -fx-border-color: rgba(0,0,0,0.10);
+    -fx-border-width: 1px;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-padding: 6px 10px 6px 10px;
+    -fx-text-fill: #1a1a1a;
 }

@@ -98,6 +98,14 @@ public class TrfGeneratorService {
         return outFile;
     }
 
+    public List<ClientSummary> generateSummaries(File consoFile, File listingFile, File tableauFile)
+            throws Exception {
+        List<ConsolidationRow> allRows = reader.readAllConsolidationRows(consoFile);
+        Map<String, ClientInfo> clientInfoMap = reader.readClientInfoMap(listingFile, msg -> {});
+        Map<String, Double> balances = reader.readPreviousBalances(tableauFile);
+        return calculator.buildClientSummaries(allRows, clientInfoMap, balances);
+    }
+
     private void log(BiConsumer<Double, String> cb, double p, String msg) {
         cb.accept(p, msg);
     }

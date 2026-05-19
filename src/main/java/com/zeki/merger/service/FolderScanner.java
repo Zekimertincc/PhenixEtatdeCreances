@@ -39,29 +39,35 @@ public class FolderScanner {
 
     // -------------------------------------------------------------------------
 
-    private Optional<File> findExcelFile(File companyDir) {
-        // Step 1 — find the "etat … creances" subfolder (accent/case-insensitive)
-        File[] subDirs = companyDir.listFiles(File::isDirectory);
+    private Optional<File> findExcelFile(File dir) {
+        File[] subDirs = dir.listFiles(File::isDirectory);
         if (subDirs == null) return Optional.empty();
 
+        // Check if any direct subfolder is the "etat creances" folder
         Optional<File> etcDir = Arrays.stream(subDirs)
             .filter(d -> isEtatCreancesFolder(d.getName()))
             .findFirst();
 
-        if (etcDir.isEmpty()) return Optional.empty();
+        if (etcDir.isPresent()) {
+            File[] candidates = etcDir.get().listFiles(f ->
+                f.isFile()
+                && normalize(f.getName()).startsWith("etat")
+                && (f.getName().endsWith(".xlsx") || f.getName().endsWith(".xls"))
+            );
+            if (candidates != null && candidates.length > 0) {
+                return Arrays.stream(candidates)
+                    .max(Comparator.comparingLong(File::lastModified));
+            }
+        }
 
-        // Step 2 — find an .xlsx/.xls file whose name starts with "etat"
-        File[] candidates = etcDir.get().listFiles(f ->
-            f.isFile()
-            && normalize(f.getName()).startsWith("etat")
-            && (f.getName().endsWith(".xlsx") || f.getName().endsWith(".xls"))
-        );
+        // Not found at this level — recurse into subdirectories
+        for (File subDir : subDirs) {
+            if (isEtatCreancesFolder(subDir.getName())) continue; // already checked
+            Optional<File> found = findExcelFile(subDir);
+            if (found.isPresent()) return found;
+        }
 
-        if (candidates == null || candidates.length == 0) return Optional.empty();
-
-        // If multiple files match, pick the most recently modified one.
-        return Arrays.stream(candidates)
-            .max(Comparator.comparingLong(File::lastModified));
+        return Optional.empty();
     }
 
     /**

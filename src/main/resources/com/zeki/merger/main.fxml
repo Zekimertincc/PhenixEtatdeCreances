@@ -3,90 +3,114 @@
 <?import javafx.scene.layout.*?>
 <?import javafx.geometry.Insets?>
 
-<BorderPane xmlns:fx="http://javafx.com/fxml/1"
-            fx:controller="com.zeki.merger.controller.MainController"
-            styleClass="root-pane">
+<HBox xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.zeki.merger.controller.MainController"
+      styleClass="root-pane">
 
-    <!-- ===== TOP — black header band ===== -->
-    <top>
-        <VBox styleClass="header-band">
-            <Label text="CABINET PHÉNIX" styleClass="app-title"/>
+    <!-- ===== LEFT SIDEBAR (200px fixed) ===== -->
+    <VBox styleClass="sidebar" prefWidth="200" minWidth="200" maxWidth="200">
+
+        <VBox styleClass="sidebar-logo" alignment="CENTER" spacing="4">
+            <padding><Insets top="24" bottom="16" left="0" right="0"/></padding>
+            <Label text="Cabinet Phénix" styleClass="sidebar-logo-title"/>
+            <Label text="v1.0.0" styleClass="sidebar-logo-sub"/>
         </VBox>
-    </top>
 
-    <!-- ===== CENTER — tabbed content ===== -->
-    <center>
-        <TabPane styleClass="main-tabs" tabClosingPolicy="UNAVAILABLE">
+        <Label text="PRINCIPAL" styleClass="nav-section-label">
+            <VBox.margin><Insets top="8" left="16" bottom="4"/></VBox.margin>
+        </Label>
+        <Button fx:id="navOperations" text="⊞  Opérations" maxWidth="Infinity"
+                styleClass="nav-item" onAction="#showOperations"/>
+        <Button fx:id="navDashboard"  text="▦  Dashboard"  maxWidth="Infinity"
+                styleClass="nav-item" onAction="#showDashboard"/>
+        <Button fx:id="navHistorique" text="📅  Historique" maxWidth="Infinity"
+                styleClass="nav-item" onAction="#showHistorique"/>
 
-            <!-- ── Tab 1: Operations ── -->
-            <Tab text="OPÉRATIONS">
-                <BorderPane>
+        <Region prefHeight="1" minHeight="1" maxHeight="1" styleClass="sidebar-divider-line">
+            <VBox.margin><Insets top="8" bottom="8"/></VBox.margin>
+        </Region>
 
-                    <center>
-                        <VBox styleClass="content-box" spacing="10">
-                            <padding><Insets top="20" right="24" bottom="12" left="24"/></padding>
+        <Label text="PARAMÈTRES" styleClass="nav-section-label">
+            <VBox.margin><Insets left="16" bottom="4"/></VBox.margin>
+        </Label>
+        <Button fx:id="navConfig" text="⚙  Configuration" maxWidth="Infinity"
+                styleClass="nav-item" onAction="#showConfig"/>
 
-                            <!-- FILES CARD -->
-                            <HBox styleClass="files-card" alignment="CENTER_LEFT" spacing="12">
-                                <VBox HBox.hgrow="ALWAYS" spacing="6">
-                                    <Label text="Fichiers configurés" styleClass="files-card-title"/>
-                                    <HBox fx:id="badgesBox" spacing="6" alignment="CENTER_LEFT"/>
-                                    <Label fx:id="missingFilesLabel" styleClass="missing-label"
-                                           text="" visible="false" managed="false"/>
-                                </VBox>
-                                <Button text="⚙ Configurer" styleClass="secondary-btn"
-                                        onAction="#openFileConfig"/>
-                            </HBox>
+        <Region VBox.vgrow="ALWAYS"/>
 
-                            <!-- ACTIONS GRID (populated programmatically in initialize()) -->
-                            <GridPane fx:id="actionsGrid" hgap="10" vgap="10">
-                                <columnConstraints>
-                                    <ColumnConstraints hgrow="ALWAYS" percentWidth="50"/>
-                                    <ColumnConstraints hgrow="ALWAYS" percentWidth="50"/>
-                                </columnConstraints>
-                            </GridPane>
+        <Region prefHeight="1" minHeight="1" maxHeight="1" styleClass="sidebar-divider-line"/>
+        <Button fx:id="navLogFull" text="⌨  Log complet" maxWidth="Infinity"
+                styleClass="nav-item" onAction="#showLogFull"/>
+    </VBox>
 
-                            <!-- PROGRESS BAR -->
-                            <ProgressBar fx:id="progressBar"
-                                         maxWidth="Infinity"
-                                         prefHeight="16"
-                                         styleClass="merge-progress"/>
+    <!-- ===== RIGHT MAIN AREA ===== -->
+    <BorderPane HBox.hgrow="ALWAYS">
 
-                            <!-- LOG AREA -->
-                            <Label text="LOG" styleClass="field-label"/>
-                            <TextArea fx:id="logArea"
-                                      editable="false"
-                                      wrapText="false"
-                                      styleClass="log-area"
-                                      VBox.vgrow="ALWAYS"/>
+        <top>
+            <HBox styleClass="top-bar" alignment="CENTER_LEFT" prefHeight="48" minHeight="48">
+                <padding><Insets left="20" right="20"/></padding>
+                <Label fx:id="pageTitle" text="Opérations" styleClass="page-title"/>
+            </HBox>
+        </top>
+
+        <center>
+            <StackPane>
+
+                <!-- Page 1: Opérations -->
+                <VBox fx:id="pageOperations" styleClass="content-box" spacing="10">
+                    <padding><Insets top="16" right="24" bottom="12" left="24"/></padding>
+
+                    <HBox styleClass="files-card" alignment="CENTER_LEFT" spacing="12">
+                        <VBox HBox.hgrow="ALWAYS" spacing="6">
+                            <Label text="Fichiers configurés" styleClass="files-card-title"/>
+                            <FlowPane fx:id="badgesBox" hgap="6" vgap="4" alignment="CENTER_LEFT"/>
+                            <Label fx:id="missingFilesLabel" styleClass="missing-label"
+                                   text="" visible="false" managed="false"/>
                         </VBox>
-                    </center>
+                        <Button text="⚙ Configurer" styleClass="secondary-btn"
+                                onAction="#openFileConfig"/>
+                    </HBox>
 
-                    <bottom>
-                        <HBox fx:id="statusBar"
-                              spacing="12"
-                              alignment="CENTER_LEFT"
-                              styleClass="status-bar">
-                            <padding><Insets top="8" right="16" bottom="8" left="16"/></padding>
-                            <Label fx:id="statusLabel"
-                                   styleClass="status-label"
-                                   HBox.hgrow="ALWAYS"/>
-                            <Button fx:id="openFileBtn"
-                                    text="Open File"
-                                    styleClass="open-btn"
-                                    onAction="#openFile"/>
-                        </HBox>
-                    </bottom>
+                    <GridPane fx:id="actionsGrid" hgap="10" vgap="10">
+                        <columnConstraints>
+                            <ColumnConstraints hgrow="ALWAYS" percentWidth="50"/>
+                            <ColumnConstraints hgrow="ALWAYS" percentWidth="50"/>
+                        </columnConstraints>
+                    </GridPane>
 
-                </BorderPane>
-            </Tab>
+                    <ProgressBar fx:id="progressBar" maxWidth="Infinity" prefHeight="16"
+                                 styleClass="merge-progress"/>
 
-            <!-- ── Tab 2: Dashboard ── -->
-            <Tab text="DASHBOARD">
-                <fx:include fx:id="dashboard" source="dashboard.fxml"/>
-            </Tab>
+                    <Label text="LOG" styleClass="field-label"/>
+                    <TextArea fx:id="logArea" editable="false" wrapText="false"
+                              styleClass="log-area" prefHeight="90" maxHeight="90"/>
 
-        </TabPane>
-    </center>
+                    <HBox fx:id="statusBar" spacing="12" alignment="CENTER_LEFT"
+                          styleClass="status-bar" visible="false" managed="false">
+                        <padding><Insets top="8" right="16" bottom="8" left="16"/></padding>
+                        <Label fx:id="statusLabel" styleClass="status-label" HBox.hgrow="ALWAYS"/>
+                        <Button fx:id="openFileBtn" text="Open File" styleClass="open-btn"
+                                onAction="#openFile"/>
+                    </HBox>
+                </VBox>
 
-</BorderPane>
+                <!-- Page 2: Dashboard (populated programmatically) -->
+                <VBox fx:id="pageDashboard" styleClass="content-box" visible="false" managed="false"/>
+
+                <!-- Page 3: Historique (populated programmatically) -->
+                <VBox fx:id="pageHistorique" styleClass="content-box" visible="false" managed="false"/>
+
+                <!-- Page 4: Configuration -->
+                <VBox fx:id="pageConfig" styleClass="content-box" visible="false" managed="false" spacing="16">
+                    <padding><Insets top="16" right="24" bottom="12" left="24"/></padding>
+                    <VBox fx:id="configFormBox" spacing="12"/>
+                    <HBox alignment="CENTER_RIGHT">
+                        <Button text="Enregistrer" styleClass="run-btn" onAction="#saveConfig"/>
+                    </HBox>
+                </VBox>
+
+            </StackPane>
+        </center>
+
+    </BorderPane>
+</HBox>

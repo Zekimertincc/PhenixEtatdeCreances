@@ -9,6 +9,7 @@ import java.sql.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.Collections;
 
 /**
  * Singleton embedded SQLite database.
@@ -67,6 +68,35 @@ public class DatabaseManager {
                     col_k REAL, col_l TEXT, col_m TEXT, col_n TEXT, col_o REAL,
                     col_p TEXT, col_q REAL, col_r REAL, col_s REAL, col_t REAL,
                     col_u REAL, col_v REAL, col_w REAL, col_x REAL, col_y REAL
+                )""");
+
+            st.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS trf_months (
+                    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                    year           INTEGER NOT NULL,
+                    month          INTEGER NOT NULL,
+                    status         TEXT    NOT NULL DEFAULT 'open',
+                    nb_clients     INTEGER,
+                    total_montant  REAL,
+                    total_nous_doit REAL,
+                    closed_at      TEXT,
+                    created_at     TEXT DEFAULT (datetime('now')),
+                    UNIQUE(year, month)
+                )""");
+
+            st.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS trf_history (
+                    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                    month_id         INTEGER NOT NULL REFERENCES trf_months(id),
+                    client_name      TEXT NOT NULL,
+                    client_code      TEXT,
+                    encaissements    REAL,
+                    montant_facturer REAL,
+                    nous_doit_prec   REAL,
+                    sommes_reverser  REAL,
+                    etat             TEXT,
+                    iban             TEXT,
+                    non_compensation INTEGER DEFAULT 0
                 )""");
 
             st.executeUpdate("""
@@ -284,6 +314,137 @@ public class DatabaseManager {
                 return Optional.of(row);
             }
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // trf_months / trf_history DAO
+    // -------------------------------------------------------------------------
+
+    public synchronized void insertOrUpdateTrfMonth(int year, int month, String status,
+            int nbClients, double totalMontant, double totalNousDoit) throws SQLException {
+        String now = LocalDateTime.now().format(ISO);
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO trf_months (year, month, status, nb_clients, total_montant, total_nous_doit, closed_at)
+                VALUES (?,?,?,?,?,?,?)
+                ON CONFLICT(year,month) DO UPDATE
+                  SET status=excluded.status, nb_clients=excluded.nb_clients,
+                      total_montant=excluded.total_montant, total_nous_doit=excluded.total_nous_doit,
+                      closed_at=excluded.closed_at
+                """)) {
+            ps.setInt(1, year);
+            ps.setInt(2, month);
+            ps.setString(3, status);
+            ps.setInt(4, nbClients);
+            ps.setDouble(5, totalMontant);
+            ps.setDouble(6, totalNousDoit);
+            ps.setString(7, "closed".equals(status) ? now : null);
+            ps.executeUpdate();
+        }
+    }
+
+    public synchronized long getTrfMonthId(int year, int month) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT id FROM trf_months WHERE year=? AND month=?")) {
+            ps.setInt(1, year);
+            ps.setInt(2, month);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getLong(1) : -1L;
+            }
+        }
+    }
+
+    public synchronized void deleteTrfHistory(long monthId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM trf_history WHERE month_id=?")) {
+            ps.setLong(1, monthId);
+            ps.executeUpdate();
+        }
+    }
+
+    public synchronized void insertTrfHistory(long monthId, ClientSummary cs) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO trf_history
+                  (month_id, client_name, client_code, encaissements, montant_facturer,
+                   nous_doit_prec, sommes_reverser, etat, iban, non_compensation)
+                VALUES (?,?,?,?,?,?,?,?,?,?)
+                """)) {
+            ps.setLong(1, monthId);
+            ps.setString(2, cs.getClientName());
+            ps.setString(3, cs.getClientCode());
+            ps.setDouble(4, cs.getSommesCzPhenix());
+            ps.setDouble(5, cs.getMontantAFacturerTtc());
+            ps.setDouble(6, cs.getNousDoit_Prec());
+            ps.setDouble(7, cs.getSommesAReverserFinal());
+            ps.setString(8, cs.getEtatCompensations());
+            ps.setString(9, cs.getIban());
+            ps.setInt(10, cs.isNonCompensation() ? 1 : 0);
+            ps.executeUpdate();
+        }
+    }
+
+    public synchronized List<TrfMonthRecord> getAllTrfMonths() {
+        List<TrfMonthRecord> out = new ArrayList<>();
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("""
+                 SELECT id, year, month, status, nb_clients, total_montant, total_nous_doit, closed_at
+                 FROM trf_months ORDER BY year DESC, month DESC
+                 """)) {
+            while (rs.next()) {
+                out.add(new TrfMonthRecord(
+                    rs.getLong("id"), rs.getInt("year"), rs.getInt("month"),
+                    rs.getString("status"), rs.getInt("nb_clients"),
+                    rs.getDouble("total_montant"), rs.getDouble("total_nous_doit"),
+                    rs.getString("closed_at")));
+            }
+        } catch (SQLException ignored) {}
+        return out;
+    }
+
+    public synchronized List<TrfHistoryRecord> getTrfHistoryForMonth(long monthId) {
+        List<TrfHistoryRecord> out = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement("""
+                SELECT id, month_id, client_name, client_code, encaissements, montant_facturer,
+                       nous_doit_prec, sommes_reverser, etat, iban, non_compensation
+                FROM trf_history WHERE month_id=? ORDER BY client_name
+                """)) {
+            ps.setLong(1, monthId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(new TrfHistoryRecord(
+                        rs.getLong("id"), rs.getLong("month_id"),
+                        rs.getString("client_name"), rs.getString("client_code"),
+                        rs.getDouble("encaissements"), rs.getDouble("montant_facturer"),
+                        rs.getDouble("nous_doit_prec"), rs.getDouble("sommes_reverser"),
+                        rs.getString("etat"), rs.getString("iban"),
+                        rs.getInt("non_compensation") == 1));
+                }
+            }
+        } catch (SQLException ignored) {}
+        return out;
+    }
+
+    public synchronized List<double[]> getClientMonthlyHistory(String clientName, int limit)
+            throws SQLException {
+        List<double[]> out = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement("""
+                SELECT tm.month, tm.year, th.montant_facturer
+                FROM trf_history th
+                JOIN trf_months tm ON th.month_id = tm.id
+                WHERE th.client_name = ?
+                ORDER BY tm.year DESC, tm.month DESC
+                LIMIT ?
+                """)) {
+            ps.setString(1, clientName);
+            ps.setInt(2, limit);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(new double[]{rs.getInt("month"), rs.getInt("year"),
+                                        rs.getDouble("montant_facturer")});
+                }
+            }
+        }
+        Collections.reverse(out);
+        return out;
     }
 
     // -------------------------------------------------------------------------
