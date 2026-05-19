@@ -541,3 +541,47 @@
     -fx-padding: 6px 10px 6px 10px;
     -fx-text-fill: #1a1a1a;
 }
+
+/* =============================================================
+   Status bar (new)
+   ============================================================= */
+.status-bar-box {
+    -fx-background-color: #F2F0EB;
+    -fx-background-radius: 8px;
+    -fx-border-color: rgba(0,0,0,0.08);
+    -fx-border-width: 1px;
+    -fx-border-radius: 8px;
+    -fx-padding: 8px 12px;
+}
+
+.status-label {
+    -fx-font-size: 12px;
+    -fx-text-fill: #3B6D11;
+}
+
+.open-file-btn {
+    -fx-background-color: #E6F1FB;
+    -fx-border-color: #185FA5;
+    -fx-border-width: 1px;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-text-fill: #0C447C;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-padding: 5px 12px;
+    -fx-cursor: hand;
+}
+
+.open-file-btn:hover {
+    -fx-background-color: #B5D4F4;
+}
+
+/* =============================================================
+   Action grid section labels
+   ============================================================= */
+.section-label {
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #9B9B9B;
+    -fx-padding: 8px 4px 2px 4px;
+}

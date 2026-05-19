@@ -5,6 +5,8 @@ import com.zeki.merger.service.ConsoControleComparator;
 import com.zeki.merger.service.EspacePartageFixer;
 import com.zeki.merger.service.EtatCreancesSyncService;
 import com.zeki.merger.service.EtatPublicGenerator;
+import com.zeki.merger.service.FacturePdfService;
+import com.zeki.merger.service.GenererControleFacturationService;
 import com.zeki.merger.service.MergeService;
 import com.zeki.merger.service.ProcreancesComparator;
 import com.zeki.merger.service.RecupNumFactureService;
@@ -30,6 +32,8 @@ public class OperationsController {
     private final ConsoControleComparator consoControleComparator;
     private final RecupNumFactureService  recupNumFactureService;
     private final EtatCreancesSyncService syncService;
+    private final FacturePdfService                 facturePdfService  = new FacturePdfService();
+    private final GenererControleFacturationService genControleService = new GenererControleFacturationService();
     private final ProgressBar             progressBar;
     private final HBox                    statusBar;
     private final Label                   statusLabel;
@@ -48,6 +52,8 @@ public class OperationsController {
     private Button recupBtn;
     private Button runActionBtn;
     private Button controleBtn;
+    private Button factureBtn;
+    private Button genControleBtn;
 
     public OperationsController(MergeService mergeService,
                                  EspacePartageFixer espacePartageFixer,
@@ -84,27 +90,40 @@ public class OperationsController {
     }
 
     public void buildButtons(GridPane actionsGrid) {
-        trfBtn       = createActionBtn("Générer TRF",          "Calcul virements et compensations",      "action-card-primary", e -> generateTrf());
-        etatBtn      = createActionBtn("États publics",         "Exporter vers Espace Partagé",           "action-card",         e -> generateEtatPublic());
-        cmpBtn       = createActionBtn("Comparer fichiers",     "Contrôle PROCRÉANCES",                   "action-card",         e -> compareProcreances());
-        fixBtn       = createActionBtn("Corriger espaces",      "Mise à jour Espace Partagé",              "action-card",         e -> fixPaths());
-        syncDbBtn    = createActionBtn("Sync toutes sociétés",  "Synchroniser toutes les sociétés",        "action-card",         e -> syncDatabase());
-        recupBtn     = createActionBtn("Récup. n° factures",    "Depuis Dropbox",                          "action-card",         e -> recupNumFacture());
-        controleBtn  = createActionBtn("Contrôle Facturation",  "Comparer Contrôle vs Consolidation",      "action-card",         e -> compareConsoControle());
-        runActionBtn = createActionBtn("▶  CONSOLIDER",         "Lire les états → ConsolidationGénérale",  "consolider-card",     e -> run());
+        trfBtn         = createActionBtn("Générer TRF",               "Calcul virements et compensations",      "action-card-primary", e -> generateTrf());
+        etatBtn        = createActionBtn("États publics",              "Exporter vers Espace Partagé",           "action-card",         e -> generateEtatPublic());
+        cmpBtn         = createActionBtn("Comparer fichiers",          "Contrôle PROCRÉANCES",                   "action-card",         e -> compareProcreances());
+        fixBtn         = createActionBtn("Corriger espaces",           "Mise à jour Espace Partagé",              "action-card",         e -> fixPaths());
+        syncDbBtn      = createActionBtn("Sync toutes sociétés",       "Synchroniser toutes les sociétés",        "action-card",         e -> syncDatabase());
+        recupBtn       = createActionBtn("Récup. n° factures",         "Depuis Dropbox",                          "action-card",         e -> recupNumFacture());
+        controleBtn    = createActionBtn("Contrôle Facturation",       "Comparer Contrôle vs Consolidation",      "action-card",         e -> compareConsoControle());
+        factureBtn     = createActionBtn("Générer factures PDF",       "Export PDF Facture en préparation",       "action-card",         e -> genererFacturesPdf());
+        genControleBtn = createActionBtn("Générer Contrôle Fact.",     "Produit Controle_Facturation.xlsx",       "action-card",         e -> genererControleFacturation());
+        runActionBtn   = createActionBtn("▶  CONSOLIDER",              "Lire les états → ConsolidationGénérale",  "consolider-card",     e -> run());
 
-        actionsGrid.add(trfBtn,    0, 0);
-        actionsGrid.add(etatBtn,   1, 0);
-        actionsGrid.add(cmpBtn,    0, 1);
-        actionsGrid.add(fixBtn,    1, 1);
-        actionsGrid.add(syncDbBtn, 0, 2);
-        actionsGrid.add(recupBtn,  1, 2);
+        Label opsLabel = new Label("OPÉRATIONS");
+        opsLabel.getStyleClass().add("section-label");
+        GridPane.setColumnSpan(opsLabel, 2);
 
+        Label factLabel = new Label("FACTURATION");
+        factLabel.getStyleClass().add("section-label");
+        GridPane.setColumnSpan(factLabel, 2);
+
+        actionsGrid.add(opsLabel,       0, 0);
+        actionsGrid.add(trfBtn,         0, 1);
+        actionsGrid.add(etatBtn,        1, 1);
+        actionsGrid.add(cmpBtn,         0, 2);
+        actionsGrid.add(fixBtn,         1, 2);
+        actionsGrid.add(syncDbBtn,      0, 3);
+
+        actionsGrid.add(factLabel,      0, 4);
+        actionsGrid.add(recupBtn,       0, 5);
+        actionsGrid.add(genControleBtn, 1, 5);
+        actionsGrid.add(controleBtn,    0, 6);
+        actionsGrid.add(factureBtn,     1, 6);
+
+        actionsGrid.add(runActionBtn,   0, 7);
         GridPane.setColumnSpan(runActionBtn, 2);
-        actionsGrid.add(runActionBtn, 0, 3);
-
-        controleBtn.setVisible(false);
-        controleBtn.setManaged(false);
     }
 
     public void openFile() {
@@ -400,7 +419,63 @@ public class OperationsController {
         if (controleBtn  != null) controleBtn.setDisable(disabled);
         if (recupBtn     != null) recupBtn.setDisable(disabled);
         if (syncDbBtn    != null) syncDbBtn.setDisable(disabled);
-        if (runActionBtn != null) runActionBtn.setDisable(disabled);
+        if (factureBtn      != null) factureBtn.setDisable(disabled);
+        if (genControleBtn  != null) genControleBtn.setDisable(disabled);
+        if (runActionBtn    != null) runActionBtn.setDisable(disabled);
+    }
+
+    private void genererFacturesPdf() {
+        File rootFolder = new File(AppPreferences.getMergeRoot());
+        if (!rootFolder.isDirectory()) {
+            log.accept("ERROR: Dossier source non configuré."); return;
+        }
+        setAllButtonsDisabled(true);
+        progressBar.setProgress(-1);
+        new Thread(() -> {
+            try {
+                java.util.List<String> lines = facturePdfService.apply(rootFolder,
+                    (p, msg) -> Platform.runLater(() -> { progressBar.setProgress(p); log.accept(msg); }));
+                Platform.runLater(() -> {
+                    progressBar.setProgress(1.0);
+                    statusLabel.setText("Factures PDF générées — " + lines.size() + " dossier(s).");
+                    statusBar.setVisible(true);
+                    statusBar.setManaged(true);
+                    setAllButtonsDisabled(false);
+                });
+            } catch (Exception e) {
+                Platform.runLater(() -> { log.accept("ERREUR: " + e.getMessage()); setAllButtonsDisabled(false); });
+            }
+        }, "facture-pdf-thread").start();
+    }
+
+    private void genererControleFacturation() {
+        File rootFolder   = new File(AppPreferences.getMergeRoot());
+        File outputFolder = new File(AppPreferences.getMergeRoot());
+        if (!rootFolder.isDirectory()) {
+            log.accept("ERROR: Dossier source non configuré."); return;
+        }
+        setAllButtonsDisabled(true);
+        progressBar.setProgress(0);
+        new Thread(() -> {
+            try {
+                File out = genControleService.apply(rootFolder, outputFolder,
+                    (p, msg) -> Platform.runLater(() -> { progressBar.setProgress(p); log.accept(msg); }));
+                Platform.runLater(() -> {
+                    progressBar.setProgress(1.0);
+                    if (out != null) openFile(out);
+                    setAllButtonsDisabled(false);
+                });
+            } catch (Exception e) {
+                Platform.runLater(() -> { log.accept("ERREUR: " + e.getMessage()); setAllButtonsDisabled(false); });
+            }
+        }, "gen-controle-thread").start();
+    }
+
+    private void openFile(File f) {
+        if (f != null && f.exists()) {
+            try { Desktop.getDesktop().open(f); }
+            catch (Exception e) { log.accept("Cannot open file: " + e.getMessage()); }
+        }
     }
 
     private Button createActionBtn(String name, String desc, String styleClass,

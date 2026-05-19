@@ -85,12 +85,12 @@
                     <TextArea fx:id="logArea" editable="false" wrapText="false"
                               styleClass="log-area" prefHeight="90" maxHeight="90"/>
 
-                    <HBox fx:id="statusBar" spacing="12" alignment="CENTER_LEFT"
-                          styleClass="status-bar" visible="false" managed="false">
-                        <padding><Insets top="8" right="16" bottom="8" left="16"/></padding>
-                        <Label fx:id="statusLabel" styleClass="status-label" HBox.hgrow="ALWAYS"/>
-                        <Button fx:id="openFileBtn" text="Open File" styleClass="open-btn"
-                                onAction="#openFile"/>
+                    <HBox fx:id="statusBar" spacing="10" alignment="CENTER_LEFT"
+                          visible="false" managed="false"
+                          styleClass="status-bar-box">
+                        <padding><Insets top="6" right="0" bottom="0" left="0"/></padding>
+                        <Label fx:id="statusLabel" styleClass="status-label" HBox.hgrow="ALWAYS" wrapText="true"/>
+                        <Button fx:id="openFileBtn" text="📂 Ouvrir" styleClass="open-file-btn" onAction="#openFile"/>
                     </HBox>
                 </VBox>
 

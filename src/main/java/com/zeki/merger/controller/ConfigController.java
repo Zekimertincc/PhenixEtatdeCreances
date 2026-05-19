@@ -39,11 +39,19 @@ public class ConfigController {
             AppPreferences.getMergeRoot(),
             AppPreferences.getTrfConso(),
             AppPreferences.getTrfListing(),
-            AppPreferences.getTrfTableau()
+            AppPreferences.getTrfTableau(),
+            AppPreferences.getControlePath(),
+            AppPreferences.getRecupFacturePath()
         };
-        String[]  labels = {"Dossier source (Dropbox)", "ConsolidationGénérale.xlsx",
-                             "Listing Cabinet Phénix.xls", "Tableau de bord facturation.xlsx"};
-        boolean[] isDir  = {true, false, false, false};
+        String[] labels = {
+            "Dossier source (Dropbox)",
+            "ConsolidationGénérale.xlsx",
+            "Listing Cabinet Phénix.xls",
+            "Tableau de bord facturation.xlsx",
+            "Contrôle Facturation.xlsx",
+            "Récup Num Facture.xlsx"
+        };
+        boolean[] isDir = {true, false, false, false, false, false};
         configPathLabels = new Label[configPaths.length];
 
         configFormBox.getChildren().clear();
@@ -79,6 +87,8 @@ public class ConfigController {
         AppPreferences.setTrfConso(configPaths[1]);
         AppPreferences.setTrfListing(configPaths[2]);
         AppPreferences.setTrfTableau(configPaths[3]);
+        AppPreferences.setControlePath(configPaths[4]);
+        AppPreferences.setRecupFacturePath(configPaths[5]);
         refreshBadges();
         log.accept("Configuration enregistrée.");
         onSaved.run();
