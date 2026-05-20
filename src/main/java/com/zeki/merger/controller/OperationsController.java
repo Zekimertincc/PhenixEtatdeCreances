@@ -425,15 +425,23 @@ public class OperationsController {
     }
 
     private void genererFacturesPdf() {
-        File rootFolder = new File(AppPreferences.getMergeRoot());
+        String rootPath  = AppPreferences.getMergeRoot();
+        String recupPath = AppPreferences.getRecupFacturePath();
+        File rootFolder  = new File(rootPath);
         if (!rootFolder.isDirectory()) {
             log.accept("ERROR: Dossier source non configuré."); return;
         }
+        File recupFile = (recupPath != null && !recupPath.isBlank()) ? new File(recupPath) : null;
+        if (recupFile != null && !recupFile.exists()) {
+            log.accept("AVERT: Récup. Num Facture introuvable — " + recupPath + ". Génération sans filtre.");
+            recupFile = null;
+        }
+        final File finalRecupFile = recupFile;
         setAllButtonsDisabled(true);
         progressBar.setProgress(-1);
         new Thread(() -> {
             try {
-                java.util.List<String> lines = facturePdfService.apply(rootFolder,
+                java.util.List<String> lines = facturePdfService.apply(rootFolder, finalRecupFile,
                     (p, msg) -> Platform.runLater(() -> { progressBar.setProgress(p); log.accept(msg); }));
                 Platform.runLater(() -> {
                     progressBar.setProgress(1.0);
@@ -449,16 +457,25 @@ public class OperationsController {
     }
 
     private void genererControleFacturation() {
-        File rootFolder   = new File(AppPreferences.getMergeRoot());
-        File outputFolder = new File(AppPreferences.getMergeRoot());
+        String rootPath   = AppPreferences.getMergeRoot();
+        String outputPath = AppPreferences.getOutputFolder();
+        String recupPath  = AppPreferences.getRecupFacturePath();
+        File rootFolder   = new File(rootPath);
+        File outputFolder = new File(outputPath.isBlank() ? rootPath : outputPath);
         if (!rootFolder.isDirectory()) {
             log.accept("ERROR: Dossier source non configuré."); return;
         }
+        File recupFile = (recupPath != null && !recupPath.isBlank()) ? new File(recupPath) : null;
+        if (recupFile != null && !recupFile.exists()) {
+            log.accept("AVERT: Récup. Num Facture introuvable — " + recupPath + ". Génération sans filtre.");
+            recupFile = null;
+        }
+        final File finalRecupFile = recupFile;
         setAllButtonsDisabled(true);
         progressBar.setProgress(0);
         new Thread(() -> {
             try {
-                File out = genControleService.apply(rootFolder, outputFolder,
+                File out = genControleService.apply(rootFolder, outputFolder, finalRecupFile,
                     (p, msg) -> Platform.runLater(() -> { progressBar.setProgress(p); log.accept(msg); }));
                 Platform.runLater(() -> {
                     progressBar.setProgress(1.0);

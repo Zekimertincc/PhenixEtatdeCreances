@@ -28,22 +28,24 @@ public class DataReader {
     // (0-based). Strings in these columns are parsed as French-formatted numbers.
     private static final Set<Integer> NUMERIC_COLS = Set.of(
         1,              // B  NBRE
-        7,              // H  CREANCE PRINCIPALE
-        8,              // I  RECOUVRE ET FACTURE
+        6,              // G  N°REF INTERNE
+        8,              // I  CREANCE PRINCIPALE
+        9,              // J  RECOUVRE ET FACTURE
         11,             // L  PENALITES
         13,             // N  Transformation colonne L
         14,             // O  CONDITION
         15,             // P  DONT EN ATTENTE
-        16,             // Q  Lieu (sometimes numeric codes)
         17,             // R  Frais de procédure
         18,             // S  Recouvré total
-        19,             // T  Déjà facturé
-        20,             // U  Depuis le début
-        21,             // V  Commissions
-        22,             // W  Pénalits
-        23,             // X  SOMMES CZ PHENIX
-        24,             // Y  MONTANT A FACTURER TTC
-        25              // Z  SOMMES A REVERSER
+        20,             // U
+        21,             // V  Commissions HT
+        22,             // W  Déjà facturé
+        23,             // X  SOMMES CZ PHENIX (pre-computed)
+        24              // Y  MONTANT A FACTURER TTC (pre-computed)
+        // 7  REMOVED — H = DEBITEUR, always string
+        // 16 REMOVED — Q = dept code sometimes text
+        // 19 REMOVED — T = Lieu, always string "AG"/"CL"/"NA"
+        // 25 REMOVED — Z = formula =Y*1.2, unreliable
     );
 
     // -------------------------------------------------------------------------

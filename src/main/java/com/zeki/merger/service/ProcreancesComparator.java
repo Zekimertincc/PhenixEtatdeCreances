@@ -23,10 +23,10 @@ public class ProcreancesComparator {
     private static final int PC_HONO = 5; // Hono. TTC
 
     // ConsolidationGenerale columns (0-based)
-    private static final int CS_NAME       = 0;
-    private static final int CS_CODE_COL   = 1;
-    private static final int CS_COMM_FEUIL1 = 2;  // Feuil1 sheet — col C
-    private static final int CS_COMM_CONSO  = 22; // Consolidation sheet — col W = Commission TTC (V*1.2)
+    private static final int CS_NAME        = 0;
+    private static final int CS_CODE_COL    = 1;
+    private static final int CS_COMM_FEUIL1 = 2;  // Feuil1 sheet — col C = Commission TTC
+    private static final int CS_COMM_CONSO  = 24; // Consolidation sheet — col Y = Commission HT → ×1.2 for TTC
 
     private static final String[] COL_HEADERS = {
         "CLIENT", "N° CLIENT",
@@ -93,6 +93,8 @@ public class ProcreancesComparator {
                 String key  = DataReader.normalize(name);
                 String code = cellStr(row, CS_CODE_COL, fmt, ev);
                 double comm = cellDouble(row, colComm, fmt, ev);
+                // When reading from Consolidation sheet, col Y(24) is HT — multiply by 1.2 for TTC
+                if (!isFeuil1) comm = round2(comm * 1.2);
 
                 if (consoSums.containsKey(key)) {
                     consoSums.get(key)[0] += comm;

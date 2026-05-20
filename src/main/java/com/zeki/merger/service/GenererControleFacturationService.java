@@ -1,5 +1,6 @@
 package com.zeki.merger.service;
 
+import com.zeki.merger.trf.DataReader;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.*;
@@ -9,17 +10,29 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 public class GenererControleFacturationService {
 
     private final FolderScanner scanner = new FolderScanner();
 
-    public File apply(File rootFolder, File outputFolder,
+    public File apply(File rootFolder, File outputFolder, File recupFile,
                       BiConsumer<Double, String> progress) throws Exception {
         List<FolderScanner.CompanyFile> companies = scanner.scan(rootFolder);
         if (companies.isEmpty()) {
             progress.accept(1.0, "Aucun dossier trouvé.");
             return null;
+        }
+
+        // Filter to only clients present in recupFile (if provided)
+        if (recupFile != null && recupFile.exists()) {
+            Set<String> recupNames = readRecupNames(recupFile);
+            if (!recupNames.isEmpty()) {
+                companies = companies.stream()
+                    .filter(cf -> hasPartialMatch(cf.companyName(), recupNames))
+                    .collect(Collectors.toList());
+                progress.accept(0.02, recupNames.size() + " clients dans recup → " + companies.size() + " dossiers filtrés.");
+            }
         }
 
         int total = companies.size();
@@ -165,6 +178,35 @@ public class GenererControleFacturationService {
             try (FileOutputStream fos = new FileOutputStream(out)) { wb.write(fos); }
         }
         return out;
+    }
+
+    private Set<String> readRecupNames(File recupFile) throws IOException {
+        Set<String> names = new HashSet<>();
+        try (Workbook wb = openWorkbook(recupFile)) {
+            Sheet sheet = wb.getSheet("Feuil1");
+            if (sheet == null) sheet = wb.getSheetAt(0);
+            DataFormatter fmt = new DataFormatter();
+            FormulaEvaluator ev = wb.getCreationHelper().createFormulaEvaluator();
+            for (int r = 1; r <= sheet.getLastRowNum(); r++) {
+                Row row = sheet.getRow(r);
+                if (row == null) continue;
+                Cell cell = row.getCell(0, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+                if (cell == null) break;
+                String name = fmt.formatCellValue(cell, ev).trim();
+                if (name.isBlank()) break;
+                names.add(DataReader.normalize(name));
+            }
+        }
+        return names;
+    }
+
+    private boolean hasPartialMatch(String name, Set<String> keys) {
+        String norm = DataReader.normalize(name);
+        if (keys.contains(norm)) return true;
+        for (String k : keys) {
+            if (norm.contains(k) || k.contains(norm)) return true;
+        }
+        return false;
     }
 
     private Workbook openWorkbook(File file) throws IOException {

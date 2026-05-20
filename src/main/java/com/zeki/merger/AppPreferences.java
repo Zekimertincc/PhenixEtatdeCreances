@@ -15,7 +15,9 @@ public class AppPreferences {
     private static final String KEY_PROCREANCES    = "procreancesPath";
     private static final String KEY_CONSO_COMPARE  = "consoComparePath";
     private static final String KEY_CONTROLE_PATH  = "controlePath";
-    private static final String KEY_RECUP_FACTURE  = "recupFacturePath";
+    private static final String KEY_RECUP_FACTURE       = "recupFacturePath";
+    private static final String KEY_FACTURATION_MENSUEL = "facturation_mensuel_path";
+    private static final String KEY_ENTETE_PDF          = "entete_pdf_path";
 
     public static String getMergeRoot()             { return PREFS.get(KEY_MERGE_ROOT,    ""); }
     public static void   setMergeRoot(String p)     { PREFS.put(KEY_MERGE_ROOT, p);           }
@@ -41,8 +43,14 @@ public class AppPreferences {
     public static String getControlePath()            { return PREFS.get(KEY_CONTROLE_PATH, ""); }
     public static void   setControlePath(String p)    { PREFS.put(KEY_CONTROLE_PATH, p);          }
 
-    public static String getRecupFacturePath()        { return PREFS.get(KEY_RECUP_FACTURE, ""); }
-    public static void   setRecupFacturePath(String p){ PREFS.put(KEY_RECUP_FACTURE, p);          }
+    public static String getRecupFacturePath()              { return PREFS.get(KEY_RECUP_FACTURE, ""); }
+    public static void   setRecupFacturePath(String p)     { PREFS.put(KEY_RECUP_FACTURE, p);          }
+
+    public static String getFacturationMensuelPath()        { return PREFS.get(KEY_FACTURATION_MENSUEL, ""); }
+    public static void   setFacturationMensuelPath(String p){ PREFS.put(KEY_FACTURATION_MENSUEL, p);          }
+
+    public static String getEntetePdfPath()                 { return PREFS.get(KEY_ENTETE_PDF, ""); }
+    public static void   setEntetePdfPath(String p)        { PREFS.put(KEY_ENTETE_PDF, p);          }
 
     private static final String KEY_WATCH_ENABLED = "watchEnabled";
     public static boolean isWatchEnabled()           { return PREFS.getBoolean(KEY_WATCH_ENABLED, false); }

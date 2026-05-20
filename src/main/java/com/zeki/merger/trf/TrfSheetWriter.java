@@ -33,12 +33,12 @@ public class TrfSheetWriter {
         "V/REF",
         "REMIS LE",
         "ANCIENNETE",
-        "",          // col 5 (N/REF) — not written
+        "N/REF",
+        "N°REF INTERNE",
         "DEBITEUR",
-        "CREANCE PRINCIPALE",
+        "CREANCE PRINCIPALE ",
         "RECOUVRE ET FACTURE",
         "ETAT",
-        "CLOTURE",
         "PENALITES",
         "Extratction du départements de la colonne E",
         "Transformation de la colonne L en nombre",
@@ -56,13 +56,15 @@ public class TrfSheetWriter {
         "SOMMES A REVERSER"
     };
 
-    // Extra columns written only in Feuil1 (beyond the standard 26)
-    private static final String[] FEUIL1_EXTRA_HEADERS = {
-        "Commission TTC",     // col 26
-        "Frais de procédure", // col 27
-        "NON COMPENSATION",   // col 28
-        "IBAN",               // col 29
-        "NOUS DOIT"           // col 30
+    private static final String[] FEUIL1_HEADERS = {
+        "CLIENT", "No Client", "Commisions TTC", "REMIS LE", "ANCIENNETE", "N/REF",
+        "DEBITEUR", "CREANCE PRINCIPALE ", "RECOUVRE ET FACTURE", "ETAT", "CLOTURE",
+        "PENALITES", "Extratction du départements de la colonne E",
+        "Transformation de la colonne L en nombre",
+        "CONDITION de calcul de formule 2 :France ou 1 :Export",
+        "DONT EN ATTENTE DE FACTURATION", "Lieu", "Frais de procédure",
+        "Recouvré total", "Déjà facturé", "dépuis le début", "Commissions",
+        "Commisions TTC", "SOMMES CZ PENIX", "MONTANT A FACTURER TTC", "SOMMES A REVERSER "
     };
     private static final int CONSO_COLS = CONSO_HEADERS.length; // 26
 
@@ -139,13 +141,18 @@ public class TrfSheetWriter {
                 }
             }
 
-            // Write source row (skip col 5 = N/REF)
             XSSFRow row = sheet.createRow(rowIdx++);
             for (int c = 0; c < vals.size(); c++) {
-                if (c == 5) { row.createCell(c).setCellStyle(s.dataStyle); continue; }
                 XSSFCell cell = row.createCell(c);
-                writeValue(cell, vals.get(c),
-                           isMoneyCol(c) ? s.moneyStyle : s.dataStyle, s.dateStyle);
+                if (c == 7) {
+                    // H = DEBITEUR is always a string debtor name — never parse as number
+                    Object v = vals.get(c);
+                    cell.setCellValue(v != null ? v.toString() : "");
+                    cell.setCellStyle(s.dataStyle);
+                } else {
+                    writeValue(cell, vals.get(c),
+                               isMoneyCol(c) ? s.moneyStyle : s.dataStyle, s.dateStyle);
+                }
             }
         }
 
@@ -193,18 +200,13 @@ public class TrfSheetWriter {
                                    Styles s) {
         XSSFSheet sheet = wb.createSheet("Feuil1");
         int rowIdx = 0;
-        int totalCols = CONSO_COLS + FEUIL1_EXTRA_HEADERS.length; // 28
+        int totalCols = FEUIL1_HEADERS.length; // 26
 
-        // Header row: standard 26 cols + 2 extra
+        // Header row
         XSSFRow hdr = sheet.createRow(rowIdx++);
-        for (int c = 0; c < CONSO_COLS; c++) {
+        for (int c = 0; c < totalCols; c++) {
             XSSFCell cell = hdr.createCell(c);
-            cell.setCellValue(CONSO_HEADERS[c]);
-            cell.setCellStyle(s.headerDark);
-        }
-        for (int i = 0; i < FEUIL1_EXTRA_HEADERS.length; i++) {
-            XSSFCell cell = hdr.createCell(CONSO_COLS + i);
-            cell.setCellValue(FEUIL1_EXTRA_HEADERS[i]);
+            cell.setCellValue(FEUIL1_HEADERS[c]);
             cell.setCellStyle(s.headerDark);
         }
 
@@ -213,35 +215,30 @@ public class TrfSheetWriter {
         for (ClientSummary cs : summaries) {
             XSSFRow row = sheet.createRow(rowIdx++);
 
-            txt(row, 0, cs.getClientName(), s.textStyle);
-            txt(row, 1, cs.getClientCode(), s.textStyle);
-            for (int c = 2; c <= 6; c++) row.createCell(c).setCellStyle(s.dataStyle);
+            txt(row, 0, cs.getClientName(),  s.textStyle);
+            txt(row, 1, cs.getClientCode(),  s.textStyle);
+            dbl(row, 2, cs.getCommissionTtc(), s.moneyStyle); // Commisions TTC
+            for (int c = 3; c <= 6; c++) row.createCell(c).setCellStyle(s.dataStyle);
 
-            dbl(row, 7,  cs.getCreancePrincipale(),   s.moneyStyle);
-            dbl(row, 8,  cs.getRecouvreEtFacture(),    s.moneyStyle);
+            dbl(row,  7, cs.getCreancePrincipale(),  s.moneyStyle);
+            dbl(row,  8, cs.getRecouvreEtFacture(),  s.moneyStyle);
             row.createCell(9).setCellStyle(s.dataStyle);
             row.createCell(10).setCellStyle(s.dataStyle);
-            dbl(row, 11, cs.getPenalites(),            s.moneyStyle);
+            dbl(row, 11, cs.getPenalites(),          s.moneyStyle);
             row.createCell(12).setCellStyle(s.dataStyle);
             row.createCell(13).setCellStyle(s.dataStyle);
             row.createCell(14).setCellStyle(s.dataStyle);
-            dbl(row, 15, cs.getDontEnAttente(),        s.moneyStyle);
+            dbl(row, 15, cs.getDontEnAttente(),      s.moneyStyle);
             row.createCell(16).setCellStyle(s.dataStyle);
-            dbl(row, 17, cs.getFraisProcedure(),       s.moneyStyle);
-            dbl(row, 18, cs.getRecouvreTotol(),        s.moneyStyle);
-            dbl(row, 19, cs.getDejaFacture(),          s.moneyStyle);
-            dbl(row, 20, cs.getDepuisLeDebut(),        s.moneyStyle);
-            dbl(row, 21, cs.getCommissions(),          s.moneyStyle); // Commission hors taxe
-            dbl(row, 22, cs.getCommissionTtc(),        s.moneyStyle); // Commission TTC = V*1.2
-            dbl(row, 23, cs.getSommesCzPhenix(),       s.moneyStyle);
-            dbl(row, 24, cs.getMontantAFacturerTtc(),  s.moneyStyle);
-            dbl(row, 25, cs.getSommesAReverserSrc(),   s.moneyStyle);
-            // Extra cols
-            dbl(row, 26, cs.getCommissionTtc(),        s.moneyStyle); // Commission TTC (explicit)
-            dbl(row, 27, cs.getFraisProcedure(),       s.moneyStyle); // Frais de procédure
-            txt(row, 28, cs.isNonCompensation() ? "OUI" : "", s.textStyle);
-            txt(row, 29, cs.getIban(),                         s.textStyle);
-            dbl(row, 30, cs.getNousDoit_Prec(),                s.moneyStyle);
+            dbl(row, 17, cs.getFraisProcedure(),     s.moneyStyle);
+            dbl(row, 18, cs.getRecouvreTotol(),      s.moneyStyle);
+            dbl(row, 19, cs.getDejaFacture(),        s.moneyStyle);
+            dbl(row, 20, cs.getDepuisLeDebut(),      s.moneyStyle);
+            dbl(row, 21, cs.getCommissions(),        s.moneyStyle);
+            dbl(row, 22, cs.getCommissionTtc(),      s.moneyStyle);
+            dbl(row, 23, cs.getSommesCzPhenix(),     s.moneyStyle);
+            dbl(row, 24, cs.getMontantAFacturerTtc(), s.moneyStyle);
+            dbl(row, 25, cs.getSommesAReverserSrc(), s.moneyStyle);
         }
 
         int dataEnd = rowIdx - 1;
@@ -252,8 +249,7 @@ public class TrfSheetWriter {
         txt(totRow, 1, "",       s.totalStyle);
         for (int c = 2; c < totalCols; c++) {
             XSSFCell cell = totRow.createCell(c);
-            boolean isMoney = MONEY_COLS.contains(c) || c == 26 || c == 27 || c == 30;
-            if (isMoney) {
+            if (MONEY_COLS.contains(c) || c == 2) {
                 cell.setCellStyle(s.totalMoneyStyle);
                 cell.setCellFormula("SUM(" + col(c) + (dataStart + 1)
                     + ":" + col(c) + (dataEnd + 1) + ")");
@@ -348,12 +344,16 @@ public class TrfSheetWriter {
             String etat = cs.isNonCompensation() ? "NON COMP" : cs.getEtatCompensations();
             txt(row, 8, etat, s.textStyle);
 
-            // J: VIREMENTS — "OUI" if Comp VRT and client receives money back
-            txt(row, 9,  "Comp VRT".equals(etat) && cs.getSommesAReverserFinal() > 0.005
-                             ? "OUI" : "", s.textStyle);
-
-            // K: CHEQUES — "OUI" if Comp CB
-            txt(row, 10, "Comp CB".equals(etat) ? "OUI" : "", s.textStyle);
+            // J: VIREMENTS / K: CHEQUES
+            if (cs.isNonCompensation()) {
+                boolean hasIban = cs.getIban() != null && !cs.getIban().isBlank();
+                txt(row, 9,  hasIban ? "Manuelle" : "",  s.textStyle);
+                txt(row, 10, hasIban ? "" : "OUI",       s.textStyle);
+            } else {
+                txt(row, 9,  "Comp VRT".equals(etat) && cs.getSommesAReverserFinal() > 0.005
+                                 ? "OUI" : "", s.textStyle);
+                txt(row, 10, "Comp CB".equals(etat) ? "OUI" : "", s.textStyle);
+            }
 
             // L: CODE CLIENT
             txt(row, 11, cs.getClientCode(), s.textStyle);

@@ -211,17 +211,14 @@ public class EtatPublicGenerator {
                 dataRows.add(out);
             }
 
-            // Sort by REMIS LE (output col 2) descending — most recent first
+            // Sort by NOMBRE (output col 0) ascending
             dataRows.sort((a, b) -> {
-                Object va = a[2];
-                Object vb = b[2];
-                if (va instanceof LocalDateTime ta && vb instanceof LocalDateTime tb) {
-                    return tb.compareTo(ta);
-                }
+                Object va = a[0];
+                Object vb = b[0];
                 if (va instanceof Number na && vb instanceof Number nb) {
-                    return Double.compare(nb.doubleValue(), na.doubleValue());
+                    return Double.compare(na.doubleValue(), nb.doubleValue());
                 }
-                return 0;
+                return String.valueOf(va).compareTo(String.valueOf(vb));
             });
 
             writeOutput(company, addressLine1, addressLine2,
@@ -289,7 +286,9 @@ public class EtatPublicGenerator {
                 for (int c = 0; c < OUT_COLS; c++) {
                     boolean isMoneyCol = (c == OUT_COL_CREANCE || c == OUT_COL_RECOUVRE
                                          || c == OUT_COL_ATTENTE);
-                    writeValue(row.createCell(c), dr[c], isMoneyCol ? money : data, date);
+                    Object val = dr[c];
+                    if (isMoneyCol && (val == null || val.toString().isBlank())) val = 0.0;
+                    writeValue(row.createCell(c), val, isMoneyCol ? money : data, date);
                 }
             }
             int dataEndRow = rowIdx - 1;

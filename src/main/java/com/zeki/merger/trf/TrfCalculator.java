@@ -42,12 +42,15 @@ public class TrfCalculator {
         // Accumulate per-client column sums in insertion order
         Map<String, double[]>  groupSums     = new LinkedHashMap<>();
         Map<String, String>    canonicalName = new LinkedHashMap<>();
-        int[] sumCols = {7, 8, 11, 15, 17, 18, 19, 20, 21};
+        // H(7)=DEBITEUR string — skip. I(8)=CREANCE PRINCIPALE, J(9)=RECOUVRE ET FACTURE.
+        // X(23) is the pre-computed Excel formula but it is wrong for our purposes — computed below.
+        // Y(24)=Commission HT → sums[24] * 1.2 = MONTANT A FACTURER TTC.
+        int[] sumCols = {8, 9, 11, 15, 17, 18, 19, 20, 21, 22, 24};
 
         for (ConsolidationRow row : consolidationRows) {
             if (row.isHeaderRow()) continue;
             String colA = row.getString(0);
-            if (colA.isBlank()) continue;  // group-header row (col A null, col B = label)
+            if (colA.isBlank()) continue;
 
             String normKey = DataReader.normalize(colA);
             canonicalName.putIfAbsent(normKey, colA);
@@ -55,18 +58,11 @@ public class TrfCalculator {
             for (int c : sumCols) {
                 sums[c] += row.getDouble(c);
             }
-
-            // Correct column mapping verified against real ConsolidationGenerale data
-            double s18  = row.getDouble(18); // col S = encaissements
-            double z25  = row.getDouble(25); // col Z = montant à facturer TTC (pre-computed)
-            String lieu = row.getString(19).trim().toUpperCase(); // col T = AG / CL / NA
-
-            // X (col 23) = SOMMES CZ PHENIX = SI(T="AG"; S; 0)
+            // SOMMES CZ PHENIX = sum(col S [18]) where col T [19] == "AG"
+            String lieu = row.getString(19).trim().toUpperCase();
             if ("AG".equals(lieu)) {
-                sums[23] += s18;
+                sums[23] += row.getDouble(18);
             }
-            // Y (col 24) = MONTANT A FACTURER TTC = col Z directly
-            sums[24] += z25;
         }
 
         List<ClientSummary> summaries = new ArrayList<>();
@@ -78,22 +74,23 @@ public class TrfCalculator {
 
             ClientSummary cs = new ClientSummary();
             cs.setClientName(clientName);
-            cs.setCreancePrincipale   (sums[ 7]);
-            cs.setRecouvreEtFacture   (sums[ 8]);
+            cs.setCreancePrincipale   (sums[ 8]);
+            cs.setRecouvreEtFacture   (sums[ 9]);
             cs.setPenalites           (sums[11]);
             cs.setDontEnAttente       (sums[15]);
             cs.setFraisProcedure      (sums[17]);
             cs.setRecouvreTotol       (sums[18]);
             cs.setDejaFacture         (sums[19]);
             cs.setDepuisLeDebut       (sums[20]);
-            cs.setCommissions         (sums[21]);
-            cs.setCommissionTtc       (sums[22]);
-            cs.setPenalits            (sums[22]); // alias for compat
-            cs.setSommesCzPhenix      (sums[23]);
-            cs.setMontantAFacturerTtc (sums[24]);
-            cs.setSommesAReverserSrc  (sums[25]);
-            // SOMMES A REVERSER = max(0, X - Y)
-            cs.setSommesAReverserSrc(Math.max(0, cs.getSommesCzPhenix() - cs.getMontantAFacturerTtc()));
+            double commissionHt = sums[24]; // sum(Y = Commission HT)
+            double montantTtc   = Math.round(commissionHt * 1.2 * 100.0) / 100.0;
+            cs.setCommissions        (commissionHt);
+            cs.setCommissionTtc      (montantTtc);
+            cs.setPenalits           (montantTtc);
+            cs.setSommesCzPhenix     (Math.round(sums[23] * 100.0) / 100.0); // sum(S where T="AG")
+            cs.setMontantAFacturerTtc(montantTtc);
+            // SOMMES A REVERSER = max(0, SOMMES_CZ_PHENIX - MONTANT_TTC)
+            cs.setSommesAReverserSrc(Math.max(0, cs.getSommesCzPhenix() - montantTtc));
 
             // Skip clients with no activity this period
             if (cs.getSommesCzPhenix() < EPS && cs.getMontantAFacturerTtc() < EPS

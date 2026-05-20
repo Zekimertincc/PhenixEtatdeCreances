@@ -41,7 +41,9 @@ public class ConfigController {
             AppPreferences.getTrfListing(),
             AppPreferences.getTrfTableau(),
             AppPreferences.getControlePath(),
-            AppPreferences.getRecupFacturePath()
+            AppPreferences.getRecupFacturePath(),
+            AppPreferences.getFacturationMensuelPath(),
+            AppPreferences.getEntetePdfPath()
         };
         String[] labels = {
             "Dossier source (Dropbox)",
@@ -49,9 +51,12 @@ public class ConfigController {
             "Listing Cabinet Phénix.xls",
             "Tableau de bord facturation.xlsx",
             "Contrôle Facturation.xlsx",
-            "Récup Num Facture.xlsx"
+            "Récup Num Facture.xlsx",
+            "Facturation mensuel (dossier)",
+            "En-tête PDF (Phénix)"
         };
-        boolean[] isDir = {true, false, false, false, false, false};
+        boolean[] isDir = {true, false, false, false, false, false, true, false};
+        String[]  exts  = {null, "xlsx", "xls", "xlsx", "xlsx", "xlsx", null, "pdf"};
         configPathLabels = new Label[configPaths.length];
 
         configFormBox.getChildren().clear();
@@ -71,7 +76,7 @@ public class ConfigController {
             browseBtn.setOnAction(ev -> {
                 File chosen = isDir[idx]
                     ? dialogPickDirectory(null, labels[idx], configPaths[idx])
-                    : dialogPickFile(null, labels[idx], configPaths[idx], "xlsx");
+                    : dialogPickFile(null, labels[idx], configPaths[idx], exts[idx]);
                 if (chosen != null) {
                     configPaths[idx] = chosen.getAbsolutePath();
                     updatePathLabel(configPathLabels[idx], configPaths[idx], isDir[idx]);
@@ -89,6 +94,8 @@ public class ConfigController {
         AppPreferences.setTrfTableau(configPaths[3]);
         AppPreferences.setControlePath(configPaths[4]);
         AppPreferences.setRecupFacturePath(configPaths[5]);
+        if (configPaths.length > 6) AppPreferences.setFacturationMensuelPath(configPaths[6]);
+        if (configPaths.length > 7) AppPreferences.setEntetePdfPath(configPaths[7]);
         refreshBadges();
         log.accept("Configuration enregistrée.");
         onSaved.run();
@@ -104,7 +111,9 @@ public class ConfigController {
         missing += addBadge("Tableau de bord",        AppPreferences.getTrfTableau(),       false);
         missing += addBadge("PROCREANCES",            AppPreferences.getProcreancesPath(),  false);
         missing += addBadge("Contrôle Fact.",         AppPreferences.getControlePath(),     false);
-        missing += addBadge("Récup Factures",         AppPreferences.getRecupFacturePath(), false);
+        missing += addBadge("Récup Factures",         AppPreferences.getRecupFacturePath(),        false);
+        missing += addBadge("Fact. Mensuel",          AppPreferences.getFacturationMensuelPath(),  true);
+        missing += addBadge("En-tête PDF",            AppPreferences.getEntetePdfPath(),           false);
         if (missing > 0) {
             missingFilesLabel.setText(missing + " fichier(s) manquant(s)");
             missingFilesLabel.setVisible(true);
@@ -124,13 +133,16 @@ public class ConfigController {
             AppPreferences.getTrfTableau(),
             AppPreferences.getProcreancesPath(),
             AppPreferences.getControlePath(),
-            AppPreferences.getRecupFacturePath()
+            AppPreferences.getRecupFacturePath(),
+            AppPreferences.getFacturationMensuelPath(),
+            AppPreferences.getEntetePdfPath()
         };
         String[]  labels = {"Dossier source", "Dossier de sortie", "ConsolidationGénérale",
                              "Listing Cabinet Phénix", "Tableau de Bord", "Export PROCREANCES",
-                             "Contrôle Facturation", "Récup. Num Facture"};
-        boolean[] isDir  = {true, true, false, false, false, false, false, false};
-        String[]  exts   = {null, null, "xlsx", "xlsx", "xlsx", "xls", "xlsx", "xlsx"};
+                             "Contrôle Facturation", "Récup. Num Facture", "Facturation mensuel",
+                             "En-tête PDF (Phénix)"};
+        boolean[] isDir  = {true, true, false, false, false, false, false, false, true, false};
+        String[]  exts   = {null, null, "xlsx", "xlsx", "xlsx", "xls", "xlsx", "xlsx", null, "pdf"};
 
         Stage dialog = new Stage();
         dialog.initModality(Modality.APPLICATION_MODAL);
@@ -188,6 +200,8 @@ public class ConfigController {
             AppPreferences.setProcreancesPath(paths[5]);
             AppPreferences.setControlePath(paths[6]);
             AppPreferences.setRecupFacturePath(paths[7]);
+            AppPreferences.setFacturationMensuelPath(paths[8]);
+            AppPreferences.setEntetePdfPath(paths[9]);
             dialog.close();
             refreshBadges();
         });
@@ -237,7 +251,8 @@ public class ConfigController {
         FileChooser fc = new FileChooser();
         fc.setTitle(title);
         if (ext != null) {
-            fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel Files", "*." + ext));
+            String desc = "pdf".equalsIgnoreCase(ext) ? "PDF Files" : "Excel Files";
+            fc.getExtensionFilters().add(new FileChooser.ExtensionFilter(desc, "*." + ext));
         }
         if (lastPath != null && !lastPath.isEmpty()) {
             File parent = new File(lastPath).getParentFile();
