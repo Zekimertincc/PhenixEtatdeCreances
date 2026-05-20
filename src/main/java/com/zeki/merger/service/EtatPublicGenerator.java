@@ -211,14 +211,14 @@ public class EtatPublicGenerator {
                 dataRows.add(out);
             }
 
-            // Sort by NOMBRE (output col 0) ascending
+            // Sort by NOMBRE (output col 0) descending
             dataRows.sort((a, b) -> {
                 Object va = a[0];
                 Object vb = b[0];
                 if (va instanceof Number na && vb instanceof Number nb) {
-                    return Double.compare(na.doubleValue(), nb.doubleValue());
+                    return Double.compare(nb.doubleValue(), na.doubleValue()); // nb/na → descending
                 }
-                return String.valueOf(va).compareTo(String.valueOf(vb));
+                return String.valueOf(vb).compareTo(String.valueOf(va)); // ters
             });
 
             writeOutput(company, addressLine1, addressLine2,
@@ -569,6 +569,7 @@ public class EtatPublicGenerator {
         s.setBottomBorderColor(bc);
         s.setLeftBorderColor(bc);
         s.setRightBorderColor(bc);
+        s.setDataFormat(wb.getCreationHelper().createDataFormat().getFormat("#,##0.00")); // ← bunu ekle
         s.setVerticalAlignment(VerticalAlignment.CENTER);
         return s;
     }

@@ -29,7 +29,7 @@ public class GenererControleFacturationService {
             Set<String> recupNames = readRecupNames(recupFile);
             if (!recupNames.isEmpty()) {
                 companies = companies.stream()
-                    .filter(cf -> hasPartialMatch(cf.companyName(), recupNames))
+                    .filter(cf -> recupNames.contains(DataReader.normalize(cf.companyName())))
                     .collect(Collectors.toList());
                 progress.accept(0.02, recupNames.size() + " clients dans recup → " + companies.size() + " dossiers filtrés.");
             }
@@ -198,15 +198,6 @@ public class GenererControleFacturationService {
             }
         }
         return names;
-    }
-
-    private boolean hasPartialMatch(String name, Set<String> keys) {
-        String norm = DataReader.normalize(name);
-        if (keys.contains(norm)) return true;
-        for (String k : keys) {
-            if (norm.contains(k) || k.contains(norm)) return true;
-        }
-        return false;
     }
 
     private Workbook openWorkbook(File file) throws IOException {

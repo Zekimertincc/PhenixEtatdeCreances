@@ -29,16 +29,16 @@ public class TrfSheetWriter {
 
     private static final String[] CONSO_HEADERS = {
         "CLIENT",
-        "NBRE",
+        "No Client",
         "V/REF",
         "REMIS LE",
         "ANCIENNETE",
         "N/REF",
-        "N°REF INTERNE",
         "DEBITEUR",
         "CREANCE PRINCIPALE ",
         "RECOUVRE ET FACTURE",
         "ETAT",
+        "CLOTURE",
         "PENALITES",
         "Extratction du départements de la colonne E",
         "Transformation de la colonne L en nombre",
@@ -48,12 +48,12 @@ public class TrfSheetWriter {
         "Frais de procédure",
         "Recouvré total",
         "Déjà facturé",
-        "Depuis le début",
-        "Commission hors taxe",
-        "Pénalits",
-        "SOMMES CZ PHENIX",
+        "dépuis le début",
+        "Commissions",
+        "Commisions TTC",
+        "SOMMES CZ PENIX",
         "MONTANT A FACTURER TTC",
-        "SOMMES A REVERSER"
+        "SOMMES A REVERSER "
     };
 
     private static final String[] FEUIL1_HEADERS = {
@@ -70,7 +70,7 @@ public class TrfSheetWriter {
 
     /** Columns that carry monetary values (0-based), used for #,##0.00 and SUBTOTAL. */
     private static final Set<Integer> MONEY_COLS =
-        Set.of(7, 8, 9, 14, 18, 20, 22, 24, 25);
+        Set.of(7, 8, 11, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25);
 
     private static boolean isMoneyCol(int c) { return MONEY_COLS.contains(c); }
 
@@ -304,41 +304,36 @@ public class TrfSheetWriter {
         }
 
         int dataStart = rowIdx;
+        double[] totals = new double[TRF_COLS];
 
         // ---- One row per client -----------------------------------------
         for (ClientSummary cs : summaries) {
-            int excelRow = rowIdx + 1; // 1-based
             XSSFRow row = sheet.createRow(rowIdx++);
 
-            txt(row, 0, cs.getClientName(),         s.textStyle);
-            dbl(row, 1, cs.getSommesCzPhenix(),     s.moneyStyle);
+            txt(row, 0, cs.getClientName(),          s.textStyle);
+            dbl(row, 1, cs.getSommesCzPhenix(),      s.moneyStyle);
             dbl(row, 2, cs.getMontantAFacturerTtc(), s.moneyStyle);
-            dbl(row, 3, cs.getNousDoit_Prec(),      s.moneyStyle);
+            dbl(row, 3, cs.getNousDoit_Prec(),       s.moneyStyle);
 
-            // E = C + D
-            formula(row, 4, "C" + excelRow + "+D" + excelRow, s.moneyStyle);
+            dbl(row, 4, cs.getNousDoit_Maintenant(), s.moneyStyle);
 
             if (cs.isNonCompensation()) {
-                // F = B (return all encaissements)
-                formula(row, 5, "B" + excelRow, s.moneyStyle);
-                // G = 0
-                dbl(row, 6, 0.0, s.moneyStyle);
-                // H = E - G
-                formula(row, 7, "E" + excelRow + "-G" + excelRow, s.moneyStyle);
+                dbl(row, 5, cs.getSommesAReverserFinal(),        s.moneyStyle);
+                dbl(row, 6, 0.0,                                 s.moneyStyle);
+                dbl(row, 7, cs.getNousDoit_ApreFacturation(),    s.moneyStyle);
             } else {
-                // F = IF(B=0,0,IF(B<E,0,B-E))
-                formula(row, 5,
-                    "IF(B" + excelRow + "=0,0,IF(B" + excelRow + "<E" + excelRow
-                    + ",0,B" + excelRow + "-E" + excelRow + "))",
-                    s.moneyStyle);
-                // G = IF(B=0,0,IF(B>E,E,B))
-                formula(row, 6,
-                    "IF(B" + excelRow + "=0,0,IF(B" + excelRow + ">E" + excelRow
-                    + ",E" + excelRow + ",B" + excelRow + "))",
-                    s.moneyStyle);
-                // H = E - G
-                formula(row, 7, "E" + excelRow + "-G" + excelRow, s.moneyStyle);
+                dbl(row, 5, cs.getSommesAReverserFinal(),         s.moneyStyle);
+                dbl(row, 6, cs.getEncaissementsParCompensation(), s.moneyStyle);
+                dbl(row, 7, cs.getNousDoit_ApreFacturation(),     s.moneyStyle);
             }
+
+            totals[1] += cs.getSommesCzPhenix();
+            totals[2] += cs.getMontantAFacturerTtc();
+            totals[3] += cs.getNousDoit_Prec();
+            totals[4] += cs.getNousDoit_Maintenant();
+            totals[5] += cs.getSommesAReverserFinal();
+            totals[6] += cs.getEncaissementsParCompensation();
+            totals[7] += cs.getNousDoit_ApreFacturation();
 
             // I: ETAT DE COMPENSATIONS
             String etat = cs.isNonCompensation() ? "NON COMP" : cs.getEtatCompensations();
@@ -359,18 +354,15 @@ public class TrfSheetWriter {
             txt(row, 11, cs.getClientCode(), s.textStyle);
         }
 
-        int dataEnd = rowIdx - 1;
-
         // ---- TOTAUX row -------------------------------------------------
         XSSFRow totRow = sheet.createRow(rowIdx++);
         txt(totRow, 0, "TOTAUX", s.totalStyle);
         for (int c = 1; c < TRF_COLS; c++) {
-            XSSFCell cell = totRow.createCell(c);
             boolean textCol = (c == 8 || c == 9 || c == 10 || c == 11);
-            cell.setCellStyle(textCol ? s.totalStyle : s.totalMoneyStyle);
-            if (!textCol) {
-                cell.setCellFormula("SUM(" + col(c) + (dataStart + 1)
-                    + ":" + col(c) + (dataEnd + 1) + ")");
+            if (textCol) {
+                totRow.createCell(c).setCellStyle(s.totalStyle);
+            } else {
+                dbl(totRow, c, totals[c], s.totalMoneyStyle);
             }
         }
 

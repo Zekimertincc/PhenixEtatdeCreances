@@ -22,14 +22,14 @@ public class ConsoControleComparator {
 
     // Controle sheet columns (0-based)
     private static final int CT_NOM       = 0;  // Clients
-    private static final int CT_TOTAL_TTC = 8;  // TOTAL TTC
+    private static final int CT_COMS_TTC = 5;  // COMS TTC
 
     // Conso / Feuil1 columns (0-based)
     private static final int CS_NAME        = 0;
     private static final int CS_MONTANT_TTC = 24; // MONTANT A FACTURER TTC
 
     private static final String[] OUT_HEADERS = {
-        "CLIENT", "CONTROLE TOTAL TTC", "CONSO MONTANT TTC", "DIFF"
+        "CLIENT", "CONTROLE COMS TTC", "CONSO MONTANT TTC", "DIFF"
     };
 
     // =========================================================================
@@ -58,7 +58,7 @@ public class ConsoControleComparator {
                 if (row == null) continue;
                 String name = cellStr(row, CT_NOM, fmt, ev);
                 if (name.isBlank()) continue;
-                double totalTtc = cellDouble(row, CT_TOTAL_TTC, fmt, ev);
+                double totalTtc = cellDouble(row, CT_COMS_TTC, fmt, ev);
                 String key = DataReader.normalize(name);
                 ctSums.merge(key, totalTtc, Double::sum);
                 ctNames.putIfAbsent(key, name);

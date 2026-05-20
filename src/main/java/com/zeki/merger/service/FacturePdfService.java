@@ -1,6 +1,5 @@
 package com.zeki.merger.service;
 
-import com.itextpdf.kernel.colors.DeviceRgb;
 import com.itextpdf.kernel.events.Event;
 import com.itextpdf.kernel.events.IEventHandler;
 import com.itextpdf.kernel.events.PdfDocumentEvent;
@@ -12,10 +11,8 @@ import com.itextpdf.kernel.pdf.PdfWriter;
 import com.itextpdf.kernel.pdf.canvas.PdfCanvas;
 import com.itextpdf.kernel.pdf.xobject.PdfFormXObject;
 import com.itextpdf.layout.Document;
-import com.itextpdf.layout.borders.Border;
 import com.itextpdf.layout.borders.SolidBorder;
 import com.itextpdf.layout.element.Cell;
-import com.itextpdf.layout.element.Div;
 import com.itextpdf.layout.element.Paragraph;
 import com.itextpdf.layout.element.Table;
 import com.itextpdf.layout.properties.TextAlignment;
@@ -48,12 +45,6 @@ import java.util.function.BiConsumer;
 public class FacturePdfService {
 
     private final FolderScanner scanner = new FolderScanner();
-
-    private static final DeviceRgb MED_BLUE   = new DeviceRgb(0x2E, 0x75, 0xB6);
-    private static final DeviceRgb DARK_BLUE  = new DeviceRgb(0x1F, 0x4E, 0x79);
-    private static final DeviceRgb LIGHT_GRAY = new DeviceRgb(0xF2, 0xF2, 0xF2);
-    private static final DeviceRgb WHITE      = new DeviceRgb(0xFF, 0xFF, 0xFF);
-    private static final DeviceRgb TEXT_MUTED = new DeviceRgb(0x6B, 0x6B, 0x6B);
 
     // =========================================================================
     // Entry point
@@ -210,7 +201,8 @@ public class FacturePdfService {
                                 && DateUtil.isCellDateFormatted(dateCell)) {
                             java.time.LocalDate d = dateCell.getLocalDateTimeCellValue().toLocalDate();
                             dateFacture = "Paris, le " + d.format(
-                                DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+                                    DateTimeFormatter.ofPattern("dd/MM/yyyy", java.util.Locale.FRENCH));
+;
                         } else {
                             dateFacture = fmt.formatCellValue(dateCell, ev).trim();
                         }
@@ -241,12 +233,27 @@ public class FacturePdfService {
             String pdfName = sanitize(nom) + ".pdf";
 
             // Address lines from Facture sheet cols D+E rows 0-16
+
             List<String> adresseLines = new ArrayList<>();
-            for (int r = 0; r <= 16; r++) {
-                String d = cellStr(facture, r, 3, fmt, ev);
+            for (int r = 4; r <= 12; r++) {
                 String e = cellStr(facture, r, 4, fmt, ev);
-                String line = (d + " " + e).trim();
-                if (!line.isBlank()) adresseLines.add(line);
+                if (!e.isBlank()) adresseLines.add(e);
+            }
+            // Débiteur rows: row 17 = header (index 16), data starts row 18 (index 17)
+            List<Object[]> debiteurRows = new ArrayList<>();
+            for (int r = 17; r <= facture.getLastRowNum(); r++) {
+                Row row = facture.getRow(r);
+                if (row == null) break;
+                org.apache.poi.ss.usermodel.Cell firstCell =
+                        row.getCell(0, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+                if (firstCell == null || fmt.formatCellValue(firstCell, ev).isBlank()) break;
+                Object[] dr = new Object[7];
+                for (int c = 0; c < 7; c++) {
+                    org.apache.poi.ss.usermodel.Cell cell =
+                            row.getCell(c, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+                    dr[c] = cell != null ? fmt.formatCellValue(cell, ev) : "";
+                }
+                debiteurRows.add(dr);
             }
 
             int ligneDuA = findMarker(facture, "A", 0, fmt, ev);
@@ -267,19 +274,13 @@ public class FacturePdfService {
             double retard         = ligneDuI >= 0 ? numVal(facture, ligneDuI + 1, 2, fmt, ev) : 0;
             double soldeComptable = ligneDuI >= 0 ? numVal(facture, ligneDuI + 2, 2, fmt, ev) : 0;
 
+            // RIB/IBAN/BIC — col C (index 2) in the sheet
             String rib = "", iban = "", bic = "";
-            int ribSearchStart = ligneDuI >= 0 ? ligneDuI + 3 : 0;
-            for (int r = ribSearchStart; r <= facture.getLastRowNum(); r++) {
-                for (int c = 0; c < 8; c++) {
-                    String v  = cellStr(facture, r, c, fmt, ev);
-                    String vu = v.toUpperCase();
-                    if (vu.contains("RIB")  && rib.isBlank())
-                        rib  = v + " " + cellStr(facture, r, c + 1, fmt, ev);
-                    if (vu.contains("IBAN") && iban.isBlank())
-                        iban = v + " " + cellStr(facture, r, c + 1, fmt, ev);
-                    if (vu.contains("BIC")  && bic.isBlank())
-                        bic  = v + " " + cellStr(facture, r, c + 1, fmt, ev);
-                }
+            for (int r = 0; r <= facture.getLastRowNum(); r++) {
+                String c2 = cellStr(facture, r, 2, fmt, ev);
+                if (c2.toUpperCase().contains("RIB")  && rib.isBlank())  rib  = c2;
+                if (c2.toUpperCase().contains("IBAN") && iban.isBlank()) iban = c2;
+                if (c2.toUpperCase().contains("BIC")  && bic.isBlank())  bic  = c2;
             }
 
             String conclusionText = "";
@@ -315,8 +316,12 @@ public class FacturePdfService {
                 File toutesDir = new File(mensuelFolder, "toutes");
                 toutesDir.mkdirs();
                 saveTargets.add(new File(toutesDir, pdfName));
+                // Créer tous les sous-dossiers s'ils n'existent pas
+                for (String folder : new String[]{"comp", "non_comp", "comp_part", "debiteurs"}) {
+                    new File(toutesDir, folder).mkdirs();
+                }
+// Copier uniquement dans le bon sous-dossier
                 File etatDir = new File(toutesDir, etatSubfolder);
-                etatDir.mkdirs();
                 saveTargets.add(new File(etatDir, pdfName));
             }
 
@@ -336,7 +341,7 @@ public class FacturePdfService {
 
             File primaryTarget = saveTargets.get(0);
             generatePdf(primaryTarget, nomClient, codeClient, numFacture, dateFacture,
-                    adresseLines, ag, cl, agcl, comsHt, prodHt, totalHt, tva, ttc,
+                    adresseLines,debiteurRows, ag, cl, agcl, comsHt, prodHt, totalHt, tva, ttc,
                     solde, retard, soldeComptable, rib, iban, bic, conclusionText, mentionsText);
 
             for (int t = 1; t < saveTargets.size(); t++) {
@@ -390,7 +395,7 @@ public class FacturePdfService {
     // =========================================================================
 
     private void generatePdf(File pdfFile, String nomClient, String codeClient,
-            String numFacture, String dateFacture, List<String> adresse,
+            String numFacture, String dateFacture, List<String> adresse,List<Object[]> debiteurRows,
             double ag, double cl, double agcl,
             double comsHt, double prodHt, double totalHt, double tva, double ttc,
             double solde, double retard, double soldeComptable,
@@ -398,9 +403,8 @@ public class FacturePdfService {
             String conclusion, String mentions) throws Exception {
 
         String dateDisplay = dateFacture.isBlank()
-            ? "Paris, le " + java.time.LocalDate.now().format(
-                DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-            : dateFacture;
+                ? "Paris, le " + java.time.LocalDate.now().format(
+                DateTimeFormatter.ofPattern("dd/MM/yyyy", java.util.Locale.FRENCH)): dateFacture;
 
         // Load letterhead: first try user-configured path, then classpath resource
         InputStream lhStream = null;
@@ -441,102 +445,138 @@ public class FacturePdfService {
                 } catch (Exception ignored) {}
             }
 
-            // top=140pt clears logo (~120pt), bottom=75pt clears footer (~60pt)
+            // top=130pt clears logo, bottom=65pt clears footer
             try (Document doc = new Document(pdf, PageSize.A4)) {
-                doc.setMargins(140, 50, 75, 50);
+                doc.setMargins(130, 35, 65, 35);
 
-                // 1. Client address + facture details (no logo header — letterhead provides it)
-                Table info = new Table(UnitValue.createPercentArray(new float[]{55, 45}))
-                        .useAllAvailableWidth().setMarginBottom(16);
+                // 1. Date — left
+                doc.add(new Paragraph(dateDisplay).setFontSize(9).setMarginBottom(2));
 
-                Cell addrCell = new Cell().setBorder(Border.NO_BORDER)
-                        .setBorderLeft(new SolidBorder(MED_BLUE, 3)).setPaddingLeft(8);
-                for (String line : adresse) {
-                    addrCell.add(new Paragraph(line).setFontSize(9).setMarginBottom(1));
+                // 2. Address — right-aligned
+                if (!adresse.isEmpty()) {
+                    Paragraph addrPara = new Paragraph()
+                            .setTextAlignment(TextAlignment.RIGHT)
+                            .setFontSize(9).setMarginBottom(6);
+                    for (int ai = 0; ai < adresse.size(); ai++) {
+                        addrPara.add(adresse.get(ai));
+                        if (ai < adresse.size() - 1) addrPara.add("\n");
+                    }
+                    doc.add(addrPara);
                 }
-                info.addCell(addrCell);
 
-                Table details = new Table(UnitValue.createPercentArray(new float[]{50, 50}))
-                        .useAllAvailableWidth().setBackgroundColor(LIGHT_GRAY);
-                addDetailRow(details, "FACTURE N°", numFacture.isBlank() ? "—" : numFacture);
-                addDetailRow(details, "Code client", codeClient.isBlank() ? "—" : codeClient);
-                addDetailRow(details, "Date", dateDisplay);
-                info.addCell(new Cell().add(details).setBorder(Border.NO_BORDER).setPaddingLeft(8));
-                doc.add(info);
+                // 3. FACTURE N° — bordered 2-column table
+                Table factureHeader = new Table(UnitValue.createPercentArray(new float[]{40, 60}))
+                        .useAllAvailableWidth().setMarginBottom(4);
+                factureHeader.addCell(new Cell()
+                        .add(new Paragraph("FACTURE N°").setFontSize(9).setBold())
+                        .setBorder(new SolidBorder(1)).setPadding(2));
+                factureHeader.addCell(new Cell()
+                        .add(new Paragraph(numFacture.isBlank() ? "—" : numFacture)
+                                .setFontSize(9).setBold())
+                        .setBorder(new SolidBorder(1)).setPadding(2));
+                doc.add(factureHeader);
 
-                // 2. Encaissements
-                doc.add(sectionHeader("LES ENCAISSEMENTS SELON LE LIEU"));
+                // 4. Code client — plain paragraph
+                doc.add(new Paragraph("Code client : " + (codeClient.isBlank() ? "—" : codeClient))
+                        .setFontSize(9).setMarginBottom(4));
+
+                // 5. Débiteur table
+                if (!debiteurRows.isEmpty()) {
+                    String[] debHeaders = {"V/REF", "N/REF", "Débiteur",
+                            "Encaissements", "Commissions", "Frais de procédure", "Lieu"};
+                    float[] debWidths = {10, 10, 25, 15, 15, 15, 10};
+                    Table debTable = new Table(UnitValue.createPercentArray(debWidths))
+                            .useAllAvailableWidth().setMarginBottom(4);
+                    for (String h : debHeaders) {
+                        debTable.addHeaderCell(new Cell()
+                                .add(new Paragraph(h).setFontSize(7).setBold())
+                                .setBorder(new SolidBorder(1)).setPadding(2));
+                    }
+                    for (Object[] dr : debiteurRows) {
+                        for (int c = 0; c < 7; c++) {
+                            String v = (c < dr.length && dr[c] != null) ? dr[c].toString() : "";
+                            debTable.addCell(new Cell()
+                                    .add(new Paragraph(v).setFontSize(7))
+                                    .setBorder(new SolidBorder(1)).setPadding(2));
+                        }
+                    }
+                    doc.add(debTable);
+                }
+
+                // 6. Encaissements
+                doc.add(borderedSectionHeader("LES ENCAISSEMENTS SELON LE LIEU"));
                 Table encTable = new Table(UnitValue.createPercentArray(new float[]{15, 60, 25}))
-                        .useAllAvailableWidth().setMarginBottom(10);
-                addSectionRow(encTable, "A",     "Encaissements Phénix (AG)",  formatMoney(ag),   false);
-                addSectionRow(encTable, "B",     "Encaissements Client (CL)",  formatMoney(cl),   false);
-                addSectionRow(encTable, "C=A+B", "Encaissements du mois :",    formatMoney(agcl), true);
+                        .useAllAvailableWidth().setMarginBottom(4);
+                addBorderedRow(encTable, "A",     "Encaissements Phénix (AG)",  formatMoney(ag),   false);
+                addBorderedRow(encTable, "B",     "Encaissements Client (CL)",  formatMoney(cl),   false);
+                addBorderedRow(encTable, "C=A+B", "Encaissements du mois :",    formatMoney(agcl), true);
                 doc.add(encTable);
 
-                // 3. Informations facture
-                doc.add(sectionHeader("LES INFORMATIONS LIÉES À LA FACTURE"));
+                // 7. Facture
+                doc.add(borderedSectionHeader("LES INFORMATIONS LIÉES À LA FACTURE"));
                 Table factTable = new Table(UnitValue.createPercentArray(new float[]{15, 60, 25}))
-                        .useAllAvailableWidth().setMarginBottom(10);
-                addSectionRow(factTable, "D",       "COMMISSIONS HT",         formatMoney(comsHt),  false);
-                addSectionRow(factTable, "E",       "FRAIS DE PROCÉDURE HT",  formatMoney(prodHt),  false);
-                addSectionRow(factTable, "F=D+E",   "TOTAL HT",               formatMoney(totalHt), false);
-                addSectionRow(factTable, "G=F*20%", "TVA 20,00%",             formatMoney(tva),     false);
-                addSectionRow(factTable, "H=F+G",   "TOTAL TTC",              formatMoney(ttc),     true);
+                        .useAllAvailableWidth().setMarginBottom(4);
+                addBorderedRow(factTable, "D",       "COMMISSIONS HT",         formatMoney(comsHt),  false);
+                addBorderedRow(factTable, "E",       "FRAIS DE PROCÉDURE HT",  formatMoney(prodHt),  false);
+                addBorderedRow(factTable, "F=D+E",   "TOTAL HT",               formatMoney(totalHt), false);
+                addBorderedRow(factTable, "G=F*20%", "TVA 20,00%",             formatMoney(tva),     false);
+                addBorderedRow(factTable, "H=F+G",   "TOTAL TTC",              formatMoney(ttc),     true);
                 doc.add(factTable);
 
-                // 4. Versement des fonds
-                doc.add(sectionHeader("LES INFORMATIONS LIÉES AU VERSEMENT DES FONDS"));
+                // 8. Versement
+                doc.add(borderedSectionHeader("LES INFORMATIONS LIÉES AU VERSEMENT DES FONDS"));
                 Table versTable = new Table(UnitValue.createPercentArray(new float[]{15, 60, 25}))
-                        .useAllAvailableWidth().setMarginBottom(10);
-                addSectionRow(versTable, "I",
+                        .useAllAvailableWidth().setMarginBottom(4);
+                addBorderedRow(versTable, "I",
                     "Le solde des encaissements de la période est en votre faveur de :",
                     formatMoney(solde), false);
-                addSectionRow(versTable, "J",
+                addBorderedRow(versTable, "J",
                     "Factures en retard de paiement / avoirs en cours :",
                     formatMoney(retard), false);
-                addSectionRow(versTable, "K=I+J",
+                addBorderedRow(versTable, "K=I+J",
                     "Solde comptable en votre faveur de :",
                     formatMoney(soldeComptable), true);
                 doc.add(versTable);
 
-                // 5. EN CONCLUSION
+                // 9. EN CONCLUSION — 2-column bordered table
                 if (!conclusion.isBlank() || soldeComptable != 0) {
-                    Table concl = new Table(1).useAllAvailableWidth()
-                            .setBackgroundColor(LIGHT_GRAY).setMarginBottom(10);
-                    Cell conclCell = new Cell().setBorder(Border.NO_BORDER).setPadding(12);
-                    conclCell.add(new Paragraph("EN CONCLUSION").setBold().setFontSize(10)
-                            .setFontColor(DARK_BLUE).setMarginBottom(6));
-                    if (!conclusion.isBlank()) {
-                        conclCell.add(new Paragraph(conclusion).setFontSize(9).setMarginBottom(8));
-                    }
-                    conclCell.add(new Paragraph(formatMoney(soldeComptable))
-                            .setBold().setFontSize(16).setFontColor(MED_BLUE)
-                            .setTextAlignment(TextAlignment.CENTER));
-                    concl.addCell(conclCell);
+                    Table concl = new Table(UnitValue.createPercentArray(new float[]{60, 40}))
+                            .useAllAvailableWidth().setMarginBottom(4);
+                    String conclText = conclusion.isBlank()
+                            ? "Nous vous adressons ci-joint notre facture." : conclusion;
+                    concl.addCell(new Cell()
+                            .add(new Paragraph("EN CONCLUSION\n" + conclText).setFontSize(8))
+                            .setBorder(new SolidBorder(1)).setPadding(4));
+                    concl.addCell(new Cell()
+                            .add(new Paragraph(formatMoney(soldeComptable))
+                                    .setBold().setFontSize(14)
+                                    .setTextAlignment(TextAlignment.CENTER))
+                            .setBorder(new SolidBorder(1)).setPadding(4)
+                            .setVerticalAlignment(
+                                com.itextpdf.layout.properties.VerticalAlignment.MIDDLE));
                     doc.add(concl);
                 }
 
-                // 6. RIB / IBAN
+                // 10. RIB/IBAN/BIC — 2-column bordered table
                 if (!rib.isBlank() || !iban.isBlank()) {
                     Table ribTable = new Table(UnitValue.createPercentArray(new float[]{50, 50}))
-                            .useAllAvailableWidth().setMarginBottom(10);
-                    Cell ribCell = new Cell().setBorder(Border.NO_BORDER)
-                            .setBorderTop(new SolidBorder(MED_BLUE, 1)).setPadding(8);
-                    if (!rib.isBlank())  ribCell.add(new Paragraph(rib).setFontSize(8));
-                    if (!iban.isBlank()) ribCell.add(new Paragraph(iban).setFontSize(8));
-                    if (!bic.isBlank())  ribCell.add(new Paragraph(bic).setFontSize(8));
+                            .useAllAvailableWidth().setMarginBottom(4);
+                    ribTable.addCell(new Cell()
+                            .add(new Paragraph("Pour tout règlement par virement bancaire")
+                                    .setFontSize(7.5f).setItalic())
+                            .setBorder(new SolidBorder(1)).setPadding(4));
+                    Cell ribCell = new Cell().setBorder(new SolidBorder(1)).setPadding(4);
+                    if (!rib.isBlank())  ribCell.add(new Paragraph(rib).setFontSize(7.5f));
+                    if (!iban.isBlank()) ribCell.add(new Paragraph(iban).setFontSize(7.5f));
+                    if (!bic.isBlank())  ribCell.add(new Paragraph(bic).setFontSize(7.5f));
                     ribTable.addCell(ribCell);
-                    ribTable.addCell(new Cell().setBorder(Border.NO_BORDER)
-                            .setBorderTop(new SolidBorder(MED_BLUE, 1)));
                     doc.add(ribTable);
                 }
 
-                // 7. Mentions obligatoires
+                // 11. Mentions
                 if (!mentions.isBlank()) {
                     doc.add(new Paragraph(mentions)
-                            .setFontSize(7).setFontColor(TEXT_MUTED)
-                            .setItalic().setMarginTop(8)
-                            .setBorderTop(new SolidBorder(LIGHT_GRAY, 1)).setPaddingTop(6));
+                            .setFontSize(6).setItalic().setMarginTop(4));
                 }
             }
         } finally {
@@ -548,37 +588,29 @@ public class FacturePdfService {
 
     // ── Layout helpers ────────────────────────────────────────────────────────
 
-    private Div sectionHeader(String title) {
-        return new Div()
-                .setBackgroundColor(MED_BLUE)
-                .add(new Paragraph(title).setFontColor(WHITE).setBold().setFontSize(9).setMargin(0))
-                .setPadding(6).setMarginBottom(0);
+    private Table borderedSectionHeader(String title) {
+        Table t = new Table(1).useAllAvailableWidth().setMarginTop(4).setMarginBottom(0);
+        t.addCell(new Cell()
+                .add(new Paragraph(title).setFontSize(8).setBold().setMargin(0))
+                .setBorder(new SolidBorder(1)).setPadding(2));
+        return t;
     }
 
-    private void addSectionRow(Table table, String code, String label, String value, boolean bold) {
-        DeviceRgb bg = table.getNumberOfRows() % 2 == 0 ? WHITE : LIGHT_GRAY;
-        float fs = bold ? 9.5f : 9f;
+    private void addBorderedRow(Table table, String code, String label, String value, boolean bold) {
+        float fs = bold ? 8f : 7.5f;
         Paragraph labelPara = new Paragraph(label).setFontSize(fs);
-        Paragraph valuePara = new Paragraph(value).setFontSize(fs).setTextAlignment(TextAlignment.RIGHT);
+        Paragraph valuePara = new Paragraph(value).setFontSize(fs)
+                .setTextAlignment(TextAlignment.RIGHT);
         if (bold) { labelPara.setBold(); valuePara.setBold(); }
         table.addCell(new Cell()
-                .add(new Paragraph(code).setFontSize(8).setFontColor(TEXT_MUTED))
-                .setBackgroundColor(bg).setBorder(Border.NO_BORDER).setPadding(5));
+                .add(new Paragraph(code).setFontSize(7))
+                .setBorder(new SolidBorder(1)).setPadding(2));
         table.addCell(new Cell()
                 .add(labelPara)
-                .setBackgroundColor(bg).setBorder(Border.NO_BORDER).setPadding(5));
+                .setBorder(new SolidBorder(1)).setPadding(2));
         table.addCell(new Cell()
                 .add(valuePara)
-                .setBackgroundColor(bg).setBorder(Border.NO_BORDER).setPadding(5));
-    }
-
-    private void addDetailRow(Table table, String label, String value) {
-        table.addCell(new Cell()
-                .add(new Paragraph(label).setFontSize(8).setFontColor(TEXT_MUTED).setBold())
-                .setBorder(Border.NO_BORDER).setPadding(4));
-        table.addCell(new Cell()
-                .add(new Paragraph(value).setFontSize(9).setBold())
-                .setBorder(Border.NO_BORDER).setPadding(4));
+                .setBorder(new SolidBorder(1)).setPadding(2));
     }
 
     // ── Sheet search helpers ──────────────────────────────────────────────────
