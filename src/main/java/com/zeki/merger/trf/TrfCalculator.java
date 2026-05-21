@@ -36,9 +36,9 @@ public class TrfCalculator {
     private static final int COL_CREANCE  =  7;
     private static final int COL_RECOUVRE =  8;
     private static final int COL_PENALITE = 11;
-    private static final int COL_DONT     = 15; // DONT EN ATTENTE
-    private static final int COL_LIEU     = 16; // Lieu: "AG"/"CL"/"NA"
-    private static final int COL_FRAIS    = 17; // Frais de procédure
+    private static final int COL_DONT     = 12; // DONT EN ATTENTE
+    private static final int COL_LIEU     = 13; // Lieu: "AG"/"CL"/"NA"
+    private static final int COL_FRAIS    = 14; // Frais de procédure
     private static final int COL_RECTOTAT = 18; // Recouvré total
     private static final int COL_DEJAFACT = 19; // Déjà facturé
     private static final int COL_DEPUIS   = 20; // dépuis le début
