@@ -50,11 +50,12 @@ public class ExcelReader {
         List<CreanceRow> rows = new ArrayList<>();
 
         try (Workbook wb = openWorkbook(excelFile)) {
-            Sheet sheet = wb.getSheetAt(0);
+            Sheet sheet = wb.getSheet(AppConfig.CREANCES_SHEET_NAME);
+            if (sheet == null) sheet = wb.getSheetAt(0);
             DataFormatter fmt = new DataFormatter();
             FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
 
-            for (int r = 1; r <= sheet.getLastRowNum(); r++) {   // row 0 = header
+            for (int r = 16; r <= sheet.getLastRowNum(); r++) {  // row 15 = header, row 16+ = data
                 Row row = sheet.getRow(r);
                 if (row == null) continue;
 

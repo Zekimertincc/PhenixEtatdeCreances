@@ -21,7 +21,7 @@ public class ConsoControleComparator {
     private static final double TOLERANCE = 0.05;
 
     // Controle sheet columns (0-based)
-    private static final int CT_NOM       = 0;  // Clients
+    private static final int CT_NOM       = 0;  // Clientsw
     private static final int CT_COMS_TTC = 5;  // COMS TTC
 
     // Conso / Feuil1 columns (0-based)

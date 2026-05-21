@@ -163,4 +163,19 @@ public class ClientSummary {
     public boolean needsAutoVirement() {
         return needsVirement() && !iban.isBlank();
     }
+
+    /** IBAN absent, compensation client → payment by cheque. */
+    public boolean needsCheque() {
+        return !nonCompensation && sommesAReverserFinal > 0.005 && iban.isBlank();
+    }
+
+    /** NON COMP + IBAN present → manual wire transfer. */
+    public boolean needsManualViremementNonComp() {
+        return nonCompensation && !iban.isBlank();
+    }
+
+    /** NON COMP + IBAN absent → cheque payment for NON COMP client. */
+    public boolean isNonCompWithoutIban() {
+        return nonCompensation && iban.isBlank();
+    }
 }

@@ -174,6 +174,32 @@ class TrfCalculatorTest {
     }
 
     @Test
+    void nonCompClient_notInCheques() {
+        ClientSummary cs = new ClientSummary();
+        cs.setNonCompensation(true);
+        cs.setIban("");
+        cs.setSommesCzPhenix(500.0);
+        cs.setMontantAFacturerTtc(200.0);
+        new TrfCalculator().calculate(cs);
+
+        assertThat(cs.needsCheque()).isFalse();
+        assertThat(cs.isNonCompWithoutIban()).isTrue();
+    }
+
+    @Test
+    void compCBClient_noIban_isInCheques() {
+        ClientSummary cs = new ClientSummary();
+        cs.setNonCompensation(false);
+        cs.setIban("");
+        cs.setSommesCzPhenix(500.0);
+        cs.setMontantAFacturerTtc(200.0);
+        new TrfCalculator().calculate(cs);
+
+        assertThat(cs.needsCheque()).isTrue();
+        assertThat(cs.isNonCompWithoutIban()).isFalse();
+    }
+
+    @Test
     void calculate_eloPresseScenario_referenceMath() {
         // Reference values from TRF_04_2026: enc=1304.18, montant=294.75, prev=0
         TrfCalculator calc = new TrfCalculator();

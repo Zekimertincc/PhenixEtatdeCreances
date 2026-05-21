@@ -26,26 +26,22 @@ public class DataReader {
 
     // Columns in ConsolidationGenerale "Consolidation" sheet that hold numeric values
     // (0-based). Strings in these columns are parsed as French-formatted numbers.
+    // Column indices match the 26-col ConsolidationGenerale input format:
+    //  0=CLIENT  1=No Client  7=CREANCE  8=RECOUVRE  11=PENALITES
+    // 15=DONT_EN_ATTENTE  16=Lieu(string)  17=Frais  18=RecouvreTot
+    // 19=DejaFacture  20=DepuisDebut  21=CommissionsHT
     private static final Set<Integer> NUMERIC_COLS = Set.of(
-        1,              // B  NBRE
-        6,              // G  N°REF INTERNE
-        8,              // I  CREANCE PRINCIPALE
-        9,              // J  RECOUVRE ET FACTURE
-        11,             // L  PENALITES
-        13,             // N  Transformation colonne L
-        14,             // O  CONDITION
-        15,             // P  DONT EN ATTENTE
-        17,             // R  Frais de procédure
-        18,             // S  Recouvré total
-        20,             // U
-        21,             // V  Commissions HT
-        22,             // W  Déjà facturé
-        23,             // X  SOMMES CZ PHENIX (pre-computed)
-        24              // Y  MONTANT A FACTURER TTC (pre-computed)
-        // 7  REMOVED — H = DEBITEUR, always string
-        // 16 REMOVED — Q = dept code sometimes text
-        // 19 REMOVED — T = Lieu, always string "AG"/"CL"/"NA"
-        // 25 REMOVED — Z = formula =Y*1.2, unreliable
+            1,   // No Client
+            7,   // CREANCE PRINCIPALE
+            8,   // RECOUVRE ET FACTURE
+            11,  // PENALITES
+            15,  // DONT EN ATTENTE DE FACTURATION
+            17,  // Frais de procédure
+            18,  // Recouvré total
+            19,  // Déjà facturé
+            20,  // dépuis le début
+            21   // Commissions HT
+            // 16 = Lieu, always string "AG"/"CL"/"NA"
     );
 
     // -------------------------------------------------------------------------
@@ -63,7 +59,7 @@ public class DataReader {
             if (sheet == null) sheet = wb.getSheet("Créances");
             if (sheet == null) sheet = wb.getSheetAt(0);
             if (sheet == null) throw new IllegalArgumentException(
-                "No readable sheet found in: " + file.getName());
+                    "No readable sheet found in: " + file.getName());
             DataFormatter    fmt  = new DataFormatter();
             FormulaEvaluator eval = wb.getCreationHelper().createFormulaEvaluator();
 
@@ -103,7 +99,7 @@ public class DataReader {
             // ---- Diagnostic: dump first 3 rows so caller can verify column indices ----
             if (debug != null) {
                 debug.accept("  [Listing] sheet='" + sheet.getSheetName()
-                    + "'  lastRow=" + sheet.getLastRowNum());
+                        + "'  lastRow=" + sheet.getLastRowNum());
                 for (int r = 0; r <= Math.min(2, sheet.getLastRowNum()); r++) {
                     Row row = sheet.getRow(r);
                     if (row == null) { debug.accept("  [Listing] row " + r + " = null"); continue; }
@@ -198,14 +194,14 @@ public class DataReader {
     private Workbook openWorkbook(File file) throws IOException {
         FileInputStream fis = new FileInputStream(file);
         return file.getName().toLowerCase().endsWith(".xls")
-            ? new HSSFWorkbook(fis)
-            : new XSSFWorkbook(fis);
+                ? new HSSFWorkbook(fis)
+                : new XSSFWorkbook(fis);
     }
 
     private Sheet requireSheet(Workbook wb, String fileName, String sheetName) throws IOException {
         Sheet s = findSheetByName(wb, sheetName);
         if (s == null) throw new IOException(
-            "Sheet '" + sheetName + "' not found in " + fileName);
+                "Sheet '" + sheetName + "' not found in " + fileName);
         return s;
     }
 
@@ -231,7 +227,7 @@ public class DataReader {
     }
 
     private List<Object> extractConsolidationRowValues(Row row, DataFormatter fmt,
-                                                        FormulaEvaluator eval) {
+                                                       FormulaEvaluator eval) {
         int lastCell = Math.max(row.getLastCellNum(), 26); // always read at least A-Z
         List<Object> values = new ArrayList<>(lastCell);
         for (int c = 0; c < lastCell; c++) {
@@ -243,7 +239,7 @@ public class DataReader {
     }
 
     private Object readCellValue(Cell cell, DataFormatter fmt,
-                                  FormulaEvaluator eval, boolean numericCol) {
+                                 FormulaEvaluator eval, boolean numericCol) {
         CellType type;
         double  numVal  = 0;
         String  strVal  = "";
@@ -276,7 +272,7 @@ public class DataReader {
             case NUMERIC -> {
                 if (DateUtil.isCellDateFormatted(cell)) {
                     yield DateUtil.getJavaDate(numVal)
-                        .toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime();
+                            .toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime();
                 }
                 yield numVal;
             }
@@ -307,8 +303,8 @@ public class DataReader {
         Cell cell = row.getCell(col, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
         if (cell == null) return 0.0;
         CellType type = cell.getCellType() == CellType.FORMULA
-            ? cell.getCachedFormulaResultType()
-            : cell.getCellType();
+                ? cell.getCachedFormulaResultType()
+                : cell.getCellType();
         if (type == CellType.NUMERIC) return cell.getNumericCellValue();
         return ConsolidationRow.parseFrenchDouble(fmt.formatCellValue(cell, eval).trim());
     }
@@ -317,8 +313,8 @@ public class DataReader {
     public static String normalize(String s) {
         if (s == null || s.isBlank()) return "";
         return Normalizer.normalize(s.trim(), Normalizer.Form.NFD)
-            .replaceAll("\\p{M}", "")
-            .toLowerCase(java.util.Locale.ROOT)
-            .replaceAll("\\s+", " ");
+                .replaceAll("\\p{M}", "")
+                .toLowerCase(java.util.Locale.ROOT)
+                .replaceAll("\\s+", " ");
     }
 }
