@@ -251,7 +251,13 @@ public class FacturePdfService {
                 for (int c = 0; c < 7; c++) {
                     org.apache.poi.ss.usermodel.Cell cell =
                             row.getCell(c, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
-                    dr[c] = cell != null ? fmt.formatCellValue(cell, ev) : "";
+                    if (c == 3 && cell != null && cell.getCellType() == CellType.NUMERIC
+                            && DateUtil.isCellDateFormatted(cell)) {
+                        dr[3] = cell.getLocalDateTimeCellValue().toLocalDate()
+                            .format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+                    } else {
+                        dr[c] = cell != null ? fmt.formatCellValue(cell, ev) : "";
+                    }
                 }
                 debiteurRows.add(dr);
             }
@@ -311,16 +317,13 @@ public class FacturePdfService {
             String etatSubfolder = determineEtatSubfolder(ag, ttc);
             List<File> saveTargets = new ArrayList<>();
 
-            // Location 1+2 — facturation_mensuel/toutes/ and /toutes/{etat}/
+            // Location — facturation_mensuel/toutes/{etat}/ only (no toutes root)
             if (mensuelFolder != null && mensuelFolder.isDirectory()) {
                 File toutesDir = new File(mensuelFolder, "toutes");
                 toutesDir.mkdirs();
-                saveTargets.add(new File(toutesDir, pdfName));
-                // Créer tous les sous-dossiers s'ils n'existent pas
                 for (String folder : new String[]{"comp", "non_comp", "comp_part", "debiteurs"}) {
                     new File(toutesDir, folder).mkdirs();
                 }
-// Copier uniquement dans le bon sous-dossier
                 File etatDir = new File(toutesDir, etatSubfolder);
                 saveTargets.add(new File(etatDir, pdfName));
             }
@@ -542,8 +545,17 @@ public class FacturePdfService {
                 if (!conclusion.isBlank() || soldeComptable != 0) {
                     Table concl = new Table(UnitValue.createPercentArray(new float[]{60, 40}))
                             .useAllAvailableWidth().setMarginBottom(4);
-                    String conclText = conclusion.isBlank()
-                            ? "Nous vous adressons ci-joint notre facture." : conclusion;
+                    boolean isNonComp = ag <= 0.005 && ttc > 0.005;
+                    String conclText;
+                    if (conclusion.isBlank()) {
+                        if (isNonComp) {
+                            conclText = "Nous vous adressons ci-joint notre facture correspondant aux frais engagés. Aucun encaissement Phénix ce mois-ci, le règlement est à votre charge.";
+                        } else {
+                            conclText = "Nous avons le plaisir de vous envoyer un règlement correspondant au solde comptable de : Pour tout règlement par virement bancaire";
+                        }
+                    } else {
+                        conclText = conclusion;
+                    }
                     concl.addCell(new Cell()
                             .add(new Paragraph("EN CONCLUSION\n" + conclText).setFontSize(8))
                             .setBorder(new SolidBorder(1)).setPadding(4));
@@ -694,8 +706,10 @@ public class FacturePdfService {
 
     private String formatMoney(double val) {
         if (val == 0) return "€ -";
-        return String.format("€ %,.2f", val)
-                .replace(",", "X").replace(".", ",").replace("X", ".");
+        java.text.NumberFormat nf = java.text.NumberFormat.getNumberInstance(java.util.Locale.FRENCH);
+        nf.setMinimumFractionDigits(2);
+        nf.setMaximumFractionDigits(2);
+        return "€ " + nf.format(val);
     }
 
     private static String normalize(String s) {
