@@ -31,7 +31,7 @@ public class EspacePartageCleanerService {
             FolderScanner.CompanyFile cf = companies.get(i);
             double prog = 0.05 + 0.95 * (i + 1.0) / total;
 
-            File espacePartage = findEspacePartage(cf.excelFile().getParentFile());
+            File espacePartage = findEspacePartage(cf.excelFile().getParentFile().getParentFile());
             if (espacePartage == null || !espacePartage.exists()) {
                 progress.accept(prog, cf.companyName() + " → Espace partagé introuvable");
                 continue;
@@ -69,9 +69,15 @@ public class EspacePartageCleanerService {
 
     private File findEspacePartage(File companyDir) {
         if (companyDir == null) return null;
-        File[] subs = companyDir.listFiles(f ->
-            f.isDirectory() && f.getName().toLowerCase().contains("espace")
-        );
+        File[] subs = companyDir.listFiles(f -> {
+            if (!f.isDirectory()) return false;
+            String name = java.text.Normalizer.normalize(
+                    f.getName().toLowerCase(),
+                    java.text.Normalizer.Form.NFD
+            ).replaceAll("\\p{InCombiningDiacriticalMarks}+", "");
+            return name.contains("espace") && name.contains("partag");
+        });
         return (subs != null && subs.length > 0) ? subs[0] : null;
     }
+
 }
