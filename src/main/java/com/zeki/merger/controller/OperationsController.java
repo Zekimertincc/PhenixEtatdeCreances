@@ -3,6 +3,7 @@ package com.zeki.merger.controller;
 import com.zeki.merger.AppPreferences;
 import com.zeki.merger.service.ConsoControleComparator;
 import com.zeki.merger.service.EspacePartageFixer;
+import com.zeki.merger.service.EspacePartageCleanerService;
 import com.zeki.merger.service.EtatCreancesSyncService;
 import com.zeki.merger.service.EtatPublicGenerator;
 import com.zeki.merger.service.FacturePdfService;
@@ -54,6 +55,7 @@ public class OperationsController {
     private Button controleBtn;
     private Button factureBtn;
     private Button genControleBtn;
+    private Button nettoyerBtn;
 
     public OperationsController(MergeService mergeService,
                                  EspacePartageFixer espacePartageFixer,
@@ -99,6 +101,7 @@ public class OperationsController {
         controleBtn    = createActionBtn("Contrôle Facturation",       "Comparer Contrôle vs Consolidation",      "action-card",         e -> compareConsoControle());
         factureBtn     = createActionBtn("Générer factures PDF",       "Export PDF Facture en préparation",       "action-card",         e -> genererFacturesPdf());
         genControleBtn = createActionBtn("Générer Contrôle Fact.",     "Produit Controle_Facturation.xlsx",       "action-card",         e -> genererControleFacturation());
+        nettoyerBtn    = createActionBtn("Nettoyer Espace Partagé",    "Supprimer PDF/XLS des espaces partagés",  "action-card-danger",  e -> nettoyerEspacePartage());
         runActionBtn   = createActionBtn("▶  CONSOLIDER",              "Lire les états → ConsolidationGénérale",  "consolider-card",     e -> run());
 
         Label opsLabel = new Label("OPÉRATIONS");
@@ -115,6 +118,7 @@ public class OperationsController {
         actionsGrid.add(cmpBtn,         0, 2);
         actionsGrid.add(fixBtn,         1, 2);
         actionsGrid.add(syncDbBtn,      0, 3);
+        actionsGrid.add(nettoyerBtn,    1, 3);
 
         actionsGrid.add(factLabel,      0, 4);
         actionsGrid.add(recupBtn,       0, 5);
@@ -421,6 +425,7 @@ public class OperationsController {
         if (syncDbBtn    != null) syncDbBtn.setDisable(disabled);
         if (factureBtn      != null) factureBtn.setDisable(disabled);
         if (genControleBtn  != null) genControleBtn.setDisable(disabled);
+        if (nettoyerBtn     != null) nettoyerBtn.setDisable(disabled);
         if (runActionBtn    != null) runActionBtn.setDisable(disabled);
     }
 
@@ -454,6 +459,49 @@ public class OperationsController {
                 Platform.runLater(() -> { log.accept("ERREUR: " + e.getMessage()); setAllButtonsDisabled(false); });
             }
         }, "facture-pdf-thread").start();
+    }
+
+    private void nettoyerEspacePartage() {
+        File rootFolder = new File(AppPreferences.getMergeRoot());
+        if (!rootFolder.isDirectory()) {
+            log.accept("ERROR: Dossier source introuvable — " + rootFolder.getAbsolutePath()); return;
+        }
+
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Confirmation");
+        confirm.setHeaderText("Nettoyer les Espaces Partagés");
+        confirm.setContentText(
+            "Cette action supprimera tous les fichiers PDF, XLS et XLSX\n" +
+            "dans les dossiers 'Espace partagé' de chaque client.\n\n" +
+            "Cette action est irréversible. Continuer ?");
+        confirm.showAndWait().ifPresent(btn -> {
+            if (btn != ButtonType.OK) return;
+
+            setAllButtonsDisabled(true);
+            statusBar.setVisible(false);
+            progressBar.setProgress(0);
+            logArea.clear();
+            lastOutputFile = null;
+
+            executor.submit(() -> {
+                try {
+                    java.util.List<String> lines = new EspacePartageCleanerService(new com.zeki.merger.service.FolderScanner())
+                        .clean(rootFolder, (prog, msg) -> Platform.runLater(() -> {
+                            progressBar.setProgress(prog);
+                            log.accept(msg);
+                        }));
+                    Platform.runLater(() -> {
+                        lines.forEach(log::accept);
+                        statusLabel.setText("Nettoyage terminé — " + lines.size() + " suppression(s).");
+                        openFileBtn.setVisible(false);
+                        statusBar.setVisible(true);
+                        setAllButtonsDisabled(false);
+                    });
+                } catch (Exception ex) {
+                    Platform.runLater(() -> { log.accept("FATAL: " + ex.getMessage()); setAllButtonsDisabled(false); });
+                }
+            });
+        });
     }
 
     private void genererControleFacturation() {
@@ -500,6 +548,7 @@ public class OperationsController {
         String titleClass, subtitleClass;
         switch (styleClass) {
             case "action-card-primary" -> { titleClass = "action-card-title-primary"; subtitleClass = "action-card-subtitle-primary"; }
+            case "action-card-danger"  -> { titleClass = "action-card-title-danger";  subtitleClass = "action-card-subtitle-danger"; }
             case "consolider-card"     -> { titleClass = "consolider-title";          subtitleClass = "consolider-subtitle"; }
             default                    -> { titleClass = "action-card-title";         subtitleClass = "action-card-subtitle"; }
         }

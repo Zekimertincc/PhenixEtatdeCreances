@@ -191,6 +191,21 @@
 .action-card-primary:pressed { -fx-background-color: #B5D4F4; }
 .action-card-primary:disabled { -fx-opacity: 0.5; }
 
+.action-card-danger {
+    -fx-background-color: #c0392b;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-padding: 12px 14px 12px 14px;
+    -fx-cursor: hand;
+}
+.action-card-danger:hover    { -fx-background-color: #e74c3c; }
+.action-card-danger:pressed  { -fx-background-color: #a93226; }
+.action-card-danger:disabled { -fx-opacity: 0.5; }
+.action-card-title-danger    { -fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: white; }
+.action-card-subtitle-danger { -fx-font-size: 11px; -fx-text-fill: rgba(255,255,255,0.7); }
+
 .action-card-title          { -fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #1a1a1a; }
 .action-card-subtitle       { -fx-font-size: 11px; -fx-text-fill: #6B6B6B; }
 .action-card-title-primary  { -fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #0C447C; }

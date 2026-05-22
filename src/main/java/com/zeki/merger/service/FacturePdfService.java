@@ -67,6 +67,17 @@ public class FacturePdfService {
         File mensuelFolder = (mensuelPath != null && !mensuelPath.isBlank())
             ? new File(mensuelPath) : null;
 
+        Map<String, com.zeki.merger.trf.model.ClientInfo> clientInfoMap = new java.util.LinkedHashMap<>();
+        String listingPath = AppPreferences.getTrfListing();
+        if (listingPath != null && !listingPath.isBlank()) {
+            File listingFile = new File(listingPath);
+            if (listingFile.exists()) {
+                try {
+                    clientInfoMap = new DataReader().readClientInfoMap(listingFile);
+                } catch (Exception ignored) {}
+            }
+        }
+
         int total = companies.size();
         for (int i = 0; i < total; i++) {
             FolderScanner.CompanyFile cf = companies.get(i);
@@ -74,7 +85,7 @@ public class FacturePdfService {
             String result;
             try {
                 result = processCompany(cf.excelFile(), cf.companyName(),
-                                        factureMap, nomMap, mensuelFolder, recupFile);
+                                        factureMap, nomMap, mensuelFolder, recupFile, clientInfoMap);
             } catch (Exception e) {
                 result = "ERREUR: " + e.getMessage();
             }
@@ -161,7 +172,8 @@ public class FacturePdfService {
                                    Map<String, String> factureMap,
                                    Map<String, String> nomMap,
                                    File mensuelFolder,
-                                   File recupFile) throws Exception {
+                                   File recupFile,
+                                   Map<String, com.zeki.merger.trf.model.ClientInfo> clientInfoMap) throws Exception {
         try (Workbook wb = openWorkbook(excelFile)) {
             DataFormatter fmt = new DataFormatter();
             FormulaEvaluator ev = wb.getCreationHelper().createFormulaEvaluator();
@@ -251,12 +263,18 @@ public class FacturePdfService {
                 for (int c = 0; c < 7; c++) {
                     org.apache.poi.ss.usermodel.Cell cell =
                             row.getCell(c, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
-                    if (c == 3 && cell != null && cell.getCellType() == CellType.NUMERIC
-                            && DateUtil.isCellDateFormatted(cell)) {
+                    if (cell == null) { dr[c] = ""; continue; }
+                    CellType ct = cell.getCellType() == CellType.FORMULA
+                        ? cell.getCachedFormulaResultType() : cell.getCellType();
+                    if (c == 3 && ct == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
                         dr[3] = cell.getLocalDateTimeCellValue().toLocalDate()
                             .format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+                    } else if (ct == CellType.NUMERIC && !DateUtil.isCellDateFormatted(cell)) {
+                        double v = cell.getNumericCellValue();
+                        dr[c] = v == Math.floor(v) ? String.valueOf((long) v)
+                                : String.format(java.util.Locale.FRANCE, "%,.2f", v);
                     } else {
-                        dr[c] = cell != null ? fmt.formatCellValue(cell, ev) : "";
+                        dr[c] = fmt.formatCellValue(cell, ev).trim();
                     }
                 }
                 debiteurRows.add(dr);
@@ -289,6 +307,13 @@ public class FacturePdfService {
                 if (c2.toUpperCase().contains("BIC")  && bic.isBlank())  bic  = c2;
             }
 
+            String labelI = ligneDuI >= 0 ? cellStr(facture, ligneDuI,     1, fmt, ev) : "";
+            String labelJ = ligneDuI >= 0 ? cellStr(facture, ligneDuI + 1, 1, fmt, ev) : "";
+            String labelK = ligneDuI >= 0 ? cellStr(facture, ligneDuI + 2, 1, fmt, ev) : "";
+            if (labelI.isBlank()) labelI = "Le solde des encaissements de la période est en votre faveur de :";
+            if (labelJ.isBlank()) labelJ = "Factures en retard de paiement / avoirs en cours :";
+            if (labelK.isBlank()) labelK = "Solde comptable en votre faveur de :";
+
             String conclusionText = "";
             if (ligneConclusion >= 0) {
                 StringBuilder sb = new StringBuilder();
@@ -314,7 +339,11 @@ public class FacturePdfService {
             }
 
             // Determine save locations
-            String etatSubfolder = determineEtatSubfolder(ag, ttc);
+            DataReader drReader = new DataReader();
+            com.zeki.merger.trf.model.ClientInfo ciInfo = drReader.findClientInfo(nomClient, clientInfoMap);
+            if (ciInfo == null) ciInfo = drReader.findClientInfo(companyName, clientInfoMap);
+            boolean isNonComp = (ciInfo != null && ciInfo.isNonCompensation()) || (ag <= 0.005 && ttc > 0.005);
+            String etatSubfolder = isNonComp ? "non_comp" : determineEtatSubfolder(ag, ttc);
             List<File> saveTargets = new ArrayList<>();
 
             // Location — facturation_mensuel/toutes/{etat}/ only (no toutes root)
@@ -344,8 +373,9 @@ public class FacturePdfService {
 
             File primaryTarget = saveTargets.get(0);
             generatePdf(primaryTarget, nomClient, codeClient, numFacture, dateFacture,
-                    adresseLines,debiteurRows, ag, cl, agcl, comsHt, prodHt, totalHt, tva, ttc,
-                    solde, retard, soldeComptable, rib, iban, bic, conclusionText, mentionsText);
+                    adresseLines, debiteurRows, ag, cl, agcl, comsHt, prodHt, totalHt, tva, ttc,
+                    solde, retard, soldeComptable, rib, iban, bic,
+                    conclusionText, mentionsText, labelI, labelJ, labelK);
 
             for (int t = 1; t < saveTargets.size(); t++) {
                 try {
@@ -398,12 +428,13 @@ public class FacturePdfService {
     // =========================================================================
 
     private void generatePdf(File pdfFile, String nomClient, String codeClient,
-            String numFacture, String dateFacture, List<String> adresse,List<Object[]> debiteurRows,
+            String numFacture, String dateFacture, List<String> adresse, List<Object[]> debiteurRows,
             double ag, double cl, double agcl,
             double comsHt, double prodHt, double totalHt, double tva, double ttc,
             double solde, double retard, double soldeComptable,
             String rib, String iban, String bic,
-            String conclusion, String mentions) throws Exception {
+            String conclusion, String mentions,
+            String labelI, String labelJ, String labelK) throws Exception {
 
         String dateDisplay = dateFacture.isBlank()
                 ? "Paris, le " + java.time.LocalDate.now().format(
@@ -530,32 +561,18 @@ public class FacturePdfService {
                 doc.add(borderedSectionHeader("LES INFORMATIONS LIÉES AU VERSEMENT DES FONDS"));
                 Table versTable = new Table(UnitValue.createPercentArray(new float[]{15, 60, 25}))
                         .useAllAvailableWidth().setMarginBottom(4);
-                addBorderedRow(versTable, "I",
-                    "Le solde des encaissements de la période est en votre faveur de :",
-                    formatMoney(solde), false);
-                addBorderedRow(versTable, "J",
-                    "Factures en retard de paiement / avoirs en cours :",
-                    formatMoney(retard), false);
-                addBorderedRow(versTable, "K=I+J",
-                    "Solde comptable en votre faveur de :",
-                    formatMoney(soldeComptable), true);
+                addBorderedRow(versTable, "I",     labelI, formatMoney(solde),          false);
+                addBorderedRow(versTable, "J",     labelJ, formatMoney(retard),         false);
+                addBorderedRow(versTable, "K=I+J", labelK, formatMoney(soldeComptable), true);
                 doc.add(versTable);
 
                 // 9. EN CONCLUSION — 2-column bordered table
                 if (!conclusion.isBlank() || soldeComptable != 0) {
                     Table concl = new Table(UnitValue.createPercentArray(new float[]{60, 40}))
                             .useAllAvailableWidth().setMarginBottom(4);
-                    boolean isNonComp = ag <= 0.005 && ttc > 0.005;
-                    String conclText;
-                    if (conclusion.isBlank()) {
-                        if (isNonComp) {
-                            conclText = "Nous vous adressons ci-joint notre facture correspondant aux frais engagés. Aucun encaissement Phénix ce mois-ci, le règlement est à votre charge.";
-                        } else {
-                            conclText = "Nous avons le plaisir de vous envoyer un règlement correspondant au solde comptable de : Pour tout règlement par virement bancaire";
-                        }
-                    } else {
-                        conclText = conclusion;
-                    }
+                    String conclText = conclusion.isBlank()
+                        ? "Nous avons le plaisir de vous envoyer un règlement correspondant au solde comptable de :"
+                        : conclusion;
                     concl.addCell(new Cell()
                             .add(new Paragraph("EN CONCLUSION\n" + conclText).setFontSize(8))
                             .setBorder(new SolidBorder(1)).setPadding(4));

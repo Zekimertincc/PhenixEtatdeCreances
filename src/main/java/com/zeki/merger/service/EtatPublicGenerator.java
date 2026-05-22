@@ -13,6 +13,7 @@ import com.zeki.merger.AppConfig;
 import com.zeki.merger.trf.model.ConsolidationRow;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.usermodel.HorizontalAlignment;
 import org.apache.poi.xssf.usermodel.*;
 
 import java.io.File;
@@ -36,9 +37,9 @@ import java.util.function.BiConsumer;
 public class EtatPublicGenerator {
 
     private static final String[] OUTPUT_HEADERS = {
-        "NOMBRE", "V/REF", "REMIS LE", "ANCIENNETE", "N/REF",
-        "DEBITEUR", "CREANCE PRINCIPALE", "RECOUVRE",
-        "DONT EN ATTENTE DE FACTURATION", "ETAT", "CLOTURE"
+            "NOMBRE", "V/REF", "REMIS LE", "ANCIENNETE", "N/REF",
+            "DEBITEUR", "CREANCE PRINCIPALE", "RECOUVRE",
+            "DONT EN ATTENTE DE FACTURATION", "ETAT", "CLOTURE"
     };
 
     // Source column indices (0-based in Créances sheet) → output cols 0–10
@@ -94,8 +95,8 @@ public class EtatPublicGenerator {
                     String lower = f.getName().toLowerCase();
                     boolean isExcelOrPdf = lower.endsWith(".xlsx") || lower.endsWith(".xls") || lower.endsWith(".pdf");
                     boolean isEtatFile   = lower.startsWith("l_etat") || lower.startsWith("l'etat")
-                                           || lower.startsWith("letat") || lower.contains("etat de creances")
-                                           || lower.contains("etat des creances");
+                            || lower.startsWith("letat") || lower.contains("etat de creances")
+                            || lower.contains("etat des creances");
                     return isExcelOrPdf && isEtatFile;
                 });
                 if (oldFiles != null) {
@@ -104,7 +105,8 @@ public class EtatPublicGenerator {
                     }
                 }
 
-                String baseName  = AppConfig.ETAT_PUBLIC_FILENAME_PREFIX + sanitize(cf.companyName());
+                String baseName  = AppConfig.ETAT_PUBLIC_FILENAME_PREFIX.replace("_", " ").trim()
+                        + " " + sanitize(cf.companyName());
                 File   outputFile = new File(destDir, baseName + ".xlsx");
                 File   pdfFile    = new File(destDir, baseName + ".pdf");
 
@@ -118,7 +120,7 @@ public class EtatPublicGenerator {
         }
 
         progress.accept(1.0, "Done. Generated: " + done
-            + (skipped > 0 ? "  |  skipped/errors: " + skipped : ""));
+                + (skipped > 0 ? "  |  skipped/errors: " + skipped : ""));
     }
 
     // -------------------------------------------------------------------------
@@ -170,13 +172,13 @@ public class EtatPublicGenerator {
     // -------------------------------------------------------------------------
 
     private void generateForClient(String companyName, File sourceFile,
-                                    File outputFile, File pdfFile) throws Exception {
+                                   File outputFile, File pdfFile) throws Exception {
 
         try (Workbook srcWb = openWorkbook(sourceFile)) {
             Sheet src = srcWb.getSheet(AppConfig.CREANCES_SHEET_NAME);
             if (src == null) {
                 throw new IOException("Sheet \"" + AppConfig.CREANCES_SHEET_NAME
-                    + "\" not found in " + sourceFile.getName());
+                        + "\" not found in " + sourceFile.getName());
             }
 
             DataFormatter    fmt  = new DataFormatter();
@@ -199,13 +201,13 @@ public class EtatPublicGenerator {
                 Object[] out = new Object[OUT_COLS];
                 for (int oc = 0; oc < OUT_COLS; oc++) {
                     Cell cell = row.getCell(SOURCE_COL_MAP[oc],
-                        Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+                            Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
                     out[oc] = readCellValue(cell, fmt, eval);
                 }
-                // CLOTURE: blank source value → show "NON" explicitly
+                // CLOTURE: blank source value → show "-" explicitly
                 if (out[OUT_COL_CLOTURE] == null
                         || out[OUT_COL_CLOTURE].toString().isBlank()) {
-                    out[OUT_COL_CLOTURE] = "NON";
+                    out[OUT_COL_CLOTURE] = "-";
                 }
 
                 dataRows.add(out);
@@ -222,9 +224,9 @@ public class EtatPublicGenerator {
             });
 
             writeOutput(company, addressLine1, addressLine2,
-                contactName, codeClient, dataRows, outputFile);
+                    contactName, codeClient, dataRows, outputFile);
             writePdf(company, addressLine1, addressLine2,
-                contactName, codeClient, dataRows, pdfFile);
+                    contactName, codeClient, dataRows, pdfFile);
         }
     }
 
@@ -233,8 +235,8 @@ public class EtatPublicGenerator {
     // -------------------------------------------------------------------------
 
     private void writeOutput(String companyName, String addr1, String addr2,
-                              String contactName, String codeClient,
-                              List<Object[]> dataRows, File outputFile) throws IOException {
+                             String contactName, String codeClient,
+                             List<Object[]> dataRows, File outputFile) throws IOException {
 
         try (XSSFWorkbook wb = new XSSFWorkbook()) {
             XSSFSheet sheet = wb.createSheet("Etat Public");
@@ -252,12 +254,13 @@ public class EtatPublicGenerator {
             sheet.setMargin(Sheet.LeftMargin,   0.5);
             sheet.setMargin(Sheet.RightMargin,  0.5);
 
-            XSSFCellStyle plain = buildPlainStyle(wb);
-            XSSFCellStyle hdr   = buildHeaderStyle(wb);
-            XSSFCellStyle data  = buildDataStyle(wb);
-            XSSFCellStyle money = buildMoneyStyle(wb, data);
-            XSSFCellStyle date  = buildDateStyle(wb, data);
-            XSSFCellStyle total = buildTotalStyle(wb);
+            XSSFCellStyle plain  = buildPlainStyle(wb);
+            XSSFCellStyle hdr    = buildHeaderStyle(wb);
+            XSSFCellStyle data   = buildDataStyle(wb);
+            XSSFCellStyle center = buildCenterStyle(wb, data);
+            XSSFCellStyle money  = buildMoneyStyle(wb, data);
+            XSSFCellStyle date   = buildDateStyle(wb, data);
+            XSSFCellStyle total  = buildTotalStyle(wb);
 
             int rowIdx = 0;
 
@@ -284,11 +287,13 @@ public class EtatPublicGenerator {
             for (Object[] dr : dataRows) {
                 XSSFRow row = sheet.createRow(rowIdx++);
                 for (int c = 0; c < OUT_COLS; c++) {
-                    boolean isMoneyCol = (c == OUT_COL_CREANCE || c == OUT_COL_RECOUVRE
-                                         || c == OUT_COL_ATTENTE);
+                    boolean isMoneyCol  = (c == OUT_COL_CREANCE || c == OUT_COL_RECOUVRE
+                            || c == OUT_COL_ATTENTE);
+                    boolean isCenterCol = (c == 0 || c == 1 || c == OUT_COL_ANCIENNETE);
                     Object val = dr[c];
                     if (isMoneyCol && (val == null || val.toString().isBlank())) val = 0.0;
-                    writeValue(row.createCell(c), val, isMoneyCol ? money : data, date);
+                    XSSFCellStyle colStyle = isMoneyCol ? money : (isCenterCol ? center : data);
+                    writeValue(row.createCell(c), val, colStyle, date);
                 }
             }
             int dataEndRow = rowIdx - 1;
@@ -307,7 +312,7 @@ public class EtatPublicGenerator {
                     XSSFCell sc = totRow.createCell(c);
                     sc.setCellStyle(total);
                     sc.setCellFormula("SUM(" + colLetter(c) + (dataStartRow + 1)
-                        + ":" + colLetter(c) + (dataEndRow + 1) + ")");
+                            + ":" + colLetter(c) + (dataEndRow + 1) + ")");
                 }
             }
 
@@ -329,8 +334,8 @@ public class EtatPublicGenerator {
     // -------------------------------------------------------------------------
 
     private void writePdf(String companyName, String addr1, String addr2,
-                           String contactName, String codeClient,
-                           List<Object[]> dataRows, File pdfFile) throws Exception {
+                          String contactName, String codeClient,
+                          List<Object[]> dataRows, File pdfFile) throws Exception {
 
         PdfDocument pdfDoc = new PdfDocument(new PdfWriter(pdfFile.getAbsolutePath()));
         try (Document doc = new Document(pdfDoc, PageSize.A4.rotate())) {
@@ -347,19 +352,19 @@ public class EtatPublicGenerator {
             doc.add(new Paragraph(" "));
 
             // Table — A4 landscape ~841 pt wide minus 40 pt margins = ~801 pt
-            float[] colWidths = {38, 58, 58, 58, 58, 130, 78, 78, 92, 58, 58};
+            float[] colWidths = {50, 52, 68, 50, 60, 136, 90, 76, 110, 72, 37};
             Table table = new Table(UnitValue.createPointArray(colWidths))
-                .useAllAvailableWidth();
+                    .useAllAvailableWidth();
 
             // Header row — dark-blue background, white bold text
             DeviceRgb darkBlue = new DeviceRgb(0x1F, 0x4E, 0x79);
             for (String h : OUTPUT_HEADERS) {
                 table.addHeaderCell(
-                    new com.itextpdf.layout.element.Cell()
-                        .add(new Paragraph(h).setBold().setFontSize(7.5f)
-                            .setFontColor(ColorConstants.WHITE))
-                        .setBackgroundColor(darkBlue)
-                        .setPadding(3));
+                        new com.itextpdf.layout.element.Cell()
+                                .add(new Paragraph(h).setBold().setFontSize(7.5f)
+                                        .setFontColor(ColorConstants.WHITE))
+                                .setBackgroundColor(darkBlue)
+                                .setPadding(3));
             }
 
             // Data rows — alternating white / light-grey
@@ -372,10 +377,16 @@ public class EtatPublicGenerator {
                 Object[]  dr    = dataRows.get(i);
                 DeviceRgb color = (i % 2 == 0) ? white : lightGrey;
                 for (int c = 0; c < OUT_COLS; c++) {
+                    boolean centerCol = (c == 0 || c == OUT_COL_ANCIENNETE);
+                    com.itextpdf.layout.properties.TextAlignment ta = centerCol
+                            ? com.itextpdf.layout.properties.TextAlignment.CENTER
+                            : com.itextpdf.layout.properties.TextAlignment.LEFT;
                     table.addCell(new com.itextpdf.layout.element.Cell()
-                        .add(new Paragraph(fmtPdf(dr[c], c)).setFontSize(7.5f))
-                        .setBackgroundColor(color)
-                        .setPadding(2));
+                            .add(new Paragraph(fmtPdf(dr[c], c)).setFontSize(7.5f)
+                                    .setTextAlignment(ta))
+                            .setTextAlignment(ta)
+                            .setBackgroundColor(color)
+                            .setPadding(2));
                     if (dr[c] instanceof Number n) {
                         double v = n.doubleValue();
                         if      (c == OUT_COL_CREANCE)  totCreance  += v;
@@ -390,13 +401,13 @@ public class EtatPublicGenerator {
             for (int c = 0; c < OUT_COLS; c++) {
                 String text = "";
                 if      (c == OUT_COL_DEBITEUR) text = "TOTAUX :";
-                else if (c == OUT_COL_CREANCE)  text = fmt2(totCreance);
-                else if (c == OUT_COL_RECOUVRE) text = fmt2(totRecouvre);
-                else if (c == OUT_COL_ATTENTE)  text = fmt2(totAttente);
+                else if (c == OUT_COL_CREANCE)  text = fmtMoney(totCreance);
+                else if (c == OUT_COL_RECOUVRE) text = fmtMoney(totRecouvre);
+                else if (c == OUT_COL_ATTENTE)  text = fmtMoney(totAttente);
                 table.addCell(new com.itextpdf.layout.element.Cell()
-                    .add(new Paragraph(text).setBold().setFontSize(7.5f))
-                    .setBackgroundColor(yellow)
-                    .setPadding(2));
+                        .add(new Paragraph(text).setBold().setFontSize(7.5f))
+                        .setBackgroundColor(yellow)
+                        .setPadding(2));
             }
 
             doc.add(table);
@@ -405,15 +416,29 @@ public class EtatPublicGenerator {
 
     private String fmtPdf(Object val, int colIndex) {
         if (val == null) return "";
-        if (colIndex == OUT_COL_ANCIENNETE || colIndex == OUT_COL_NREF) {
+        // NOMBRE (0), V/REF (1), ANCIENNETE (3), N/REF (4) — integer, no decimals
+        if (colIndex == 0 || colIndex == 1 || colIndex == OUT_COL_ANCIENNETE || colIndex == OUT_COL_NREF) {
             if (val instanceof Number n) return String.valueOf(n.intValue());
             return val.toString().trim();
+        }
+        // Money columns — millier format: 1 000,00
+        if (colIndex == OUT_COL_CREANCE || colIndex == OUT_COL_RECOUVRE || colIndex == OUT_COL_ATTENTE) {
+            if (val instanceof Number n) return fmtMoney(n.doubleValue());
         }
         if (val instanceof Double d)        return fmt2(d);
         if (val instanceof Number n)        return fmt2(n.doubleValue());
         if (val instanceof LocalDateTime t) return t.toLocalDate().format(DATE_FMT);
-        if (val instanceof Boolean b)       return b ? "OUI" : "NON";
+        if (val instanceof Boolean b)       return b ? "OUI" : "-";
         return val.toString().trim();
+    }
+
+    private static String fmtMoney(double v) {
+        java.text.NumberFormat nf = java.text.NumberFormat.getNumberInstance(java.util.Locale.FRANCE);
+        nf.setMinimumFractionDigits(2);
+        nf.setMaximumFractionDigits(2);
+        // Replace non-breaking space (used by Locale.FRANCE as thousands separator)
+        // with regular space so iText renders it correctly
+        return nf.format(v).replace('\u00A0', ' ').replace('\u202F', ' ');
     }
 
     private static String fmt2(double v) {
@@ -425,7 +450,7 @@ public class EtatPublicGenerator {
     // -------------------------------------------------------------------------
 
     private String getCellString(Sheet sheet, int r, int c,
-                                  DataFormatter fmt, FormulaEvaluator eval) {
+                                 DataFormatter fmt, FormulaEvaluator eval) {
         Row row = sheet.getRow(r);
         if (row == null) return "";
         Cell cell = row.getCell(c, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
@@ -436,13 +461,13 @@ public class EtatPublicGenerator {
     private Object readCellValue(Cell cell, DataFormatter fmt, FormulaEvaluator eval) {
         if (cell == null) return "";
         CellType type = cell.getCellType() == CellType.FORMULA
-            ? cell.getCachedFormulaResultType()
-            : cell.getCellType();
+                ? cell.getCachedFormulaResultType()
+                : cell.getCellType();
         return switch (type) {
             case NUMERIC -> DateUtil.isCellDateFormatted(cell)
-                ? DateUtil.getJavaDate(cell.getNumericCellValue())
+                    ? DateUtil.getJavaDate(cell.getNumericCellValue())
                     .toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime()
-                : cell.getNumericCellValue();
+                    : cell.getNumericCellValue();
             case BOOLEAN -> cell.getBooleanCellValue();
             case STRING  -> cell.getStringCellValue();
             default      -> fmt.formatCellValue(cell, eval);
@@ -452,8 +477,8 @@ public class EtatPublicGenerator {
     private Workbook openWorkbook(File file) throws IOException {
         FileInputStream fis = new FileInputStream(file);
         return file.getName().toLowerCase().endsWith(".xls")
-            ? new HSSFWorkbook(fis)
-            : new XSSFWorkbook(fis);
+                ? new HSSFWorkbook(fis)
+                : new XSSFWorkbook(fis);
     }
 
     // -------------------------------------------------------------------------
@@ -467,16 +492,16 @@ public class EtatPublicGenerator {
     }
 
     private void writeValue(XSSFCell cell, Object val,
-                             XSSFCellStyle def, XSSFCellStyle dateStyle) {
+                            XSSFCellStyle def, XSSFCellStyle dateStyle) {
         if (val instanceof Double d)            { cell.setCellValue(d);               cell.setCellStyle(def);       return; }
         if (val instanceof Number n)            { cell.setCellValue(n.doubleValue());  cell.setCellStyle(def);       return; }
         if (val instanceof Boolean b)           { cell.setCellValue(b);               cell.setCellStyle(def);       return; }
         if (val instanceof LocalDateTime ldt)   { cell.setCellValue(ldt);             cell.setCellStyle(dateStyle); return; }
         if (val instanceof String s && !s.isBlank()) {
             String stripped = s
-                .replaceAll("[€$£¥₺]", "")
-                .replaceAll("\\p{Z}", "")
-                .trim();
+                    .replaceAll("[€$£¥₺]", "")
+                    .replaceAll("\\p{Z}", "")
+                    .trim();
             if (stripped.isEmpty() || stripped.equals("-")) {
                 cell.setCellStyle(def);
                 return;
@@ -516,7 +541,7 @@ public class EtatPublicGenerator {
         f.setFontHeightInPoints((short) 10);
         s.setFont(f);
         s.setFillForegroundColor(
-            new XSSFColor(new byte[]{(byte) 0x1F, (byte) 0x4E, (byte) 0x79}, null));
+                new XSSFColor(new byte[]{(byte) 0x1F, (byte) 0x4E, (byte) 0x79}, null));
         s.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         s.setVerticalAlignment(VerticalAlignment.CENTER);
         return s;
@@ -537,10 +562,19 @@ public class EtatPublicGenerator {
         return s;
     }
 
+    private XSSFCellStyle buildCenterStyle(XSSFWorkbook wb, XSSFCellStyle base) {
+        XSSFCellStyle s = wb.createCellStyle();
+        s.cloneStyleFrom(base);
+        s.setAlignment(HorizontalAlignment.CENTER);
+        s.setVerticalAlignment(VerticalAlignment.CENTER);
+        return s;
+    }
+
     private XSSFCellStyle buildMoneyStyle(XSSFWorkbook wb, XSSFCellStyle base) {
         XSSFCellStyle s = wb.createCellStyle();
         s.cloneStyleFrom(base);
         s.setDataFormat(wb.getCreationHelper().createDataFormat().getFormat("#,##0.00"));
+        s.setVerticalAlignment(VerticalAlignment.CENTER);
         return s;
     }
 
@@ -548,6 +582,7 @@ public class EtatPublicGenerator {
         XSSFCellStyle s = wb.createCellStyle();
         s.cloneStyleFrom(base);
         s.setDataFormat(wb.getCreationHelper().createDataFormat().getFormat("dd/MM/yyyy"));
+        s.setVerticalAlignment(VerticalAlignment.CENTER);
         return s;
     }
 
@@ -558,7 +593,7 @@ public class EtatPublicGenerator {
         f.setFontHeightInPoints((short) 10);
         s.setFont(f);
         s.setFillForegroundColor(
-            new XSSFColor(new byte[]{(byte) 0xFF, (byte) 0xF2, (byte) 0xCC}, null));
+                new XSSFColor(new byte[]{(byte) 0xFF, (byte) 0xF2, (byte) 0xCC}, null));
         s.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         XSSFColor bc = new XSSFColor(new byte[]{(byte) 0xD9, (byte) 0xD9, (byte) 0xD9}, null);
         s.setBorderTop(BorderStyle.THIN);
@@ -580,11 +615,11 @@ public class EtatPublicGenerator {
 
     private static String normalize(String s) {
         return Normalizer.normalize(s, Normalizer.Form.NFD)
-            .replaceAll("\\p{InCombiningDiacriticalMarks}+", "")
-            .toLowerCase();
+                .replaceAll("\\p{InCombiningDiacriticalMarks}+", "")
+                .toLowerCase();
     }
 
     private static String sanitize(String name) {
-        return name.replaceAll("[\\\\/:*?\"<>|]", "_");
+        return name.replaceAll("[\\\\/:*?\"<>|_]", " ").trim().replaceAll("\\s+", " ");
     }
 }
