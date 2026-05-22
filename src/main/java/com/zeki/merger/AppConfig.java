@@ -40,7 +40,7 @@ public final class AppConfig {
     public static final String CREANCES_SHEET_NAME = "Créances";
 
     /** Filename prefix for Etat Public output files. */
-    public static final String ETAT_PUBLIC_FILENAME_PREFIX = "L_ETAT_DE_CREANCES_";
+    public static final String ETAT_PUBLIC_FILENAME_PREFIX = "L' ETAT DE CREANCES ";
 
     /** Name of the correspondance file read by EspacePartageFixer. */
     public static final String ESPACE_PARTAGE_FILENAME = "CorrespondanceClient-EspacePartage.xlsx";

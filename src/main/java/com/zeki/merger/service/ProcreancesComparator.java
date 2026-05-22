@@ -26,7 +26,7 @@ public class ProcreancesComparator {
     private static final int CS_NAME        = 0;
     private static final int CS_CODE_COL    = 1;
     private static final int CS_COMM_FEUIL1 = 2;  // Feuil1 sheet — col C = Commission TTC
-    private static final int CS_COMM_CONSO  = 24; // Consolidation sheet — col Y = Commission HT → ×1.2 for TTC
+    private static final int CS_COMM_CONSO  = 21; // Consolidation sheet — col Y = Commission HT → ×1.2 for TTC
 
     private static final String[] COL_HEADERS = {
         "CLIENT", "N° CLIENT",
