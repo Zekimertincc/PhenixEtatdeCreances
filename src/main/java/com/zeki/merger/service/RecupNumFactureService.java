@@ -183,12 +183,24 @@ public class RecupNumFactureService {
             String soldeInfo = "";
             double[] soldeEntry = findSolde(norm, soldeMap);
             if (soldeEntry != null) {
-                double solde     = soldeEntry[0];
-                boolean isNonComp = soldeEntry[1] == 1.0;
-                double negSolde  = -solde;
+                double solde = soldeEntry[0];
+                double negSolde = -solde;
 
-                // Find I or J marker in Facture sheet
-                // NON COMP → write to J row, COMP → write to I row
+                // Detect COMP vs NON COMP by checking if I row exists in sheet
+                // (same logic as FacturePdfService — NON COMP has no I row)
+                boolean hasIRow = false;
+                for (int r = 0; r <= Math.min(facture.getLastRowNum(), 200); r++) {
+                    Row fr = facture.getRow(r);
+                    if (fr == null) continue;
+                    Cell c0 = fr.getCell(0, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+                    if (c0 == null) continue;
+                    String val = fmt.formatCellValue(c0, ev).trim();
+                    if (val.equals("I") || val.startsWith("I=") || val.startsWith("I ")) {
+                        hasIRow = true;
+                        break;
+                    }
+                }
+                boolean isNonComp = !hasIRow;
                 String targetMarker = isNonComp ? "J" : "I";
                 int targetRow = -1;
                 for (int r = 0; r <= Math.min(facture.getLastRowNum(), 200); r++) {
