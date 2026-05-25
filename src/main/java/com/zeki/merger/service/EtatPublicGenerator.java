@@ -378,7 +378,10 @@ public class EtatPublicGenerator {
                 DeviceRgb color = (i % 2 == 0) ? white : lightGrey;
                 for (int c = 0; c < OUT_COLS; c++) {
                     boolean centerCol = (c == 0 || c == OUT_COL_ANCIENNETE);
-                    com.itextpdf.layout.properties.TextAlignment ta = centerCol
+                    boolean rightCol  = (c == OUT_COL_CREANCE || c == OUT_COL_RECOUVRE || c == OUT_COL_ATTENTE);
+                    com.itextpdf.layout.properties.TextAlignment ta = rightCol
+                            ? com.itextpdf.layout.properties.TextAlignment.RIGHT
+                            : centerCol
                             ? com.itextpdf.layout.properties.TextAlignment.CENTER
                             : com.itextpdf.layout.properties.TextAlignment.LEFT;
                     table.addCell(new com.itextpdf.layout.element.Cell()
@@ -400,12 +403,14 @@ public class EtatPublicGenerator {
             DeviceRgb yellow = new DeviceRgb(0xFF, 0xF2, 0xCC);
             for (int c = 0; c < OUT_COLS; c++) {
                 String text = "";
-                if      (c == OUT_COL_DEBITEUR) text = "TOTAUX :";
-                else if (c == OUT_COL_CREANCE)  text = fmtMoney(totCreance);
-                else if (c == OUT_COL_RECOUVRE) text = fmtMoney(totRecouvre);
-                else if (c == OUT_COL_ATTENTE)  text = fmtMoney(totAttente);
+                com.itextpdf.layout.properties.TextAlignment ta =
+                        com.itextpdf.layout.properties.TextAlignment.LEFT;
+                if      (c == OUT_COL_DEBITEUR) { text = "TOTAUX :"; }
+                else if (c == OUT_COL_CREANCE)  { text = fmtMoney(totCreance);  ta = com.itextpdf.layout.properties.TextAlignment.RIGHT; }
+                else if (c == OUT_COL_RECOUVRE) { text = fmtMoney(totRecouvre); ta = com.itextpdf.layout.properties.TextAlignment.RIGHT; }
+                else if (c == OUT_COL_ATTENTE)  { text = fmtMoney(totAttente);  ta = com.itextpdf.layout.properties.TextAlignment.RIGHT; }
                 table.addCell(new com.itextpdf.layout.element.Cell()
-                        .add(new Paragraph(text).setBold().setFontSize(7.5f))
+                        .add(new Paragraph(text).setBold().setFontSize(7.5f).setTextAlignment(ta))
                         .setBackgroundColor(yellow)
                         .setPadding(2));
             }
