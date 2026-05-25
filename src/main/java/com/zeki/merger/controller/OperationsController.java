@@ -58,21 +58,21 @@ public class OperationsController {
     private Button nettoyerBtn;
 
     public OperationsController(MergeService mergeService,
-                                 EspacePartageFixer espacePartageFixer,
-                                 EtatPublicGenerator etatPublicGenerator,
-                                 TrfGeneratorService trfGeneratorService,
-                                 ProcreancesComparator procreancesComparator,
-                                 ConsoControleComparator consoControleComparator,
-                                 RecupNumFactureService recupNumFactureService,
-                                 EtatCreancesSyncService syncService,
-                                 ProgressBar progressBar,
-                                 HBox statusBar,
-                                 Label statusLabel,
-                                 Button openFileBtn,
-                                 TextArea logArea,
-                                 Consumer<String> log,
-                                 Runnable onDashboardRefresh,
-                                 ExecutorService executor) {
+                                EspacePartageFixer espacePartageFixer,
+                                EtatPublicGenerator etatPublicGenerator,
+                                TrfGeneratorService trfGeneratorService,
+                                ProcreancesComparator procreancesComparator,
+                                ConsoControleComparator consoControleComparator,
+                                RecupNumFactureService recupNumFactureService,
+                                EtatCreancesSyncService syncService,
+                                ProgressBar progressBar,
+                                HBox statusBar,
+                                Label statusLabel,
+                                Button openFileBtn,
+                                TextArea logArea,
+                                Consumer<String> log,
+                                Runnable onDashboardRefresh,
+                                ExecutorService executor) {
         this.mergeService            = mergeService;
         this.espacePartageFixer      = espacePartageFixer;
         this.etatPublicGenerator     = etatPublicGenerator;
@@ -165,7 +165,7 @@ public class OperationsController {
         executor.submit(() -> {
             try {
                 File result = trfGeneratorService.generate(consoFile, listingFile, tableauFile, outputFolder,
-                    (prog, msg) -> Platform.runLater(() -> { progressBar.setProgress(prog); log.accept(msg); }));
+                        (prog, msg) -> Platform.runLater(() -> { progressBar.setProgress(prog); log.accept(msg); }));
                 Platform.runLater(() -> {
                     if (result != null) {
                         lastOutputFile = result;
@@ -196,7 +196,7 @@ public class OperationsController {
         executor.submit(() -> {
             try {
                 etatPublicGenerator.generate(rootFolder,
-                    (prog, msg) -> Platform.runLater(() -> { progressBar.setProgress(prog); log.accept(msg); }));
+                        (prog, msg) -> Platform.runLater(() -> { progressBar.setProgress(prog); log.accept(msg); }));
                 Platform.runLater(() -> {
                     statusLabel.setText("Etat Public files written to EspacePartagé paths.");
                     openFileBtn.setVisible(false);
@@ -223,7 +223,7 @@ public class OperationsController {
         executor.submit(() -> {
             try {
                 File result = espacePartageFixer.fix(rootFolder,
-                    (progress, msg) -> Platform.runLater(() -> { progressBar.setProgress(progress); log.accept(msg); }));
+                        (progress, msg) -> Platform.runLater(() -> { progressBar.setProgress(progress); log.accept(msg); }));
                 Platform.runLater(() -> {
                     lastOutputFile = result;
                     statusLabel.setText("Saved: " + result.getAbsolutePath());
@@ -256,7 +256,7 @@ public class OperationsController {
         executor.submit(() -> {
             try {
                 File result = mergeService.merge(rootFolder, outputFolder,
-                    (progress, msg) -> Platform.runLater(() -> { progressBar.setProgress(progress); log.accept(msg); }));
+                        (progress, msg) -> Platform.runLater(() -> { progressBar.setProgress(progress); log.accept(msg); }));
                 Platform.runLater(() -> {
                     if (result != null) {
                         lastOutputFile = result;
@@ -298,7 +298,7 @@ public class OperationsController {
         executor.submit(() -> {
             try {
                 File report = procreancesComparator.compare(procFile, consoFile, outputFolder,
-                    (prog, msg) -> Platform.runLater(() -> { progressBar.setProgress(prog); log.accept(msg); }));
+                        (prog, msg) -> Platform.runLater(() -> { progressBar.setProgress(prog); log.accept(msg); }));
                 Platform.runLater(() -> {
                     setAllButtonsDisabled(false);
                     if (report != null) {
@@ -340,7 +340,7 @@ public class OperationsController {
         executor.submit(() -> {
             try {
                 File report = consoControleComparator.compare(controleFile, consoFile, outputFolder,
-                    (prog, msg) -> Platform.runLater(() -> { progressBar.setProgress(prog); log.accept(msg); }));
+                        (prog, msg) -> Platform.runLater(() -> { progressBar.setProgress(prog); log.accept(msg); }));
                 Platform.runLater(() -> {
                     setAllButtonsDisabled(false);
                     if (report != null) {
@@ -358,8 +358,9 @@ public class OperationsController {
     }
 
     private void recupNumFacture() {
-        String recupPath = AppPreferences.getRecupFacturePath();
-        String rootPath  = AppPreferences.getMergeRoot();
+        String recupPath   = AppPreferences.getRecupFacturePath();
+        String rootPath    = AppPreferences.getMergeRoot();
+        String tableauPath = AppPreferences.getTableauBordPath();
 
         if (recupPath.isEmpty()) {
             log.accept("ERROR: Configurez le fichier Récup. Num Facture avant de lancer."); return;
@@ -370,6 +371,14 @@ public class OperationsController {
         if (!recupFile.exists())       { log.accept("ERROR: Fichier introuvable — " + recupPath); return; }
         if (!rootFolder.isDirectory()) { log.accept("ERROR: Dossier source introuvable — " + rootPath); return; }
 
+        // Tableau de bord optionnel
+        File tableauFile = (tableauPath != null && !tableauPath.isBlank()) ? new File(tableauPath) : null;
+        if (tableauFile != null && !tableauFile.exists()) {
+            log.accept("AVERT: Tableau de bord introuvable — " + tableauPath + ". Soldes non appliqués.");
+            tableauFile = null;
+        }
+        final File finalTableauFile = tableauFile;
+
         setAllButtonsDisabled(true);
         statusBar.setVisible(false);
         progressBar.setProgress(0);
@@ -378,8 +387,8 @@ public class OperationsController {
 
         executor.submit(() -> {
             try {
-                java.util.List<String> logLines = recupNumFactureService.apply(recupFile, rootFolder,
-                    (prog, msg) -> Platform.runLater(() -> { progressBar.setProgress(prog); log.accept(msg); }));
+                java.util.List<String> logLines = recupNumFactureService.apply(recupFile, rootFolder, finalTableauFile,
+                        (prog, msg) -> Platform.runLater(() -> { progressBar.setProgress(prog); log.accept(msg); }));
                 Platform.runLater(() -> {
                     logLines.forEach(log::accept);
                     statusLabel.setText("Récup. Factures terminée — " + logLines.size() + " dossier(s).");
@@ -403,7 +412,7 @@ public class OperationsController {
         executor.submit(() -> {
             try {
                 syncService.syncAll(root, (pct, msg) ->
-                    Platform.runLater(() -> { progressBar.setProgress(pct); log.accept(msg); }));
+                        Platform.runLater(() -> { progressBar.setProgress(pct); log.accept(msg); }));
             } catch (Exception e) {
                 Platform.runLater(() -> log.accept("ERREUR sync : " + e.getMessage()));
             } finally {
@@ -447,7 +456,7 @@ public class OperationsController {
         new Thread(() -> {
             try {
                 java.util.List<String> lines = facturePdfService.apply(rootFolder, finalRecupFile,
-                    (p, msg) -> Platform.runLater(() -> { progressBar.setProgress(p); log.accept(msg); }));
+                        (p, msg) -> Platform.runLater(() -> { progressBar.setProgress(p); log.accept(msg); }));
                 Platform.runLater(() -> {
                     progressBar.setProgress(1.0);
                     statusLabel.setText("Factures PDF générées — " + lines.size() + " dossier(s).");
@@ -471,9 +480,9 @@ public class OperationsController {
         confirm.setTitle("Confirmation");
         confirm.setHeaderText("Nettoyer les Espaces Partagés");
         confirm.setContentText(
-            "Cette action supprimera tous les fichiers PDF, XLS et XLSX\n" +
-            "dans les dossiers 'Espace partagé' de chaque client.\n\n" +
-            "Cette action est irréversible. Continuer ?");
+                "Cette action supprimera tous les fichiers PDF, XLS et XLSX\n" +
+                        "dans les dossiers 'Espace partagé' de chaque client.\n\n" +
+                        "Cette action est irréversible. Continuer ?");
         confirm.showAndWait().ifPresent(btn -> {
             if (btn != ButtonType.OK) return;
 
@@ -486,10 +495,10 @@ public class OperationsController {
             executor.submit(() -> {
                 try {
                     java.util.List<String> lines = new EspacePartageCleanerService(new com.zeki.merger.service.FolderScanner())
-                        .clean(rootFolder, (prog, msg) -> Platform.runLater(() -> {
-                            progressBar.setProgress(prog);
-                            log.accept(msg);
-                        }));
+                            .clean(rootFolder, (prog, msg) -> Platform.runLater(() -> {
+                                progressBar.setProgress(prog);
+                                log.accept(msg);
+                            }));
                     Platform.runLater(() -> {
                         lines.forEach(log::accept);
                         statusLabel.setText("Nettoyage terminé — " + lines.size() + " suppression(s).");
@@ -524,7 +533,7 @@ public class OperationsController {
         new Thread(() -> {
             try {
                 File out = genControleService.apply(rootFolder, outputFolder, finalRecupFile,
-                    (p, msg) -> Platform.runLater(() -> { progressBar.setProgress(p); log.accept(msg); }));
+                        (p, msg) -> Platform.runLater(() -> { progressBar.setProgress(p); log.accept(msg); }));
                 Platform.runLater(() -> {
                     progressBar.setProgress(1.0);
                     if (out != null) openFile(out);
@@ -544,7 +553,7 @@ public class OperationsController {
     }
 
     private Button createActionBtn(String name, String desc, String styleClass,
-                                    EventHandler<ActionEvent> handler) {
+                                   EventHandler<ActionEvent> handler) {
         String titleClass, subtitleClass;
         switch (styleClass) {
             case "action-card-primary" -> { titleClass = "action-card-title-primary"; subtitleClass = "action-card-subtitle-primary"; }

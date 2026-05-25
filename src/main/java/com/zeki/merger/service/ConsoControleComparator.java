@@ -21,15 +21,15 @@ public class ConsoControleComparator {
     private static final double TOLERANCE = 0.05;
 
     // Controle sheet columns (0-based)
-    private static final int CT_NOM       = 0;  // Clientsw
-    private static final int CT_COMS_TTC = 5;  // COMS TTC
+    private static final int CT_NOM       = 0;  // CLIENT
+    private static final int CT_TOTAL_TTC = 8;  // TOTAL TTC
 
     // Conso / Feuil1 columns (0-based)
     private static final int CS_NAME        = 0;
     private static final int CS_MONTANT_TTC = 24; // MONTANT A FACTURER TTC
 
     private static final String[] OUT_HEADERS = {
-        "CLIENT", "CONTROLE COMS TTC", "CONSO MONTANT TTC", "DIFF"
+            "CLIENT", "CONTROLE TOTAL TTC", "CONSO (COMM+FRAIS)×1.2", "DIFF"
     };
 
     // =========================================================================
@@ -58,7 +58,7 @@ public class ConsoControleComparator {
                 if (row == null) continue;
                 String name = cellStr(row, CT_NOM, fmt, ev);
                 if (name.isBlank()) continue;
-                double totalTtc = cellDouble(row, CT_COMS_TTC, fmt, ev);
+                double totalTtc = cellDouble(row, CT_TOTAL_TTC, fmt, ev);
                 String key = DataReader.normalize(name);
                 ctSums.merge(key, totalTtc, Double::sum);
                 ctNames.putIfAbsent(key, name);
@@ -66,7 +66,7 @@ public class ConsoControleComparator {
         }
         progress.accept(0.3, ctSums.size() + " clients lus depuis Contrôle.");
 
-        // 2. Read ConsolidationGenerale (Feuil1 preferred)
+        // 2. Read ConsolidationGenerale
         progress.accept(0.4, "Lecture " + consoFile.getName() + "...");
         Map<String, Double>  csSums  = new LinkedHashMap<>();
         Map<String, String>  csNames = new LinkedHashMap<>();
@@ -78,15 +78,61 @@ public class ConsoControleComparator {
             DataFormatter    fmt = new DataFormatter();
             FormulaEvaluator ev  = wb.getCreationHelper().createFormulaEvaluator();
 
-            for (int r = 1; r <= sheet.getLastRowNum(); r++) {
+            // Detect header row + column positions dynamically
+            int headerRow       = 0;
+            int clientCol       = 0;   // col A = CLIENT
+            int dontAttenteCol  = 15;  // col 16 = DONT EN ATTENTE DE FACTURATION (0-based = 15)
+
+            for (int r = 0; r <= Math.min(sheet.getLastRowNum(), 5); r++) {
                 Row row = sheet.getRow(r);
                 if (row == null) continue;
-                String name = cellStr(row, CS_NAME, fmt, ev);
-                if (name.isBlank() || name.startsWith("Total") || name.startsWith("TOTAUX")) continue;
-                double montant = cellDouble(row, CS_MONTANT_TTC, fmt, ev);
-                String key = DataReader.normalize(name);
-                csSums.merge(key, montant, Double::sum);
-                csNames.putIfAbsent(key, name);
+                for (int c = 0; c < row.getLastCellNum(); c++) {
+                    String h = fmt.formatCellValue(
+                                    row.getCell(c, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL), ev)
+                            .trim().toUpperCase();
+                    if (h.equals("CLIENT"))                               { clientCol = c; headerRow = r; }
+                    if (h.contains("DONT EN ATTENTE") || h.contains("ATTENTE DE FACT")) { dontAttenteCol = c; }
+                }
+                if (headerRow == r && clientCol >= 0) break;
+            }
+
+            // Read rows: carry forward client name, sum (Commissions + Frais) × 1.2
+            String currentClient = null;
+            int commCol  = 21; // col 22 = Commissions (0-based = 21)
+            int fraisCol = 17; // col 18 = Frais de procédure (0-based = 17)
+
+            // Detect commission and frais columns dynamically from header
+            Row hdrRow = sheet.getRow(headerRow);
+            if (hdrRow != null) {
+                for (int c = 0; c < hdrRow.getLastCellNum(); c++) {
+                    String h = fmt.formatCellValue(
+                                    hdrRow.getCell(c, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL), ev)
+                            .trim().toUpperCase();
+                    if (h.equals("COMMISSIONS") || h.equals("COMMISSION"))   commCol  = c;
+                    if (h.contains("FRAIS") && h.contains("PROC"))           fraisCol = c;
+                }
+            }
+
+            for (int r = headerRow + 1; r <= sheet.getLastRowNum(); r++) {
+                Row row = sheet.getRow(r);
+                if (row == null) continue;
+
+                // Client name — carry forward when col A is non-blank
+                String clientVal = cellStr(row, clientCol, fmt, ev);
+                if (!clientVal.isBlank() && !clientVal.equalsIgnoreCase("CLIENT")) {
+                    currentClient = clientVal;
+                }
+                if (currentClient == null) continue;
+
+                // (Commissions + Frais) × 1.2 = TTC
+                double comm  = cellDouble(row, commCol,  fmt, ev);
+                double frais = cellDouble(row, fraisCol, fmt, ev);
+                double ttc   = (comm + frais) * 1.2;
+                if (ttc == 0) continue;
+
+                String key = DataReader.normalize(currentClient);
+                csSums.merge(key, ttc, Double::sum);
+                csNames.putIfAbsent(key, currentClient);
             }
         }
         progress.accept(0.6, csSums.size() + " clients lus depuis Consolidation.");
@@ -140,7 +186,7 @@ public class ConsoControleComparator {
         }
 
         progress.accept(0.8, String.format(
-            "%d clients comparés — %d écart(s)", resultRows.size(), ecarts));
+                "%d clients comparés — %d écart(s)", resultRows.size(), ecarts));
 
         // 4. Write output
         progress.accept(0.9, "Écriture du rapport...");
@@ -154,8 +200,8 @@ public class ConsoControleComparator {
     // =========================================================================
 
     private File writeReport(List<Object[]> rows,
-                              double totalCt, double totalCs, double totalDiff,
-                              File outputFolder) throws IOException {
+                             double totalCt, double totalCs, double totalDiff,
+                             File outputFolder) throws IOException {
         String ts = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm"));
         File outFile = new File(outputFolder, "controle_vs_conso_" + ts + ".xlsx");
 
@@ -227,7 +273,7 @@ public class ConsoControleComparator {
         Cell cell = row.getCell(col, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
         if (cell == null) return 0.0;
         CellType type = cell.getCellType() == CellType.FORMULA
-            ? cell.getCachedFormulaResultType() : cell.getCellType();
+                ? cell.getCachedFormulaResultType() : cell.getCellType();
         if (type == CellType.NUMERIC) return cell.getNumericCellValue();
         return ConsolidationRow.parseFrenchDouble(fmt.formatCellValue(cell, eval).trim());
     }
@@ -250,19 +296,19 @@ public class ConsoControleComparator {
             header = wb.createCellStyle();
             header.setFont(whiteFont);
             header.setFillForegroundColor(
-                new XSSFColor(new byte[]{(byte)0x1F,(byte)0x4E,(byte)0x79}, null));
+                    new XSSFColor(new byte[]{(byte)0x1F,(byte)0x4E,(byte)0x79}, null));
             header.setFillPattern(FillPatternType.SOLID_FOREGROUND);
             header.setVerticalAlignment(VerticalAlignment.CENTER);
 
             greenLine = wb.createCellStyle();
             greenLine.setFillForegroundColor(
-                new XSSFColor(new byte[]{(byte)0xC6,(byte)0xEF,(byte)0xCE}, null));
+                    new XSSFColor(new byte[]{(byte)0xC6,(byte)0xEF,(byte)0xCE}, null));
             greenLine.setFillPattern(FillPatternType.SOLID_FOREGROUND);
             greenLine.setVerticalAlignment(VerticalAlignment.CENTER);
 
             redLine = wb.createCellStyle();
             redLine.setFillForegroundColor(
-                new XSSFColor(new byte[]{(byte)0xFF,(byte)0xC7,(byte)0xCE}, null));
+                    new XSSFColor(new byte[]{(byte)0xFF,(byte)0xC7,(byte)0xCE}, null));
             redLine.setFillPattern(FillPatternType.SOLID_FOREGROUND);
             redLine.setVerticalAlignment(VerticalAlignment.CENTER);
 
@@ -280,7 +326,7 @@ public class ConsoControleComparator {
             total = wb.createCellStyle();
             total.setFont(boldFont);
             total.setFillForegroundColor(
-                new XSSFColor(new byte[]{(byte)0xFF,(byte)0xF2,(byte)0xCC}, null));
+                    new XSSFColor(new byte[]{(byte)0xFF,(byte)0xF2,(byte)0xCC}, null));
             total.setFillPattern(FillPatternType.SOLID_FOREGROUND);
             total.setVerticalAlignment(VerticalAlignment.CENTER);
 

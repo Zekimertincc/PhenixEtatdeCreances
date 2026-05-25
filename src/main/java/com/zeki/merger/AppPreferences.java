@@ -5,7 +5,7 @@ import java.util.prefs.Preferences;
 public class AppPreferences {
 
     private static final Preferences PREFS =
-        Preferences.userNodeForPackage(AppPreferences.class);
+            Preferences.userNodeForPackage(AppPreferences.class);
 
     private static final String KEY_MERGE_ROOT      = "merge_root_folder";
     private static final String KEY_OUTPUT_FOLDER  = "output_folder";
@@ -16,6 +16,7 @@ public class AppPreferences {
     private static final String KEY_CONSO_COMPARE  = "consoComparePath";
     private static final String KEY_CONTROLE_PATH  = "controlePath";
     private static final String KEY_RECUP_FACTURE       = "recupFacturePath";
+    private static final String KEY_TABLEAU_BORD        = "tableauBordPath";
     private static final String KEY_FACTURATION_MENSUEL = "facturation_mensuel_path";
     private static final String KEY_ENTETE_PDF          = "entete_pdf_path";
 
@@ -45,6 +46,9 @@ public class AppPreferences {
 
     public static String getRecupFacturePath()              { return PREFS.get(KEY_RECUP_FACTURE, ""); }
     public static void   setRecupFacturePath(String p)     { PREFS.put(KEY_RECUP_FACTURE, p);          }
+
+    public static String getTableauBordPath()              { return PREFS.get(KEY_TABLEAU_BORD, ""); }
+    public static void   setTableauBordPath(String p)      { PREFS.put(KEY_TABLEAU_BORD, p);          }
 
     public static String getFacturationMensuelPath()        { return PREFS.get(KEY_FACTURATION_MENSUEL, ""); }
     public static void   setFacturationMensuelPath(String p){ PREFS.put(KEY_FACTURATION_MENSUEL, p);          }

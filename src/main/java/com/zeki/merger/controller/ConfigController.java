@@ -26,7 +26,7 @@ public class ConfigController {
     private Label[]  configPathLabels;
 
     public ConfigController(VBox configFormBox, FlowPane badgesPane, Label missingFilesLabel,
-                             Consumer<String> log, Runnable onSaved) {
+                            Consumer<String> log, Runnable onSaved) {
         this.configFormBox    = configFormBox;
         this.badgesPane       = badgesPane;
         this.missingFilesLabel = missingFilesLabel;
@@ -36,27 +36,29 @@ public class ConfigController {
 
     public void load() {
         configPaths = new String[]{
-            AppPreferences.getMergeRoot(),
-            AppPreferences.getTrfConso(),
-            AppPreferences.getTrfListing(),
-            AppPreferences.getTrfTableau(),
-            AppPreferences.getControlePath(),
-            AppPreferences.getRecupFacturePath(),
-            AppPreferences.getFacturationMensuelPath(),
-            AppPreferences.getEntetePdfPath()
+                AppPreferences.getMergeRoot(),
+                AppPreferences.getTrfConso(),
+                AppPreferences.getTrfListing(),
+                AppPreferences.getTrfTableau(),
+                AppPreferences.getControlePath(),
+                AppPreferences.getRecupFacturePath(),
+                AppPreferences.getTableauBordPath(),
+                AppPreferences.getFacturationMensuelPath(),
+                AppPreferences.getEntetePdfPath()
         };
         String[] labels = {
-            "Dossier source (Dropbox)",
-            "ConsolidationGénérale.xlsx",
-            "Listing Cabinet Phénix.xls",
-            "Tableau de bord facturation.xlsx",
-            "Contrôle Facturation.xlsx",
-            "Récup Num Facture.xlsx",
-            "Facturation mensuel (dossier)",
-            "En-tête PDF (Phénix)"
+                "Dossier source (Dropbox)",
+                "ConsolidationGénérale.xlsx",
+                "Listing Cabinet Phénix.xls",
+                "Tableau de bord facturation.xlsx",
+                "Contrôle Facturation.xlsx",
+                "Récup Num Facture.xlsx",
+                "Tableau de bord soldes.xlsx",
+                "Facturation mensuel (dossier)",
+                "En-tête PDF (Phénix)"
         };
-        boolean[] isDir = {true, false, false, false, false, false, true, false};
-        String[]  exts  = {null, "xlsx", "xls", "xlsx", "xlsx", "xlsx", null, "pdf"};
+        boolean[] isDir = {true, false, false, false, false, false, false, true, false};
+        String[]  exts  = {null, "xlsx", "xls", "xlsx", "xlsx", "xlsx", "xlsx", null, "pdf"};
         configPathLabels = new Label[configPaths.length];
 
         configFormBox.getChildren().clear();
@@ -75,8 +77,8 @@ public class ConfigController {
             browseBtn.getStyleClass().add("browse-btn");
             browseBtn.setOnAction(ev -> {
                 File chosen = isDir[idx]
-                    ? dialogPickDirectory(null, labels[idx], configPaths[idx])
-                    : dialogPickFile(null, labels[idx], configPaths[idx], exts[idx]);
+                        ? dialogPickDirectory(null, labels[idx], configPaths[idx])
+                        : dialogPickFile(null, labels[idx], configPaths[idx], exts[idx]);
                 if (chosen != null) {
                     configPaths[idx] = chosen.getAbsolutePath();
                     updatePathLabel(configPathLabels[idx], configPaths[idx], isDir[idx]);
@@ -94,8 +96,9 @@ public class ConfigController {
         AppPreferences.setTrfTableau(configPaths[3]);
         AppPreferences.setControlePath(configPaths[4]);
         AppPreferences.setRecupFacturePath(configPaths[5]);
-        if (configPaths.length > 6) AppPreferences.setFacturationMensuelPath(configPaths[6]);
-        if (configPaths.length > 7) AppPreferences.setEntetePdfPath(configPaths[7]);
+        if (configPaths.length > 6) AppPreferences.setTableauBordPath(configPaths[6]);
+        if (configPaths.length > 7) AppPreferences.setFacturationMensuelPath(configPaths[7]);
+        if (configPaths.length > 8) AppPreferences.setEntetePdfPath(configPaths[8]);
         refreshBadges();
         log.accept("Configuration enregistrée.");
         onSaved.run();
@@ -126,23 +129,24 @@ public class ConfigController {
 
     public void openFileConfig() {
         String[] paths = {
-            AppPreferences.getMergeRoot(),
-            AppPreferences.getOutputFolder(),
-            AppPreferences.getTrfConso(),
-            AppPreferences.getTrfListing(),
-            AppPreferences.getTrfTableau(),
-            AppPreferences.getProcreancesPath(),
-            AppPreferences.getControlePath(),
-            AppPreferences.getRecupFacturePath(),
-            AppPreferences.getFacturationMensuelPath(),
-            AppPreferences.getEntetePdfPath()
+                AppPreferences.getMergeRoot(),
+                AppPreferences.getOutputFolder(),
+                AppPreferences.getTrfConso(),
+                AppPreferences.getTrfListing(),
+                AppPreferences.getTrfTableau(),
+                AppPreferences.getProcreancesPath(),
+                AppPreferences.getControlePath(),
+                AppPreferences.getRecupFacturePath(),
+                AppPreferences.getTableauBordPath(),
+                AppPreferences.getFacturationMensuelPath(),
+                AppPreferences.getEntetePdfPath()
         };
         String[]  labels = {"Dossier source", "Dossier de sortie", "ConsolidationGénérale",
-                             "Listing Cabinet Phénix", "Tableau de Bord", "Export PROCREANCES",
-                             "Contrôle Facturation", "Récup. Num Facture", "Facturation mensuel",
-                             "En-tête PDF (Phénix)"};
-        boolean[] isDir  = {true, true, false, false, false, false, false, false, true, false};
-        String[]  exts   = {null, null, "xlsx", "xlsx", "xlsx", "xls", "xlsx", "xlsx", null, "pdf"};
+                "Listing Cabinet Phénix", "Tableau de Bord", "Export PROCREANCES",
+                "Contrôle Facturation", "Récup. Num Facture", "Tableau de bord soldes",
+                "Facturation mensuel", "En-tête PDF (Phénix)"};
+        boolean[] isDir  = {true, true, false, false, false, false, false, false, false, true, false};
+        String[]  exts   = {null, null, "xlsx", "xlsx", "xlsx", "xls", "xlsx", "xlsx", "xlsx", null, "pdf"};
 
         Stage dialog = new Stage();
         dialog.initModality(Modality.APPLICATION_MODAL);
@@ -171,8 +175,8 @@ public class ConfigController {
             changeBtn.getStyleClass().add("secondary-btn");
             changeBtn.setOnAction(ev -> {
                 File chosen = isDir[idx]
-                    ? dialogPickDirectory(dialog, labels[idx], paths[idx])
-                    : dialogPickFile(dialog, labels[idx], paths[idx], exts[idx]);
+                        ? dialogPickDirectory(dialog, labels[idx], paths[idx])
+                        : dialogPickFile(dialog, labels[idx], paths[idx], exts[idx]);
                 if (chosen != null) {
                     paths[idx] = chosen.getAbsolutePath();
                     updatePathLabel(pathLabels[idx], paths[idx], isDir[idx]);
@@ -200,8 +204,9 @@ public class ConfigController {
             AppPreferences.setProcreancesPath(paths[5]);
             AppPreferences.setControlePath(paths[6]);
             AppPreferences.setRecupFacturePath(paths[7]);
-            AppPreferences.setFacturationMensuelPath(paths[8]);
-            AppPreferences.setEntetePdfPath(paths[9]);
+            AppPreferences.setTableauBordPath(paths[8]);
+            AppPreferences.setFacturationMensuelPath(paths[9]);
+            AppPreferences.setEntetePdfPath(paths[10]);
             dialog.close();
             refreshBadges();
         });
@@ -218,7 +223,7 @@ public class ConfigController {
 
     private int addBadge(String label, String path, boolean isDirectory) {
         boolean ok = !path.isEmpty()
-            && (isDirectory ? new File(path).isDirectory() : new File(path).exists());
+                && (isDirectory ? new File(path).isDirectory() : new File(path).exists());
         Label badge = new Label(label + (ok ? " ✓" : " ✗"));
         badge.getStyleClass().add(ok ? "badge-ok" : "badge-missing");
         badgesPane.getChildren().add(badge);

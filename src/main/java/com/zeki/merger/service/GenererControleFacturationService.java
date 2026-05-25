@@ -29,8 +29,8 @@ public class GenererControleFacturationService {
             Set<String> recupNames = readRecupNames(recupFile);
             if (!recupNames.isEmpty()) {
                 companies = companies.stream()
-                    .filter(cf -> recupNames.contains(DataReader.normalize(cf.companyName())))
-                    .collect(Collectors.toList());
+                        .filter(cf -> recupNames.contains(DataReader.normalize(cf.companyName())))
+                        .collect(Collectors.toList());
                 progress.accept(0.02, recupNames.size() + " clients dans recup → " + companies.size() + " dossiers filtrés.");
             }
         }
@@ -82,7 +82,7 @@ public class GenererControleFacturationService {
             FormulaEvaluator ev = wb.getCreationHelper().createFormulaEvaluator();
 
             int ligneDuA = -1;
-            for (int r = 24; r < Math.min(facture.getLastRowNum(), 200); r++) {
+            for (int r = 0; r < Math.min(facture.getLastRowNum(), 200); r++) {
                 Row row = facture.getRow(r);
                 if (row == null) continue;
                 Cell cell = row.getCell(0, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
@@ -118,13 +118,13 @@ public class GenererControleFacturationService {
     }
 
     private double numVal(Sheet sheet, int rowIdx, int colIdx,
-                           DataFormatter fmt, FormulaEvaluator ev) {
+                          DataFormatter fmt, FormulaEvaluator ev) {
         Row row = sheet.getRow(rowIdx);
         if (row == null) return 0.0;
         Cell cell = row.getCell(colIdx, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
         if (cell == null) return 0.0;
         CellType type = cell.getCellType() == CellType.FORMULA
-            ? cell.getCachedFormulaResultType() : cell.getCellType();
+                ? cell.getCachedFormulaResultType() : cell.getCellType();
         if (type == CellType.NUMERIC) return cell.getNumericCellValue();
         try {
             return Double.parseDouble(fmt.formatCellValue(cell, ev).replace(",", ".").replace(" ", ""));
@@ -203,6 +203,6 @@ public class GenererControleFacturationService {
     private Workbook openWorkbook(File file) throws IOException {
         FileInputStream fis = new FileInputStream(file);
         return file.getName().toLowerCase().endsWith(".xls")
-            ? new HSSFWorkbook(fis) : new XSSFWorkbook(fis);
+                ? new HSSFWorkbook(fis) : new XSSFWorkbook(fis);
     }
 }
