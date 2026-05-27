@@ -32,6 +32,7 @@ public class ClientInfoService {
     private static final int L_IBAN       = 21;
     private static final int L_BIC        = 22;
     private static final int L_COMMERCIAL = 24;
+    // TVA comes from Procreances CSV, not Listing — stored separately
 
     private static final String INFOS_SHEET = "Infos";
 
@@ -43,6 +44,11 @@ public class ClientInfoService {
 
     public List<String> apply(File listingFile, File rootFolder,
                                BiConsumer<Double, String> progress) throws Exception {
+        return apply(listingFile, rootFolder, null, progress);
+    }
+
+    public List<String> apply(File listingFile, File rootFolder, File procreancesFile,
+                               BiConsumer<Double, String> progress) throws Exception {
         List<String> log = new ArrayList<>();
 
         progress.accept(0.05, "Lecture " + listingFile.getName() + "...");
@@ -50,6 +56,14 @@ public class ClientInfoService {
         Map<String, ClientData> byName = new LinkedHashMap<>();
         readListing(listingFile, byCode, byName);
         progress.accept(0.10, byCode.size() + " clients lus depuis le Listing.");
+
+        // Read TVA from Procreances CSV if provided
+        Map<String, String> tvaByCode = new LinkedHashMap<>(); // norm(code) → TVA
+        Map<String, String> tvaByName = new LinkedHashMap<>(); // norm(name) → TVA
+        if (procreancesFile != null && procreancesFile.exists()) {
+            readTvaFromCsv(procreancesFile, tvaByCode, tvaByName);
+            progress.accept(0.13, tvaByCode.size() + " N° TVA lus depuis Procréances.");
+        }
 
         List<FolderScanner.CompanyFile> companies = scanner.scan(rootFolder);
         if (companies.isEmpty()) {
@@ -60,11 +74,11 @@ public class ClientInfoService {
         int total = companies.size();
         for (int i = 0; i < total; i++) {
             FolderScanner.CompanyFile cf = companies.get(i);
-            double prog = 0.10 + 0.90 * (i + 1.0) / total;
+            double prog = 0.15 + 0.85 * (i + 1.0) / total;
 
             String entry;
             try {
-                entry = processCompany(cf.excelFile(), byCode, byName);
+                entry = processCompany(cf.excelFile(), byCode, byName, tvaByCode, tvaByName);
             } catch (Exception e) {
                 entry = "ERREUR: " + e.getMessage();
             }
@@ -118,19 +132,49 @@ public class ClientInfoService {
     }
 
     // =========================================================================
+    // Read TVA from Procreances CSV
+    // CSV: col 0 = code client, col 1 = nom, col 5 = N° TVA intracommunautaire
+    // =========================================================================
+
+    private void readTvaFromCsv(File csvFile,
+                                  Map<String, String> byCode,
+                                  Map<String, String> byName) {
+        try (java.io.BufferedReader br = new java.io.BufferedReader(
+                new java.io.InputStreamReader(new FileInputStream(csvFile),
+                    java.nio.charset.StandardCharsets.UTF_8))) {
+            String line;
+            boolean first = true;
+            while ((line = br.readLine()) != null) {
+                if (first) { first = false; continue; } // skip header
+                String[] cols = line.split(";", -1);
+                if (cols.length < 6) continue;
+                String code = cols[0].trim();
+                String name = cols[1].trim();
+                String tva  = cols[5].trim();
+                if (tva.isBlank()) continue;
+                if (!code.isBlank()) byCode.put(DataReader.normalize(code), tva);
+                if (!name.isBlank()) byName.put(DataReader.normalize(name), tva);
+            }
+        } catch (Exception e) {
+            System.err.println("[ClientInfoService] TVA CSV read error: " + e.getMessage());
+        }
+    }
+
+    // =========================================================================
     // Process one company file
     // =========================================================================
 
     private String processCompany(File excelFile,
                                    Map<String, ClientData> byCode,
-                                   Map<String, ClientData> byName) throws IOException {
+                                   Map<String, ClientData> byName,
+                                   Map<String, String> tvaByCode,
+                                   Map<String, String> tvaByName) throws IOException {
         byte[] bytes = Files.readAllBytes(excelFile.toPath());
 
         try (Workbook wb = openWorkbookFromBytes(bytes, excelFile.getName())) {
             DataFormatter    fmt = new DataFormatter();
             FormulaEvaluator ev  = wb.getCreationHelper().createFormulaEvaluator();
 
-            // Primary: A13 (row12, col0) last 6 chars = client code
             Sheet creances = wb.getSheet("Créances");
             if (creances == null) creances = findSheetLike(wb, "creance");
             if (creances == null) return "sheet 'Créances' introuvable";
@@ -141,8 +185,6 @@ public class ClientInfoService {
                 : DataReader.normalize(a13Raw);
 
             ClientData cd = byCode.get(codeKey);
-
-            // Fallback: H4 name match
             if (cd == null) {
                 String nomClient = sheetCell(creances, 3, 7, fmt, ev);
                 if (!nomClient.isBlank()) {
@@ -151,41 +193,56 @@ public class ClientInfoService {
                     if (cd == null) {
                         for (Map.Entry<String, ClientData> e : byName.entrySet()) {
                             if (normName.contains(e.getKey()) || e.getKey().contains(normName)) {
-                                cd = e.getValue();
-                                break;
+                                cd = e.getValue(); break;
                             }
                         }
                     }
                 }
             }
-
             if (cd == null) return "'" + a13Raw + "' → aucune correspondance trouvée";
 
-            // Remove existing "Infos" sheet and recreate
+            // Find TVA
+            String tva = tvaByCode.get(codeKey);
+            if (tva == null) tva = tvaByName.get(DataReader.normalize(cd.name));
+            if (tva == null) {
+                // partial match on name
+                String normName = DataReader.normalize(cd.name);
+                for (Map.Entry<String, String> e : tvaByName.entrySet()) {
+                    if (normName.contains(e.getKey()) || e.getKey().contains(normName)) {
+                        tva = e.getValue(); break;
+                    }
+                }
+            }
+
+            // Rebuild Infos sheet
             int existingIdx = wb.getSheetIndex(INFOS_SHEET);
             if (existingIdx >= 0) wb.removeSheetAt(existingIdx);
             Sheet infos = wb.createSheet(INFOS_SHEET);
 
-            // Text cell style to prevent numeric auto-conversion
             CellStyle textStyle = wb.createCellStyle();
             DataFormat df = wb.createDataFormat();
             textStyle.setDataFormat(df.getFormat("@"));
 
-            writeInfoRow(infos, 0, "CLIENT",      cd.name,       null,      wb);
-            writeInfoRow(infos, 1, "Code",         cd.code,       null,      wb);
-            writeInfoRow(infos, 2, "CP",           cd.cp,         textStyle, wb);
-            writeInfoRow(infos, 3, "Adresse",      cd.adresse,    null,      wb);
-            writeInfoRow(infos, 4, "Ville",        cd.ville,      null,      wb);
-            writeInfoRow(infos, 5, "Mail",         cd.mail,       null,      wb);
-            writeInfoRow(infos, 6, "IBAN",         cd.iban,       textStyle, wb);
-            writeInfoRow(infos, 7, "BIC",          cd.bic,        textStyle, wb);
-            writeInfoRow(infos, 8, "Téléphone",    cd.tel,        textStyle, wb);
-            writeInfoRow(infos, 9, "Commercial",   cd.commercial, null,      wb);
+            writeInfoRow(infos, 0, "Infos clients", cd.name,       null,      wb);
+            writeInfoRow(infos, 1, "Adresse",        cd.adresse,    null,      wb);
+            writeInfoRow(infos, 2, "CP",             cd.cp,         textStyle, wb);
+            writeInfoRow(infos, 3, "Ville",          cd.ville,      null,      wb);
+            writeInfoRow(infos, 4, "Mails",          cd.mail,       null,      wb);
+            writeInfoRow(infos, 5, "Conditions",     "",            null,      wb);
+            writeInfoRow(infos, 6, "Iban",           cd.iban,       textStyle, wb);
+            writeInfoRow(infos, 7, "Bic",            cd.bic,        textStyle, wb);
+            writeInfoRow(infos, 8, "Téléphone",      cd.tel,        textStyle, wb);
+            writeInfoRow(infos, 9, "Commercial",     cd.commercial, null,      wb);
+            // TVA — only if found
+            if (tva != null && !tva.isBlank()) {
+                writeInfoRow(infos, 10, "N° TVA", tva, textStyle, wb);
+            }
 
             try (FileOutputStream fos = new FileOutputStream(excelFile)) {
                 wb.write(fos);
             }
-            return "Infos créée → " + cd.name;
+            String tvaInfo = (tva != null && !tva.isBlank()) ? " | TVA=" + tva : " | TVA non trouvée";
+            return "Infos créée → " + cd.name + tvaInfo;
         }
     }
 

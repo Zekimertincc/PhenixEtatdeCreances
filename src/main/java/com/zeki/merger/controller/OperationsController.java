@@ -1,6 +1,7 @@
 package com.zeki.merger.controller;
 
 import com.zeki.merger.AppPreferences;
+import com.zeki.merger.service.ClientInfoService;
 import com.zeki.merger.service.ConsoControleComparator;
 import com.zeki.merger.service.EspacePartageFixer;
 import com.zeki.merger.service.EspacePartageCleanerService;
@@ -9,6 +10,7 @@ import com.zeki.merger.service.EtatPublicGenerator;
 import com.zeki.merger.service.FacturePdfService;
 import com.zeki.merger.service.GenererControleFacturationService;
 import com.zeki.merger.service.MergeService;
+import com.zeki.merger.service.MisAJourListingService;
 import com.zeki.merger.service.ProcreancesComparator;
 import com.zeki.merger.service.RecupNumFactureService;
 import com.zeki.merger.trf.TrfGeneratorService;
@@ -33,8 +35,10 @@ public class OperationsController {
     private final ConsoControleComparator consoControleComparator;
     private final RecupNumFactureService  recupNumFactureService;
     private final EtatCreancesSyncService syncService;
-    private final FacturePdfService                 facturePdfService  = new FacturePdfService();
-    private final GenererControleFacturationService genControleService = new GenererControleFacturationService();
+    private final FacturePdfService                 facturePdfService      = new FacturePdfService();
+    private final MisAJourListingService             misAJourListingService = new MisAJourListingService();
+    private final GenererControleFacturationService genControleService      = new GenererControleFacturationService();
+    private final ClientInfoService                  clientInfoService      = new ClientInfoService();
     private final ProgressBar             progressBar;
     private final HBox                    statusBar;
     private final Label                   statusLabel;
@@ -54,8 +58,11 @@ public class OperationsController {
     private Button runActionBtn;
     private Button controleBtn;
     private Button factureBtn;
+    private Button factureClientBtn;
     private Button genControleBtn;
     private Button nettoyerBtn;
+    private Button recupInfoClientsBtn;
+    private Button misAJourListingBtn;
 
     public OperationsController(MergeService mergeService,
                                 EspacePartageFixer espacePartageFixer,
@@ -92,17 +99,20 @@ public class OperationsController {
     }
 
     public void buildButtons(GridPane actionsGrid) {
-        trfBtn         = createActionBtn("Générer TRF",               "Calcul virements et compensations",      "action-card-primary", e -> generateTrf());
-        etatBtn        = createActionBtn("États publics",              "Exporter vers Espace Partagé",           "action-card",         e -> generateEtatPublic());
-        cmpBtn         = createActionBtn("Comparer fichiers",          "Contrôle PROCRÉANCES",                   "action-card",         e -> compareProcreances());
-        fixBtn         = createActionBtn("Corriger espaces",           "Mise à jour Espace Partagé",              "action-card",         e -> fixPaths());
-        syncDbBtn      = createActionBtn("Sync toutes sociétés",       "Synchroniser toutes les sociétés",        "action-card",         e -> syncDatabase());
-        recupBtn       = createActionBtn("Récup. n° factures",         "Depuis Dropbox",                          "action-card",         e -> recupNumFacture());
-        controleBtn    = createActionBtn("Contrôle Facturation",       "Comparer Contrôle vs Consolidation",      "action-card",         e -> compareConsoControle());
-        factureBtn     = createActionBtn("Générer factures PDF",       "Export PDF Facture en préparation",       "action-card",         e -> genererFacturesPdf());
-        genControleBtn = createActionBtn("Générer Contrôle Fact.",     "Produit Controle_Facturation.xlsx",       "action-card",         e -> genererControleFacturation());
-        nettoyerBtn    = createActionBtn("Nettoyer Espace Partagé",    "Supprimer PDF/XLS des espaces partagés",  "action-card-danger",  e -> nettoyerEspacePartage());
-        runActionBtn   = createActionBtn("▶  CONSOLIDER",              "Lire les états → ConsolidationGénérale",  "consolider-card",     e -> run());
+        trfBtn           = createActionBtn("Générer TRF",               "Calcul virements et compensations",       "action-card-primary", e -> generateTrf());
+        etatBtn          = createActionBtn("États publics",              "Exporter vers Espace Partagé",            "action-card",         e -> generateEtatPublic());
+        cmpBtn           = createActionBtn("Comparer fichiers",          "Contrôle PROCRÉANCES",                    "action-card",         e -> compareProcreances());
+        fixBtn           = createActionBtn("Corriger espaces",           "Mise à jour Espace Partagé",               "action-card",         e -> fixPaths());
+        syncDbBtn        = createActionBtn("Sync toutes sociétés",       "Synchroniser toutes les sociétés",         "action-card",         e -> syncDatabase());
+        recupBtn         = createActionBtn("Récup. n° factures",         "Depuis Dropbox",                           "action-card",         e -> recupNumFacture());
+        controleBtn      = createActionBtn("Contrôle Facturation",       "Comparer Contrôle vs Consolidation",       "action-card",         e -> compareConsoControle());
+        factureBtn       = createActionBtn("Générer factures PDF",       "Export → nos dossiers",                    "action-card",         e -> genererFacturesPdf(FacturePdfService.Mode.OWN));
+        factureClientBtn = createActionBtn("Factures → Espace partagé", "Export → espace partagé client",           "action-card",         e -> genererFacturesPdf(FacturePdfService.Mode.CLIENT));
+        misAJourListingBtn   = createActionBtn("Mis à jour Listing",    "Dernier dossier arrivé → Listing client",  "action-card",         e -> misAJourListing());
+        recupInfoClientsBtn  = createActionBtn("Récup. Info Clients",   "TVA + Infos → Etat de créances",           "action-card",         e -> recupInfoClients());
+        genControleBtn   = createActionBtn("Générer Contrôle Fact.",     "Produit Controle_Facturation.xlsx",        "action-card",         e -> genererControleFacturation());
+        nettoyerBtn      = createActionBtn("Nettoyer Espace Partagé",   "Supprimer PDF/XLS des espaces partagés",   "action-card-danger",  e -> nettoyerEspacePartage());
+        runActionBtn     = createActionBtn("▶  CONSOLIDER",              "Lire les états → ConsolidationGénérale",   "consolider-card",     e -> run());
 
         Label opsLabel = new Label("OPÉRATIONS");
         opsLabel.getStyleClass().add("section-label");
@@ -120,13 +130,16 @@ public class OperationsController {
         actionsGrid.add(syncDbBtn,      0, 3);
         actionsGrid.add(nettoyerBtn,    1, 3);
 
-        actionsGrid.add(factLabel,      0, 4);
-        actionsGrid.add(recupBtn,       0, 5);
-        actionsGrid.add(genControleBtn, 1, 5);
-        actionsGrid.add(controleBtn,    0, 6);
-        actionsGrid.add(factureBtn,     1, 6);
+        actionsGrid.add(factLabel,           0, 4);
+        actionsGrid.add(recupBtn,            0, 5);
+        actionsGrid.add(genControleBtn,      1, 5);
+        actionsGrid.add(controleBtn,         0, 6);
+        actionsGrid.add(factureBtn,          1, 6);
+        actionsGrid.add(factureClientBtn,    0, 7);
+        actionsGrid.add(misAJourListingBtn,  1, 7);
+        actionsGrid.add(recupInfoClientsBtn, 0, 8);
 
-        actionsGrid.add(runActionBtn,   0, 7);
+        actionsGrid.add(runActionBtn,        0, 9);
         GridPane.setColumnSpan(runActionBtn, 2);
     }
 
@@ -371,7 +384,6 @@ public class OperationsController {
         if (!recupFile.exists())       { log.accept("ERROR: Fichier introuvable — " + recupPath); return; }
         if (!rootFolder.isDirectory()) { log.accept("ERROR: Dossier source introuvable — " + rootPath); return; }
 
-        // Tableau de bord optionnel
         File tableauFile = (tableauPath != null && !tableauPath.isBlank()) ? new File(tableauPath) : null;
         if (tableauFile != null && !tableauFile.exists()) {
             log.accept("AVERT: Tableau de bord introuvable — " + tableauPath + ". Soldes non appliqués.");
@@ -402,6 +414,38 @@ public class OperationsController {
         });
     }
 
+    private void recupInfoClients() {
+        String listingPath     = AppPreferences.getTrfListing();
+        String rootPath        = AppPreferences.getMergeRoot();
+        String procreancesPath = AppPreferences.getProcreancesPath();
+        if (listingPath.isBlank()) { log.accept("ERROR: Fichier Listing non configuré."); return; }
+        File listingFile     = new File(listingPath);
+        File rootFolder      = new File(rootPath);
+        File procreancesFile = (procreancesPath != null && !procreancesPath.isBlank()) ? new File(procreancesPath) : null;
+        if (!listingFile.exists())     { log.accept("ERROR: Listing introuvable."); return; }
+        if (!rootFolder.isDirectory()) { log.accept("ERROR: Dossier source introuvable."); return; }
+
+        setAllButtonsDisabled(true);
+        progressBar.setProgress(-1);
+        log.accept("Récup. Info Clients...");
+        final File finalProc = procreancesFile;
+        new Thread(() -> {
+            try {
+                java.util.List<String> lines = clientInfoService.apply(listingFile, rootFolder, finalProc,
+                        (p, msg) -> Platform.runLater(() -> { progressBar.setProgress(p); log.accept(msg); }));
+                Platform.runLater(() -> {
+                    progressBar.setProgress(1.0);
+                    statusLabel.setText("Info Clients terminée — " + lines.size() + " dossier(s).");
+                    statusBar.setVisible(true);
+                    statusBar.setManaged(true);
+                    setAllButtonsDisabled(false);
+                });
+            } catch (Exception e) {
+                Platform.runLater(() -> { log.accept("ERREUR: " + e.getMessage()); setAllButtonsDisabled(false); });
+            }
+        }, "recup-info-clients-thread").start();
+    }
+
     private void syncDatabase() {
         File root = new File(AppPreferences.getMergeRoot());
         if (!root.isDirectory()) {
@@ -425,20 +469,52 @@ public class OperationsController {
     }
 
     private void setAllButtonsDisabled(boolean disabled) {
-        if (trfBtn       != null) trfBtn.setDisable(disabled);
-        if (etatBtn      != null) etatBtn.setDisable(disabled);
-        if (cmpBtn       != null) cmpBtn.setDisable(disabled);
-        if (fixBtn       != null) fixBtn.setDisable(disabled);
-        if (controleBtn  != null) controleBtn.setDisable(disabled);
-        if (recupBtn     != null) recupBtn.setDisable(disabled);
-        if (syncDbBtn    != null) syncDbBtn.setDisable(disabled);
-        if (factureBtn      != null) factureBtn.setDisable(disabled);
-        if (genControleBtn  != null) genControleBtn.setDisable(disabled);
-        if (nettoyerBtn     != null) nettoyerBtn.setDisable(disabled);
-        if (runActionBtn    != null) runActionBtn.setDisable(disabled);
+        if (trfBtn              != null) trfBtn.setDisable(disabled);
+        if (etatBtn             != null) etatBtn.setDisable(disabled);
+        if (cmpBtn              != null) cmpBtn.setDisable(disabled);
+        if (fixBtn              != null) fixBtn.setDisable(disabled);
+        if (controleBtn         != null) controleBtn.setDisable(disabled);
+        if (recupBtn            != null) recupBtn.setDisable(disabled);
+        if (syncDbBtn           != null) syncDbBtn.setDisable(disabled);
+        if (factureBtn          != null) factureBtn.setDisable(disabled);
+        if (factureClientBtn    != null) factureClientBtn.setDisable(disabled);
+        if (genControleBtn      != null) genControleBtn.setDisable(disabled);
+        if (nettoyerBtn         != null) nettoyerBtn.setDisable(disabled);
+        if (recupInfoClientsBtn != null) recupInfoClientsBtn.setDisable(disabled);
+        if (misAJourListingBtn  != null) misAJourListingBtn.setDisable(disabled);
+        if (runActionBtn        != null) runActionBtn.setDisable(disabled);
     }
 
-    private void genererFacturesPdf() {
+    private void misAJourListing() {
+        String listingPath = AppPreferences.getTrfListing();
+        String rootPath    = AppPreferences.getMergeRoot();
+        if (listingPath.isBlank()) { log.accept("ERROR: Fichier Listing non configuré."); return; }
+        File listingFile = new File(listingPath);
+        File rootFolder  = new File(rootPath);
+        if (!listingFile.exists())     { log.accept("ERROR: Listing introuvable — " + listingPath); return; }
+        if (!rootFolder.isDirectory()) { log.accept("ERROR: Dossier source introuvable."); return; }
+
+        setAllButtonsDisabled(true);
+        progressBar.setProgress(-1);
+        log.accept("Mis à jour Listing — Dernier dossier arrivé...");
+        new Thread(() -> {
+            try {
+                java.util.List<String> lines = misAJourListingService.apply(listingFile, rootFolder,
+                        (p, msg) -> Platform.runLater(() -> { progressBar.setProgress(p); log.accept(msg); }));
+                Platform.runLater(() -> {
+                    progressBar.setProgress(1.0);
+                    statusLabel.setText("Listing mis à jour — " + lines.size() + " dossier(s) traités.");
+                    statusBar.setVisible(true);
+                    statusBar.setManaged(true);
+                    setAllButtonsDisabled(false);
+                });
+            } catch (Exception e) {
+                Platform.runLater(() -> { log.accept("ERREUR: " + e.getMessage()); setAllButtonsDisabled(false); });
+            }
+        }, "mis-a-jour-listing-thread").start();
+    }
+
+    private void genererFacturesPdf(FacturePdfService.Mode mode) {
         String rootPath  = AppPreferences.getMergeRoot();
         String recupPath = AppPreferences.getRecupFacturePath();
         File rootFolder  = new File(rootPath);
@@ -453,13 +529,15 @@ public class OperationsController {
         final File finalRecupFile = recupFile;
         setAllButtonsDisabled(true);
         progressBar.setProgress(-1);
+        String modeLabel = mode == FacturePdfService.Mode.OWN ? "nos dossiers" : "espace partagé client";
+        log.accept("Génération PDF → " + modeLabel + "...");
         new Thread(() -> {
             try {
-                java.util.List<String> lines = facturePdfService.apply(rootFolder, finalRecupFile,
+                java.util.List<String> lines = facturePdfService.apply(rootFolder, finalRecupFile, mode,
                         (p, msg) -> Platform.runLater(() -> { progressBar.setProgress(p); log.accept(msg); }));
                 Platform.runLater(() -> {
                     progressBar.setProgress(1.0);
-                    statusLabel.setText("Factures PDF générées — " + lines.size() + " dossier(s).");
+                    statusLabel.setText("Factures PDF générées [" + modeLabel + "] — " + lines.size() + " dossier(s).");
                     statusBar.setVisible(true);
                     statusBar.setManaged(true);
                     setAllButtonsDisabled(false);

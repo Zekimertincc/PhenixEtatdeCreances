@@ -49,7 +49,7 @@ public class TrfGeneratorService {
 
         log(progress, 0.35, "Reading Listing…");
         Map<String, ClientInfo> clientInfoMap = reader.readClientInfoMap(listingFile,
-            msg -> log(progress, 0.35, msg));
+                msg -> log(progress, 0.35, msg));
         log(progress, 0.45, "  → " + clientInfoMap.size() + " client entries");
 
         log(progress, 0.50, "Reading Tableau de Bord…");
@@ -62,8 +62,8 @@ public class TrfGeneratorService {
         log(progress, 0.75, "  → " + summaries.size() + " client(s) included");
 
         if (summaries.isEmpty()) throw new IllegalStateException(
-            "No clients found in ConsolidationGenerale. "
-            + "Check that the Consolidation sheet has data rows with client names in column A.");
+                "No clients found in ConsolidationGenerale. "
+                        + "Check that the Consolidation sheet has data rows with client names in column A.");
 
         // Persist summaries to local DB
         if (db != null) {
@@ -85,10 +85,14 @@ public class TrfGeneratorService {
                 log(progress, 0.75, "  [INFO] No previous balance for: " + cs.getClientName());
         });
 
+        // Sort alphabetically by client name
+        summaries.sort(java.util.Comparator.comparing(
+                cs -> cs.getClientName().toLowerCase(java.util.Locale.FRENCH)));
+
         // ---- Write output -----------------------------------------------
         LocalDate now     = LocalDate.now();
         String    outName = "TRF_" + String.format("%02d", now.getMonthValue())
-                            + "_" + now.getYear() + ".xlsx";
+                + "_" + now.getYear() + ".xlsx";
         File      outFile = new File(outputFolder, outName);
 
         log(progress, 0.80, "Writing " + outName + "…");

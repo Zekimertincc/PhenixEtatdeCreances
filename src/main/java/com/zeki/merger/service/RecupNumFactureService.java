@@ -186,22 +186,10 @@ public class RecupNumFactureService {
                 double solde = soldeEntry[0];
                 double negSolde = -solde;
 
-                // Detect COMP vs NON COMP by checking if I row exists in sheet
-                // (same logic as FacturePdfService — NON COMP has no I row)
-                boolean hasIRow = false;
-                for (int r = 0; r <= Math.min(facture.getLastRowNum(), 200); r++) {
-                    Row fr = facture.getRow(r);
-                    if (fr == null) continue;
-                    Cell c0 = fr.getCell(0, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
-                    if (c0 == null) continue;
-                    String val = fmt.formatCellValue(c0, ev).trim();
-                    if (val.equals("I") || val.startsWith("I=") || val.startsWith("I ")) {
-                        hasIRow = true;
-                        break;
-                    }
-                }
-                boolean isNonComp = !hasIRow;
-                String targetMarker = isNonComp ? "J" : "I";
+                // COMP ve NON COMP için her ikisi de J satırına yaz
+                // I satırı formül içeriyor (C30-C40), ezilmemeli
+                // J satırı = "factures en retard" = önceki borç → buraya yazılır
+                String targetMarker = "J";
                 int targetRow = -1;
                 for (int r = 0; r <= Math.min(facture.getLastRowNum(), 200); r++) {
                     Row fr = facture.getRow(r);
@@ -222,9 +210,8 @@ public class RecupNumFactureService {
                     if (fr == null) fr = facture.createRow(targetRow);
                     Cell valCell = fr.getCell(2, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
                     if (valCell == null) valCell = fr.createCell(2);
-                    valCell.setCellValue(negSolde);
-                    soldeInfo = String.format(" | Solde %s → %s=%.2f",
-                            isNonComp ? "NON COMP" : "COMP", targetMarker, negSolde);
+                    valCell.setCellValue(solde); // pozitif yaz — J formülü C45>0 → "factures impayées"
+                    soldeInfo = String.format(" | Solde → J=+%.2f", solde);
                 }
             }
 

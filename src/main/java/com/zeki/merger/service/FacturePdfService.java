@@ -44,6 +44,8 @@ import java.util.function.BiConsumer;
 
 public class FacturePdfService {
 
+    public enum Mode { OWN, CLIENT }
+
     private final FolderScanner scanner = new FolderScanner();
 
     // =========================================================================
@@ -51,6 +53,11 @@ public class FacturePdfService {
     // =========================================================================
 
     public List<String> apply(File rootFolder, File recupFile,
+                              BiConsumer<Double, String> progress) throws Exception {
+        return apply(rootFolder, recupFile, Mode.OWN, progress);
+    }
+
+    public List<String> apply(File rootFolder, File recupFile, Mode mode,
                               BiConsumer<Double, String> progress) throws Exception {
         List<String> log = new ArrayList<>();
 
@@ -85,7 +92,7 @@ public class FacturePdfService {
             String result;
             try {
                 result = processCompany(cf.excelFile(), cf.companyName(),
-                        factureMap, nomMap, mensuelFolder, recupFile, clientInfoMap);
+                        factureMap, nomMap, mensuelFolder, recupFile, clientInfoMap, mode);
             } catch (Exception e) {
                 result = "ERREUR: " + e.getMessage();
             }
@@ -173,7 +180,8 @@ public class FacturePdfService {
                                   Map<String, String> nomMap,
                                   File mensuelFolder,
                                   File recupFile,
-                                  Map<String, com.zeki.merger.trf.model.ClientInfo> clientInfoMap) throws Exception {
+                                  Map<String, com.zeki.merger.trf.model.ClientInfo> clientInfoMap,
+                                  Mode mode) throws Exception {
         try (Workbook wb = openWorkbook(excelFile)) {
             DataFormatter fmt = new DataFormatter();
             FormulaEvaluator ev = wb.getCreationHelper().createFormulaEvaluator();
@@ -386,29 +394,34 @@ public class FacturePdfService {
             String etatSubfolder = isNonComp ? "non_comp" : determineEtatSubfolder(ag, ttc);
             List<File> saveTargets = new ArrayList<>();
 
-            // Location — facturation_mensuel/toutes/{etat}/ only (no toutes root)
-            if (mensuelFolder != null && mensuelFolder.isDirectory()) {
-                File toutesDir = new File(mensuelFolder, "toutes");
-                toutesDir.mkdirs();
-                for (String folder : new String[]{"comp", "non_comp", "comp_part", "debiteurs"}) {
-                    new File(toutesDir, folder).mkdirs();
+            if (mode == Mode.OWN) {
+                // Mode OWN — sadece kendi klasörlerimize: facturation_mensuel/toutes/{etat}/
+                if (mensuelFolder != null && mensuelFolder.isDirectory()) {
+                    File toutesDir = new File(mensuelFolder, "toutes");
+                    toutesDir.mkdirs();
+                    for (String folder : new String[]{"comp", "non_comp", "comp_part", "debiteurs"}) {
+                        new File(toutesDir, folder).mkdirs();
+                    }
+                    File etatDir = new File(toutesDir, etatSubfolder);
+                    saveTargets.add(new File(etatDir, pdfName));
                 }
-                File etatDir = new File(toutesDir, etatSubfolder);
-                saveTargets.add(new File(etatDir, pdfName));
-            }
-
-            // Location 2 — client espace partagé/factures/
-            File companyDir    = excelFile.getParentFile();
-            File espacePartage = findEspacePartage(companyDir);
-            if (espacePartage != null) {
-                File facturesDir = new File(espacePartage, "factures");
-                facturesDir.mkdirs();
-                saveTargets.add(new File(facturesDir, pdfName));
-            }
-
-            // Fallback — same folder as Excel
-            if (saveTargets.isEmpty()) {
-                saveTargets.add(new File(excelFile.getParent(), pdfName));
+                // Fallback
+                if (saveTargets.isEmpty()) {
+                    saveTargets.add(new File(excelFile.getParent(), pdfName));
+                }
+            } else {
+                // Mode CLIENT — sadece client espace partagé/factures/
+                File companyDir    = excelFile.getParentFile();
+                File espacePartage = findEspacePartage(companyDir);
+                if (espacePartage != null) {
+                    File facturesDir = new File(espacePartage, "factures");
+                    facturesDir.mkdirs();
+                    saveTargets.add(new File(facturesDir, pdfName));
+                }
+                // Fallback
+                if (saveTargets.isEmpty()) {
+                    saveTargets.add(new File(excelFile.getParent(), pdfName));
+                }
             }
 
             File primaryTarget = saveTargets.get(0);
@@ -425,7 +438,8 @@ public class FacturePdfService {
                 } catch (Exception ignored) {}
             }
 
-            return "PDF → " + pdfName + " [" + (isNonComp ? "NON COMP" : "COMP") + "] (" + saveTargets.size() + " emplacements)";
+            return "PDF → " + pdfName + " [" + (isNonComp ? "NON COMP" : "COMP") + "] ["
+                    + (mode == Mode.OWN ? "nos dossiers" : "espace partagé") + "]";
         }
     }
 
@@ -564,18 +578,25 @@ public class FacturePdfService {
                     String[] debHeaders = {"V/REF", "N/REF", "Débiteur",
                             "Encaissements", "Commissions", "Frais de procédure", "Lieu"};
                     float[] debWidths = {10, 10, 25, 15, 15, 15, 10};
+                    // cols 3,4,5 = money → right aligned; others left
+                    boolean[] rightAlign = {false, false, false, true, true, true, false};
                     Table debTable = new Table(UnitValue.createPercentArray(debWidths))
                             .useAllAvailableWidth().setMarginBottom(4);
-                    for (String h : debHeaders) {
+                    for (int hi = 0; hi < debHeaders.length; hi++) {
+                        TextAlignment ta = rightAlign[hi] ? TextAlignment.RIGHT : TextAlignment.LEFT;
                         debTable.addHeaderCell(new Cell()
-                                .add(new Paragraph(h).setFontSize(7).setBold())
+                                .add(new Paragraph(debHeaders[hi]).setFontSize(7).setBold()
+                                        .setTextAlignment(ta))
+                                .setTextAlignment(ta)
                                 .setBorder(new SolidBorder(1)).setPadding(2));
                     }
                     for (Object[] dr : debiteurRows) {
                         for (int c = 0; c < 7; c++) {
                             String v = (c < dr.length && dr[c] != null) ? dr[c].toString() : "";
+                            TextAlignment ta = rightAlign[c] ? TextAlignment.RIGHT : TextAlignment.LEFT;
                             debTable.addCell(new Cell()
-                                    .add(new Paragraph(v).setFontSize(7))
+                                    .add(new Paragraph(v).setFontSize(7).setTextAlignment(ta))
+                                    .setTextAlignment(ta)
                                     .setBorder(new SolidBorder(1)).setPadding(2));
                         }
                     }
@@ -696,6 +717,7 @@ public class FacturePdfService {
                 .setBorder(new SolidBorder(1)).setPadding(2));
         table.addCell(new Cell()
                 .add(valuePara)
+                .setTextAlignment(TextAlignment.RIGHT)
                 .setBorder(new SolidBorder(1)).setPadding(2));
     }
 
@@ -783,7 +805,9 @@ public class FacturePdfService {
         java.text.NumberFormat nf = java.text.NumberFormat.getNumberInstance(java.util.Locale.FRENCH);
         nf.setMinimumFractionDigits(2);
         nf.setMaximumFractionDigits(2);
-        return "€ " + nf.format(val);
+        // Replace regular space with non-breaking space for millier separator
+        String formatted = nf.format(val).replace("\u0020", "\u00A0");
+        return "€\u00A0" + formatted;
     }
 
     private static String normalize(String s) {
