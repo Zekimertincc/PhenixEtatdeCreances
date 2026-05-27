@@ -32,7 +32,7 @@ public class ClientInfoService {
     private static final int L_IBAN       = 21;
     private static final int L_BIC        = 22;
     private static final int L_COMMERCIAL = 24;
-    // TVA comes from Procreances CSV, not Listing — stored separately
+    private static final int L_TVA        = 26; // N° TVA Intracommunautaire (col 27, 0-based=26)
 
     private static final String INFOS_SHEET = "Infos";
 
@@ -43,12 +43,12 @@ public class ClientInfoService {
     // =========================================================================
 
     public List<String> apply(File listingFile, File rootFolder,
-                               BiConsumer<Double, String> progress) throws Exception {
+                              BiConsumer<Double, String> progress) throws Exception {
         return apply(listingFile, rootFolder, null, progress);
     }
 
     public List<String> apply(File listingFile, File rootFolder, File procreancesFile,
-                               BiConsumer<Double, String> progress) throws Exception {
+                              BiConsumer<Double, String> progress) throws Exception {
         List<String> log = new ArrayList<>();
 
         progress.accept(0.05, "Lecture " + listingFile.getName() + "...");
@@ -85,7 +85,7 @@ public class ClientInfoService {
 
             log.add(cf.companyName() + " → " + entry);
             progress.accept(prog, "[" + (i + 1) + "/" + total + "] "
-                + cf.companyName() + " → " + entry);
+                    + cf.companyName() + " → " + entry);
         }
 
         progress.accept(1.0, "Info Clients terminée (" + total + " dossiers).");
@@ -97,8 +97,8 @@ public class ClientInfoService {
     // =========================================================================
 
     private void readListing(File file,
-                              Map<String, ClientData> byCode,
-                              Map<String, ClientData> byName) throws IOException {
+                             Map<String, ClientData> byCode,
+                             Map<String, ClientData> byName) throws IOException {
         try (Workbook wb = openWorkbook(file)) {
             Sheet sheet = wb.getSheet("Feuil1");
             if (sheet == null) sheet = wb.getSheetAt(0);
@@ -113,16 +113,17 @@ public class ClientInfoService {
                 String code = cellStr(row, L_CODE, fmt, ev);
 
                 ClientData cd = new ClientData(
-                    name,
-                    code,
-                    cellStr(row, L_ADRESSE,    fmt, ev),
-                    cellStr(row, L_CP,         fmt, ev),
-                    cellStr(row, L_VILLE,      fmt, ev),
-                    cellStr(row, L_MAIL,       fmt, ev),
-                    cellStr(row, L_TEL,        fmt, ev),
-                    cellStr(row, L_IBAN,       fmt, ev),
-                    cellStr(row, L_BIC,        fmt, ev),
-                    cellStr(row, L_COMMERCIAL, fmt, ev)
+                        name,
+                        code,
+                        cellStr(row, L_ADRESSE,    fmt, ev),
+                        cellStr(row, L_CP,         fmt, ev),
+                        cellStr(row, L_VILLE,      fmt, ev),
+                        cellStr(row, L_MAIL,       fmt, ev),
+                        cellStr(row, L_TEL,        fmt, ev),
+                        cellStr(row, L_IBAN,       fmt, ev),
+                        cellStr(row, L_BIC,        fmt, ev),
+                        cellStr(row, L_COMMERCIAL, fmt, ev),
+                        cellStr(row, L_TVA,        fmt, ev)
                 );
 
                 if (!code.isBlank()) byCode.put(DataReader.normalize(code), cd);
@@ -137,11 +138,11 @@ public class ClientInfoService {
     // =========================================================================
 
     private void readTvaFromCsv(File csvFile,
-                                  Map<String, String> byCode,
-                                  Map<String, String> byName) {
+                                Map<String, String> byCode,
+                                Map<String, String> byName) {
         try (java.io.BufferedReader br = new java.io.BufferedReader(
                 new java.io.InputStreamReader(new FileInputStream(csvFile),
-                    java.nio.charset.StandardCharsets.UTF_8))) {
+                        java.nio.charset.StandardCharsets.UTF_8))) {
             String line;
             boolean first = true;
             while ((line = br.readLine()) != null) {
@@ -165,10 +166,10 @@ public class ClientInfoService {
     // =========================================================================
 
     private String processCompany(File excelFile,
-                                   Map<String, ClientData> byCode,
-                                   Map<String, ClientData> byName,
-                                   Map<String, String> tvaByCode,
-                                   Map<String, String> tvaByName) throws IOException {
+                                  Map<String, ClientData> byCode,
+                                  Map<String, ClientData> byName,
+                                  Map<String, String> tvaByCode,
+                                  Map<String, String> tvaByName) throws IOException {
         byte[] bytes = Files.readAllBytes(excelFile.toPath());
 
         try (Workbook wb = openWorkbookFromBytes(bytes, excelFile.getName())) {
@@ -181,8 +182,8 @@ public class ClientInfoService {
 
             String a13Raw = sheetCell(creances, 12, 0, fmt, ev);
             String codeKey = a13Raw.length() >= 6
-                ? DataReader.normalize(a13Raw.substring(a13Raw.length() - 6))
-                : DataReader.normalize(a13Raw);
+                    ? DataReader.normalize(a13Raw.substring(a13Raw.length() - 6))
+                    : DataReader.normalize(a13Raw);
 
             ClientData cd = byCode.get(codeKey);
             if (cd == null) {
@@ -201,11 +202,11 @@ public class ClientInfoService {
             }
             if (cd == null) return "'" + a13Raw + "' → aucune correspondance trouvée";
 
-            // Find TVA
-            String tva = tvaByCode.get(codeKey);
+            // Find TVA — first from Listing, then from Procreances CSV
+            String tva = (cd.tva != null && !cd.tva.isBlank()) ? cd.tva : null;
+            if (tva == null) tva = tvaByCode.get(codeKey);
             if (tva == null) tva = tvaByName.get(DataReader.normalize(cd.name));
             if (tva == null) {
-                // partial match on name
                 String normName = DataReader.normalize(cd.name);
                 for (Map.Entry<String, String> e : tvaByName.entrySet()) {
                     if (normName.contains(e.getKey()) || e.getKey().contains(normName)) {
@@ -251,7 +252,7 @@ public class ClientInfoService {
     // =========================================================================
 
     private void writeInfoRow(Sheet sheet, int rowIdx, String label, String value,
-                               CellStyle valueStyle, Workbook wb) {
+                              CellStyle valueStyle, Workbook wb) {
         Row row = sheet.createRow(rowIdx);
         row.createCell(0).setCellValue(label);
         Cell valCell = row.createCell(1);
@@ -260,7 +261,7 @@ public class ClientInfoService {
     }
 
     private String sheetCell(Sheet sheet, int r, int c,
-                               DataFormatter fmt, FormulaEvaluator ev) {
+                             DataFormatter fmt, FormulaEvaluator ev) {
         Row row = sheet.getRow(r);
         if (row == null) return "";
         Cell cell = row.getCell(c, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
@@ -286,13 +287,13 @@ public class ClientInfoService {
     private Workbook openWorkbook(File file) throws IOException {
         FileInputStream fis = new FileInputStream(file);
         return file.getName().toLowerCase().endsWith(".xls")
-            ? new HSSFWorkbook(fis) : new XSSFWorkbook(fis);
+                ? new HSSFWorkbook(fis) : new XSSFWorkbook(fis);
     }
 
     private Workbook openWorkbookFromBytes(byte[] bytes, String fileName) throws IOException {
         ByteArrayInputStream bis = new ByteArrayInputStream(bytes);
         return fileName.toLowerCase().endsWith(".xls")
-            ? new HSSFWorkbook(bis) : new XSSFWorkbook(bis);
+                ? new HSSFWorkbook(bis) : new XSSFWorkbook(bis);
     }
 
     // =========================================================================
@@ -300,7 +301,7 @@ public class ClientInfoService {
     // =========================================================================
 
     private record ClientData(
-        String name, String code, String adresse, String cp, String ville,
-        String mail, String tel, String iban, String bic, String commercial
+            String name, String code, String adresse, String cp, String ville,
+            String mail, String tel, String iban, String bic, String commercial, String tva
     ) {}
 }
