@@ -57,6 +57,8 @@
             <StackPane>
 
                 <!-- Page 1: Opérations -->
+                <ScrollPane fitToWidth="true" hbarPolicy="NEVER" vbarPolicy="AS_NEEDED"
+                            styleClass="main-scroll-pane" VBox.vgrow="ALWAYS">
                 <VBox fx:id="pageOperations" styleClass="content-box" spacing="10">
                     <padding><Insets top="16" right="24" bottom="12" left="24"/></padding>
 
@@ -93,6 +95,7 @@
                         <Button fx:id="openFileBtn" text="📂 Ouvrir" styleClass="open-file-btn" onAction="#openFile"/>
                     </HBox>
                 </VBox>
+                </ScrollPane>
 
                 <!-- Page 2: Dashboard (populated programmatically) -->
                 <VBox fx:id="pageDashboard" styleClass="content-box" visible="false" managed="false"/>

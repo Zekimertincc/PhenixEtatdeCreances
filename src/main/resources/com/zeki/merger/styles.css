@@ -600,3 +600,17 @@
     -fx-text-fill: #9B9B9B;
     -fx-padding: 8px 4px 2px 4px;
 }
+
+/* =============================================================
+   Confirm dialog
+   ============================================================= */
+.confirm-dialog-content { -fx-padding: 4 0 0 0; }
+.confirm-dialog-desc    { -fx-font-size: 12px; -fx-text-fill: -fx-text-base-color; -fx-wrap-text: true; }
+.confirm-dialog-section { -fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: derive(-fx-base, -40%); -fx-padding: 4 0 2 0; }
+.confirm-file-ok        { -fx-font-size: 13px; -fx-text-fill: #3B6D11; -fx-font-weight: bold; }
+.confirm-file-missing   { -fx-font-size: 13px; -fx-text-fill: #A32D2D; -fx-font-weight: bold; }
+.confirm-file-name      { -fx-font-size: 12px; }
+.section-label          { -fx-font-size: 10px; -fx-font-weight: bold; -fx-padding: 6 0 2 0; -fx-text-fill: derive(-fx-base, -40%); }
+
+.main-scroll-pane { -fx-background-color: transparent; -fx-background: transparent; -fx-border-color: transparent; }
+.main-scroll-pane > .viewport { -fx-background-color: transparent; }

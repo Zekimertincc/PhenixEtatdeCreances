@@ -15,6 +15,7 @@ import com.zeki.merger.service.ProcreancesComparator;
 import com.zeki.merger.service.RecupNumFactureService;
 import com.zeki.merger.trf.TrfGeneratorService;
 import javafx.application.Platform;
+import javafx.geometry.Pos;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.scene.control.*;
@@ -99,48 +100,54 @@ public class OperationsController {
     }
 
     public void buildButtons(GridPane actionsGrid) {
-        trfBtn           = createActionBtn("Générer TRF",               "Calcul virements et compensations",       "action-card-primary", e -> generateTrf());
-        etatBtn          = createActionBtn("États publics",              "Exporter vers Espace Partagé",            "action-card",         e -> generateEtatPublic());
-        cmpBtn           = createActionBtn("Comparer fichiers",          "Contrôle PROCRÉANCES",                    "action-card",         e -> compareProcreances());
-        fixBtn           = createActionBtn("Corriger espaces",           "Mise à jour Espace Partagé",               "action-card",         e -> fixPaths());
-        syncDbBtn        = createActionBtn("Sync toutes sociétés",       "Synchroniser toutes les sociétés",         "action-card",         e -> syncDatabase());
-        recupBtn         = createActionBtn("Récup. n° factures",         "Depuis Dropbox",                           "action-card",         e -> recupNumFacture());
-        controleBtn      = createActionBtn("Contrôle Facturation",       "Comparer Contrôle vs Consolidation",       "action-card",         e -> compareConsoControle());
-        factureBtn       = createActionBtn("Générer factures PDF",       "Export → nos dossiers",                    "action-card",         e -> genererFacturesPdf(FacturePdfService.Mode.OWN));
-        factureClientBtn = createActionBtn("Factures → Espace partagé", "Export → espace partagé client",           "action-card",         e -> genererFacturesPdf(FacturePdfService.Mode.CLIENT));
-        misAJourListingBtn   = createActionBtn("Mis à jour Listing",    "Dernier dossier arrivé → Listing client",  "action-card",         e -> misAJourListing());
-        recupInfoClientsBtn  = createActionBtn("Récup. Info Clients",   "TVA + Infos → Etat de créances",           "action-card",         e -> recupInfoClients());
-        genControleBtn   = createActionBtn("Générer Contrôle Fact.",     "Produit Controle_Facturation.xlsx",        "action-card",         e -> genererControleFacturation());
-        nettoyerBtn      = createActionBtn("Nettoyer Espace Partagé",   "Supprimer PDF/XLS des espaces partagés",   "action-card-danger",  e -> nettoyerEspacePartage());
-        runActionBtn     = createActionBtn("▶  CONSOLIDER",              "Lire les états → ConsolidationGénérale",   "consolider-card",     e -> run());
+        runActionBtn     = createActionBtn("▶  CONSOLIDER",              "Lire les états → ConsolidationGénérale",  "consolider-card",     e -> showConfirmDialog("Consolider", "Lit tous les états de créances et génère la ConsolidationGénérale.xlsx.", new String[]{"Dossier racine"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank()}, this::run));
+        trfBtn           = createActionBtn("Générer TRF",                "Calcul virements et compensations",       "action-card-primary", e -> showConfirmDialog("Générer TRF", "Calcule les virements et compensations depuis la ConsolidationGénérale.", new String[]{"Dossier racine", "ConsolidationGénérale", "Listing Cabinet", "Tableau de bord"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank(), !AppPreferences.getTrfConso().isBlank(), !AppPreferences.getTrfListing().isBlank(), !AppPreferences.getTrfTableau().isBlank()}, this::generateTrf));
+        etatBtn          = createActionBtn("États publics",              "Exporter vers Espace Partagé",            "action-card",         e -> showConfirmDialog("États publics", "Exporte les états publics vers l'Espace Partagé de chaque client.", new String[]{"Dossier racine"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank()}, this::generateEtatPublic));
+        cmpBtn           = createActionBtn("Comparer fichiers",          "Contrôle PROCRÉANCES",                    "action-card",         e -> showConfirmDialog("Comparer fichiers", "Compare le fichier Procréances avec la ConsolidationGénérale.", new String[]{"Dossier racine", "Procréances", "ConsolidationGénérale"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank(), !AppPreferences.getProcreancesPath().isBlank(), !AppPreferences.getTrfConso().isBlank()}, this::compareProcreances));
+        misAJourListingBtn = createActionBtn("Mis à jour Listing",       "Dernier dossier arrivé → Listing client", "action-card",         e -> showConfirmDialog("Mis à jour Listing", "Met à jour le Listing Cabinet avec les infos du dernier dossier arrivé.", new String[]{"Dossier racine", "Listing Cabinet"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank(), !AppPreferences.getTrfListing().isBlank()}, this::misAJourListing));
 
-        Label opsLabel = new Label("OPÉRATIONS");
-        opsLabel.getStyleClass().add("section-label");
-        GridPane.setColumnSpan(opsLabel, 2);
+        recupBtn         = createActionBtn("Récup. n° factures",         "Depuis RecupNumFacture",                  "action-card",         e -> showConfirmDialog("Récup. n° factures", "Lit les numéros de facture et les écrit dans chaque dossier client.", new String[]{"Dossier racine", "RecupNumFacture (requis)", "Tableau de bord (optionnel)"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank(), !AppPreferences.getRecupFacturePath().isBlank(), true}, this::recupNumFacture));
+        genControleBtn   = createActionBtn("Générer Contrôle Fact.",     "Produit Controle_Facturation.xlsx",       "action-card",         e -> showConfirmDialog("Générer Contrôle Fact.", "Produit le fichier Controle_Facturation.xlsx depuis les données consolidées.", new String[]{"Dossier racine", "Listing Cabinet"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank(), !AppPreferences.getTrfListing().isBlank()}, this::genererControleFacturation));
+        controleBtn      = createActionBtn("Contrôle Facturation",       "Comparer Contrôle vs Consolidation",      "action-card",         e -> showConfirmDialog("Contrôle Facturation", "Compare le fichier Contrôle Facturation avec la ConsolidationGénérale.", new String[]{"Dossier racine", "Contrôle Facturation xlsx", "ConsolidationGénérale"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank(), !AppPreferences.getControlePath().isBlank(), !AppPreferences.getTrfConso().isBlank()}, this::compareConsoControle));
+        factureBtn       = createActionBtn("Générer factures PDF",       "Export → nos dossiers",                   "action-card",         e -> showConfirmDialog("Générer factures PDF", "Génère les PDFs de facturation dans nos dossiers.", new String[]{"Dossier racine", "RecupNumFacture (optionnel)"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank(), true}, () -> genererFacturesPdf(FacturePdfService.Mode.OWN)));
+        factureClientBtn = createActionBtn("Factures → Espace partagé", "Export → espace partagé client",          "action-card",         e -> showConfirmDialog("Factures → Espace partagé", "Copie les factures PDF vers l'espace partagé de chaque client.", new String[]{"Dossier racine", "RecupNumFacture (optionnel)"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank(), true}, () -> genererFacturesPdf(FacturePdfService.Mode.CLIENT)));
+
+        recupInfoClientsBtn = createActionBtn("Récup. Info Clients",     "TVA + Infos → Etat de créances",          "action-card",         e -> showConfirmDialog("Récup. Info Clients", "Récupère les informations TVA et coordonnées depuis le Listing.", new String[]{"Dossier racine", "Listing Cabinet"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank(), !AppPreferences.getTrfListing().isBlank()}, this::recupInfoClients));
+        syncDbBtn        = createActionBtn("Sync sociétés",              "Synchroniser toutes les sociétés",        "action-card",         e -> showConfirmDialog("Sync sociétés", "Synchronise toutes les sociétés dans la base de données locale.", new String[]{"Dossier racine"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank()}, this::syncDatabase));
+        fixBtn           = createActionBtn("Corriger espaces",           "Mise à jour Espace Partagé",              "action-card",         e -> showConfirmDialog("Corriger espaces", "Corrige les chemins et met à jour les fichiers dans l'Espace Partagé.", new String[]{"Dossier racine"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank()}, this::fixPaths));
+        nettoyerBtn      = createActionBtn("Nettoyer Espace Partagé",   "Supprimer PDF/XLS des espaces partagés",  "action-card-danger",  e -> showConfirmDialog("Nettoyer Espace Partagé", "Supprime définitivement les PDF et XLS des espaces partagés. Action irréversible.", new String[]{"Dossier racine"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank()}, this::nettoyerEspacePartage));
+
+        Label quotidienLabel = new Label("OPÉRATIONS QUOTIDIENNES");
+        quotidienLabel.getStyleClass().add("section-label");
+        GridPane.setColumnSpan(quotidienLabel, 2);
 
         Label factLabel = new Label("FACTURATION");
         factLabel.getStyleClass().add("section-label");
         GridPane.setColumnSpan(factLabel, 2);
 
-        actionsGrid.add(opsLabel,       0, 0);
-        actionsGrid.add(trfBtn,         0, 1);
-        actionsGrid.add(etatBtn,        1, 1);
-        actionsGrid.add(cmpBtn,         0, 2);
-        actionsGrid.add(fixBtn,         1, 2);
-        actionsGrid.add(syncDbBtn,      0, 3);
-        actionsGrid.add(nettoyerBtn,    1, 3);
+        Label utilLabel = new Label("UTILITAIRES");
+        utilLabel.getStyleClass().add("section-label");
+        GridPane.setColumnSpan(utilLabel, 2);
 
-        actionsGrid.add(factLabel,           0, 4);
-        actionsGrid.add(recupBtn,            0, 5);
-        actionsGrid.add(genControleBtn,      1, 5);
-        actionsGrid.add(controleBtn,         0, 6);
-        actionsGrid.add(factureBtn,          1, 6);
-        actionsGrid.add(factureClientBtn,    0, 7);
-        actionsGrid.add(misAJourListingBtn,  1, 7);
-        actionsGrid.add(recupInfoClientsBtn, 0, 8);
+        actionsGrid.add(quotidienLabel,    0, 0);
+        actionsGrid.add(runActionBtn,      0, 1); GridPane.setColumnSpan(runActionBtn, 2);
+        actionsGrid.add(trfBtn,            0, 2);
+        actionsGrid.add(etatBtn,           1, 2);
+        actionsGrid.add(cmpBtn,            0, 3);
+        actionsGrid.add(misAJourListingBtn,1, 3);
 
-        actionsGrid.add(runActionBtn,        0, 9);
-        GridPane.setColumnSpan(runActionBtn, 2);
+        actionsGrid.add(factLabel,         0, 4);
+        actionsGrid.add(recupBtn,          0, 5);
+        actionsGrid.add(genControleBtn,    1, 5);
+        actionsGrid.add(controleBtn,       0, 6);
+        actionsGrid.add(factureBtn,        1, 6);
+        actionsGrid.add(factureClientBtn,  0, 7); GridPane.setColumnSpan(factureClientBtn, 2);
+
+        actionsGrid.add(utilLabel,         0, 8);
+        actionsGrid.add(recupInfoClientsBtn, 0, 9);
+        actionsGrid.add(syncDbBtn,         1, 9);
+        actionsGrid.add(fixBtn,            0, 10);
+        actionsGrid.add(nettoyerBtn,       1, 10);
     }
 
     public void openFile() {
@@ -628,6 +635,54 @@ public class OperationsController {
             try { Desktop.getDesktop().open(f); }
             catch (Exception e) { log.accept("Cannot open file: " + e.getMessage()); }
         }
+    }
+
+    private void showConfirmDialog(String title, String description,
+                                   String[] fileNames, boolean[] filePresent,
+                                   Runnable onConfirm) {
+        Dialog<ButtonType> dlg = new Dialog<>();
+        dlg.setTitle(title);
+        dlg.setHeaderText(null);
+
+        ButtonType lancerType = new ButtonType("Lancer", ButtonBar.ButtonData.OK_DONE);
+        ButtonType cancelType = new ButtonType("Annuler", ButtonBar.ButtonData.CANCEL_CLOSE);
+        dlg.getDialogPane().getButtonTypes().addAll(lancerType, cancelType);
+
+        VBox content = new VBox(10);
+        content.setPrefWidth(360);
+        content.getStyleClass().add("confirm-dialog-content");
+
+        Label descLabel = new Label(description);
+        descLabel.setWrapText(true);
+        descLabel.getStyleClass().add("confirm-dialog-desc");
+        content.getChildren().add(descLabel);
+
+        Label reqLabel = new Label("FICHIERS REQUIS");
+        reqLabel.getStyleClass().add("confirm-dialog-section");
+        content.getChildren().add(reqLabel);
+
+        boolean allPresent = true;
+        for (int i = 0; i < fileNames.length; i++) {
+            boolean ok = filePresent[i];
+            if (!ok) allPresent = false;
+            HBox row = new HBox(8);
+            row.setAlignment(Pos.CENTER_LEFT);
+            Label icon = new Label(ok ? "✓" : "✗");
+            icon.getStyleClass().add(ok ? "confirm-file-ok" : "confirm-file-missing");
+            Label name = new Label(fileNames[i]);
+            name.getStyleClass().add("confirm-file-name");
+            row.getChildren().addAll(icon, name);
+            content.getChildren().add(row);
+        }
+
+        dlg.getDialogPane().setContent(content);
+
+        javafx.scene.Node lancerBtn = dlg.getDialogPane().lookupButton(lancerType);
+        lancerBtn.setDisable(!allPresent);
+
+        dlg.showAndWait().ifPresent(btn -> {
+            if (btn == lancerType) onConfirm.run();
+        });
     }
 
     private Button createActionBtn(String name, String desc, String styleClass,

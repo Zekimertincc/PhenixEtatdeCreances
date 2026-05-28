@@ -163,21 +163,25 @@ public class RecupNumFactureService {
                 }
                 if (bestKey != null) numFacture = factureMap.get(bestKey);
             }
-            if (numFacture == null) return "'" + nomClient + "' → eşleşme bulunamadı";
-
             // Sheet "Facture en préparation"
             Sheet facture = wb.getSheet("Facture en préparation");
             if (facture == null) facture = findSheetLike(wb, "facture");
             if (facture == null) return "'" + nomClient + "' → sheet 'Facture en préparation' yok";
 
-            // Write facture number → D13 (row 12, col 3)
-            Row row12 = facture.getRow(12);
-            if (row12 == null) row12 = facture.createRow(12);
-            Cell d13 = row12.getCell(3);
-            if (d13 == null) d13 = row12.createCell(3);
-            d13.setCellValue(numFacture);
+            // Write facture number → D13 (row 12, col 3) — only if found
+            String factureInfo = "";
+            if (numFacture != null) {
+                Row row12 = facture.getRow(12);
+                if (row12 == null) row12 = facture.createRow(12);
+                Cell d13 = row12.getCell(3);
+                if (d13 == null) d13 = row12.createCell(3);
+                d13.setCellValue(numFacture);
+                factureInfo = "D13 = " + numFacture;
+            } else {
+                factureInfo = "'" + nomClient + "' → facture non trouvée";
+            }
 
-            // Write solde client → I or J row (×-1) if client has outstanding balance
+            // Write solde to J row — always write if client exists in soldeMap (including solde=0)
             String soldeInfo = "";
             double[] soldeEntry = findSolde(norm, soldeMap);
             if (soldeEntry != null) {
@@ -218,7 +222,7 @@ public class RecupNumFactureService {
             try (FileOutputStream fos = new FileOutputStream(excelFile)) {
                 wb.write(fos);
             }
-            return "D13 = " + numFacture + soldeInfo;
+            return factureInfo + soldeInfo;
         }
     }
 

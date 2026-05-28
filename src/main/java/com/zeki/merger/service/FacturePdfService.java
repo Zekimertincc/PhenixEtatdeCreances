@@ -804,7 +804,8 @@ public class FacturePdfService {
         java.text.NumberFormat nf = java.text.NumberFormat.getNumberInstance(java.util.Locale.FRENCH);
         nf.setMinimumFractionDigits(2);
         nf.setMaximumFractionDigits(2);
-        String formatted = nf.format(val).replace("\u0020", "\u00A0");
+        String formatted = nf.format(val).replace("\u202F", "\u00A0")
+                .replace("\u0020", "\u00A0");
         return "€\u00A0" + formatted;
     }
 
