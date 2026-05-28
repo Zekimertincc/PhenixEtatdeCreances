@@ -112,6 +112,7 @@ public class MainController {
 
         progressBar.setProgress(0);
         statusBar.setVisible(false);
+        statusBar.setManaged(false);
         navOperations.getStyleClass().add("nav-active");
 
         dashboardController  = new DashboardController(DatabaseManager.getInstance(),

@@ -170,6 +170,7 @@ public class OperationsController {
 
         setAllButtonsDisabled(true);
         statusBar.setVisible(false);
+        statusBar.setManaged(false);
         progressBar.setProgress(0);
         logArea.clear();
         lastOutputFile = null;
@@ -183,7 +184,9 @@ public class OperationsController {
                         lastOutputFile = result;
                         statusLabel.setText("TRF Output: " + result.getAbsolutePath());
                         openFileBtn.setVisible(true);
+                        openFileBtn.setManaged(true);
                         statusBar.setVisible(true);
+                        statusBar.setManaged(true);
                         onDashboardRefresh.run();
                     }
                     setAllButtonsDisabled(false);
@@ -201,6 +204,7 @@ public class OperationsController {
         }
         setAllButtonsDisabled(true);
         statusBar.setVisible(false);
+        statusBar.setManaged(false);
         progressBar.setProgress(0);
         logArea.clear();
         lastOutputFile = null;
@@ -212,7 +216,9 @@ public class OperationsController {
                 Platform.runLater(() -> {
                     statusLabel.setText("Etat Public files written to EspacePartagé paths.");
                     openFileBtn.setVisible(false);
+                    openFileBtn.setManaged(false);
                     statusBar.setVisible(true);
+                    statusBar.setManaged(true);
                     setAllButtonsDisabled(false);
                 });
             } catch (Exception e) {
@@ -228,6 +234,7 @@ public class OperationsController {
         }
         setAllButtonsDisabled(true);
         statusBar.setVisible(false);
+        statusBar.setManaged(false);
         progressBar.setProgress(0);
         logArea.clear();
         lastOutputFile = null;
@@ -240,7 +247,9 @@ public class OperationsController {
                     lastOutputFile = result;
                     statusLabel.setText("Saved: " + result.getAbsolutePath());
                     openFileBtn.setVisible(true);
+                    openFileBtn.setManaged(true);
                     statusBar.setVisible(true);
+                    statusBar.setManaged(true);
                     setAllButtonsDisabled(false);
                 });
             } catch (Exception e) {
@@ -261,6 +270,7 @@ public class OperationsController {
         }
         setAllButtonsDisabled(true);
         statusBar.setVisible(false);
+        statusBar.setManaged(false);
         progressBar.setProgress(0);
         logArea.clear();
         lastOutputFile = null;
@@ -274,7 +284,9 @@ public class OperationsController {
                         lastOutputFile = result;
                         statusLabel.setText("Output: " + result.getAbsolutePath());
                         openFileBtn.setVisible(true);
+                        openFileBtn.setManaged(true);
                         statusBar.setVisible(true);
+                        statusBar.setManaged(true);
                         onDashboardRefresh.run();
                     }
                     setAllButtonsDisabled(false);
@@ -303,6 +315,7 @@ public class OperationsController {
 
         setAllButtonsDisabled(true);
         statusBar.setVisible(false);
+        statusBar.setManaged(false);
         progressBar.setProgress(0);
         logArea.clear();
         lastOutputFile = null;
@@ -317,7 +330,9 @@ public class OperationsController {
                         lastOutputFile = report;
                         statusLabel.setText("Rapport: " + report.getAbsolutePath());
                         openFileBtn.setVisible(true);
+                        openFileBtn.setManaged(true);
                         statusBar.setVisible(true);
+                        statusBar.setManaged(true);
                         try { Desktop.getDesktop().open(report); } catch (Exception ignored) {}
                     }
                 });
@@ -345,6 +360,7 @@ public class OperationsController {
 
         setAllButtonsDisabled(true);
         statusBar.setVisible(false);
+        statusBar.setManaged(false);
         progressBar.setProgress(0);
         logArea.clear();
         lastOutputFile = null;
@@ -359,7 +375,9 @@ public class OperationsController {
                         lastOutputFile = report;
                         statusLabel.setText("Rapport: " + report.getAbsolutePath());
                         openFileBtn.setVisible(true);
+                        openFileBtn.setManaged(true);
                         statusBar.setVisible(true);
+                        statusBar.setManaged(true);
                         try { Desktop.getDesktop().open(report); } catch (Exception ignored) {}
                     }
                 });
@@ -392,6 +410,7 @@ public class OperationsController {
 
         setAllButtonsDisabled(true);
         statusBar.setVisible(false);
+        statusBar.setManaged(false);
         progressBar.setProgress(0);
         logArea.clear();
         lastOutputFile = null;
@@ -404,7 +423,9 @@ public class OperationsController {
                     logLines.forEach(log::accept);
                     statusLabel.setText("Récup. Factures terminée — " + logLines.size() + " dossier(s).");
                     openFileBtn.setVisible(false);
+                    openFileBtn.setManaged(false);
                     statusBar.setVisible(true);
+                    statusBar.setManaged(true);
                     setAllButtonsDisabled(false);
                 });
             } catch (Exception ex) {
@@ -566,6 +587,7 @@ public class OperationsController {
 
             setAllButtonsDisabled(true);
             statusBar.setVisible(false);
+            statusBar.setManaged(false);
             progressBar.setProgress(0);
             logArea.clear();
             lastOutputFile = null;
@@ -581,7 +603,9 @@ public class OperationsController {
                         lines.forEach(log::accept);
                         statusLabel.setText("Nettoyage terminé — " + lines.size() + " suppression(s).");
                         openFileBtn.setVisible(false);
+                        openFileBtn.setManaged(false);
                         statusBar.setVisible(true);
+                        statusBar.setManaged(true);
                         setAllButtonsDisabled(false);
                     });
                 } catch (Exception ex) {
@@ -639,6 +663,7 @@ public class OperationsController {
         }
         setAllButtonsDisabled(true);
         statusBar.setVisible(false);
+        statusBar.setManaged(false);
         progressBar.setProgress(0);
         logArea.clear();
 
@@ -650,6 +675,7 @@ public class OperationsController {
                     lines.forEach(log::accept);
                     statusLabel.setText("Validation terminée — " + lines.size() + " dossier(s).");
                     openFileBtn.setVisible(false);
+                    openFileBtn.setManaged(false);
                     statusBar.setVisible(true);
                     statusBar.setManaged(true);
                     setAllButtonsDisabled(false);
