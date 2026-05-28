@@ -129,7 +129,7 @@ public class GenererControleFacturationService {
                 }
             }
             double soldePrecedent = solde != null ? solde : 0.0;
-            return new Object[]{nomClient, ag, cl, agcl, comsHt, prodHt, totalHt, tva, totalTtc, soldePrecedent};
+            return new Object[]{nomClient, ag, cl, agcl, soldePrecedent, comsHt, prodHt, totalHt, tva, totalTtc};
         }
     }
 
@@ -153,7 +153,7 @@ public class GenererControleFacturationService {
         String ts = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm"));
         File out = new File(outputFolder, "Controle_Facturation_" + ts + ".xlsx");
 
-        String[] headers = {"CLIENT", "AG", "CL", "AG+CL", "COMS HT", "PROD HT", "TOTAL HT", "TVA", "TOTAL TTC", "SOLDES PRÉCÉDENTS"};
+        String[] headers = {"CLIENT", "AG", "CL", "AG+CL", "SOLDES PRÉCÉDENTS", "COMS HT", "PROD HT", "TOTAL HT", "TVA", "TOTAL TTC"};
 
         try (XSSFWorkbook wb = new XSSFWorkbook()) {
             XSSFSheet sheet = wb.createSheet("Controle");
