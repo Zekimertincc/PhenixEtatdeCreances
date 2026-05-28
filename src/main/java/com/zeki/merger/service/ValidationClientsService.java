@@ -118,8 +118,14 @@ public class ValidationClientsService {
 
     private void zeroCellValue(Row row, int colIdx, Workbook wb) {
         Cell cell = row.getCell(colIdx, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
-        if (cell == null) cell = row.createCell(colIdx, CellType.NUMERIC);
-        cell.setCellValue(0.0);
+        if (cell == null) cell = row.createCell(colIdx);
+        // S column (index 18) is a string cell — clear it with empty string, not 0
+        if (colIdx == 18) {
+            cell.setCellValue("");
+        } else {
+            cell.setCellType(CellType.NUMERIC);
+            cell.setCellValue(0.0);
+        }
     }
 
     private double numericVal(Cell cell, FormulaEvaluator ev) {
