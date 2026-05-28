@@ -87,13 +87,6 @@
                     <TextArea fx:id="logArea" editable="false" wrapText="false"
                               styleClass="log-area" prefHeight="90" maxHeight="90"/>
 
-                    <HBox fx:id="statusBar" spacing="10" alignment="CENTER_LEFT"
-                          visible="false" managed="false"
-                          styleClass="status-bar-box">
-                        <padding><Insets top="6" right="0" bottom="0" left="0"/></padding>
-                        <Label fx:id="statusLabel" styleClass="status-label" HBox.hgrow="ALWAYS" wrapText="true"/>
-                        <Button fx:id="openFileBtn" text="📂 Ouvrir" styleClass="open-file-btn" onAction="#openFile"/>
-                    </HBox>
                 </VBox>
                 </ScrollPane>
 
@@ -114,6 +107,16 @@
 
             </StackPane>
         </center>
+
+        <bottom>
+            <HBox fx:id="statusBar" spacing="10" alignment="CENTER_LEFT"
+                  visible="false" managed="false"
+                  styleClass="status-bar-box">
+                <padding><Insets top="6" right="12" bottom="6" left="20"/></padding>
+                <Label fx:id="statusLabel" styleClass="status-label" HBox.hgrow="ALWAYS" wrapText="true"/>
+                <Button fx:id="openFileBtn" text="📂 Ouvrir" styleClass="open-file-btn" onAction="#openFile"/>
+            </HBox>
+        </bottom>
 
     </BorderPane>
 </HBox>

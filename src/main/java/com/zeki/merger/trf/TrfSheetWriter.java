@@ -441,7 +441,7 @@ public class TrfSheetWriter {
         return rowIdx;
     }
 
-    /** VIREMENTS MANUELLES — sommesAReverserFinal > 0 but no IBAN. */
+    /** CHÈQUES — comp clients with sommesAReverserFinal > 0 but no IBAN. */
     private int writeManuellesSection(XSSFSheet sheet, List<ClientSummary> summaries,
                                       int rowIdx, Styles s) {
         List<ClientSummary> list = summaries.stream()
@@ -449,7 +449,7 @@ public class TrfSheetWriter {
                 .collect(Collectors.toList());
         if (list.isEmpty()) return rowIdx;
 
-        rowIdx = writeSectionHeader(sheet, rowIdx, "VIREMENTS MANUELLES", s);
+        rowIdx = writeSectionHeader(sheet, rowIdx, "CHÈQUES", s);
         rowIdx = writeSubHeader(sheet, rowIdx, new String[]{"CLIENT", "MONTANT"}, s);
 
         int dataStart = rowIdx;
@@ -459,7 +459,7 @@ public class TrfSheetWriter {
             dbl(row, 1, cs.getSommesAReverserFinal(), s.moneyStyle);
         }
         XSSFRow tot = sheet.createRow(rowIdx++);
-        txt(tot, 0, "TOTAL MANUELLES", s.totalStyle);
+        txt(tot, 0, "TOTAL CHÈQUES", s.totalStyle);
         XSSFCell tc = tot.createCell(1);
         tc.setCellStyle(s.totalMoneyStyle);
         tc.setCellFormula("SUM(B" + (dataStart + 1) + ":B" + rowIdx + ")");
