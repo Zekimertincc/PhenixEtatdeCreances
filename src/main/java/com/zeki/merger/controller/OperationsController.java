@@ -62,6 +62,7 @@ public class OperationsController {
     private Button factureClientBtn;
     private Button genControleBtn;
     private Button nettoyerBtn;
+    private Button validationClientsBtn;
     private Button recupInfoClientsBtn;
     private Button misAJourListingBtn;
 
@@ -111,6 +112,7 @@ public class OperationsController {
         controleBtn      = createActionBtn("Contrôle Facturation",       "Comparer Contrôle vs Consolidation",      "action-card",         e -> showConfirmDialog("Contrôle Facturation", "Compare le fichier Contrôle Facturation avec la ConsolidationGénérale.", new String[]{"Dossier racine", "Contrôle Facturation xlsx", "ConsolidationGénérale"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank(), !AppPreferences.getControlePath().isBlank(), !AppPreferences.getTrfConso().isBlank()}, this::compareConsoControle));
         factureBtn       = createActionBtn("Générer factures PDF",       "Export → nos dossiers",                   "action-card",         e -> showConfirmDialog("Générer factures PDF", "Génère les PDFs de facturation dans nos dossiers.", new String[]{"Dossier racine", "RecupNumFacture (optionnel)"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank(), true}, () -> genererFacturesPdf(FacturePdfService.Mode.OWN)));
         factureClientBtn = createActionBtn("Factures → Espace partagé", "Export → espace partagé client",          "action-card",         e -> showConfirmDialog("Factures → Espace partagé", "Copie les factures PDF vers l'espace partagé de chaque client.", new String[]{"Dossier racine", "RecupNumFacture (optionnel)"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank(), true}, () -> genererFacturesPdf(FacturePdfService.Mode.CLIENT)));
+        validationClientsBtn = createActionBtn("Validation des clients", "Clôture mensuelle AG → I, reset R/S/T", "action-card", e -> showConfirmDialog("Validation des clients", "Transfère Recouvré total (U) vers Recouvré et Facturé (I) pour les lignes AG, puis remet à zéro les colonnes R, S, T.", new String[]{"Dossier racine"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank()}, this::validationClients));
 
         recupInfoClientsBtn = createActionBtn("Récup. Info Clients",     "TVA + Infos → Etat de créances",          "action-card",         e -> showConfirmDialog("Récup. Info Clients", "Récupère les informations TVA et coordonnées depuis le Listing.", new String[]{"Dossier racine", "Listing Cabinet"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank(), !AppPreferences.getTrfListing().isBlank()}, this::recupInfoClients));
         syncDbBtn        = createActionBtn("Sync sociétés",              "Synchroniser toutes les sociétés",        "action-card",         e -> showConfirmDialog("Sync sociétés", "Synchronise toutes les sociétés dans la base de données locale.", new String[]{"Dossier racine"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank()}, this::syncDatabase));
@@ -142,12 +144,13 @@ public class OperationsController {
         actionsGrid.add(controleBtn,       0, 6);
         actionsGrid.add(factureBtn,        1, 6);
         actionsGrid.add(factureClientBtn,  0, 7); GridPane.setColumnSpan(factureClientBtn, 2);
+        actionsGrid.add(validationClientsBtn, 0, 8); GridPane.setColumnSpan(validationClientsBtn, 2);
 
-        actionsGrid.add(utilLabel,         0, 8);
-        actionsGrid.add(recupInfoClientsBtn, 0, 9);
-        actionsGrid.add(syncDbBtn,         1, 9);
-        actionsGrid.add(fixBtn,            0, 10);
-        actionsGrid.add(nettoyerBtn,       1, 10);
+        actionsGrid.add(utilLabel,           0, 9);
+        actionsGrid.add(recupInfoClientsBtn, 0, 10);
+        actionsGrid.add(syncDbBtn,           1, 10);
+        actionsGrid.add(fixBtn,              0, 11);
+        actionsGrid.add(nettoyerBtn,         1, 11);
     }
 
     public void openFile() {
@@ -488,8 +491,9 @@ public class OperationsController {
         if (genControleBtn      != null) genControleBtn.setDisable(disabled);
         if (nettoyerBtn         != null) nettoyerBtn.setDisable(disabled);
         if (recupInfoClientsBtn != null) recupInfoClientsBtn.setDisable(disabled);
-        if (misAJourListingBtn  != null) misAJourListingBtn.setDisable(disabled);
-        if (runActionBtn        != null) runActionBtn.setDisable(disabled);
+        if (misAJourListingBtn     != null) misAJourListingBtn.setDisable(disabled);
+        if (validationClientsBtn   != null) validationClientsBtn.setDisable(disabled);
+        if (runActionBtn           != null) runActionBtn.setDisable(disabled);
     }
 
     private void misAJourListing() {
@@ -617,7 +621,9 @@ public class OperationsController {
         progressBar.setProgress(0);
         new Thread(() -> {
             try {
-                File out = genControleService.apply(rootFolder, outputFolder, finalRecupFile,
+                String tableauPath = AppPreferences.getTableauBordPath();
+                File tableauFile = (tableauPath != null && !tableauPath.isBlank()) ? new File(tableauPath) : null;
+                File out = genControleService.apply(rootFolder, outputFolder, finalRecupFile, tableauFile,
                         (p, msg) -> Platform.runLater(() -> { progressBar.setProgress(p); log.accept(msg); }));
                 Platform.runLater(() -> {
                     progressBar.setProgress(1.0);
@@ -635,6 +641,34 @@ public class OperationsController {
             try { Desktop.getDesktop().open(f); }
             catch (Exception e) { log.accept("Cannot open file: " + e.getMessage()); }
         }
+    }
+
+    private void validationClients() {
+        File rootFolder = new File(AppPreferences.getMergeRoot());
+        if (!rootFolder.isDirectory()) {
+            log.accept("ERROR: Dossier source introuvable — " + rootFolder.getAbsolutePath()); return;
+        }
+        setAllButtonsDisabled(true);
+        statusBar.setVisible(false);
+        progressBar.setProgress(0);
+        logArea.clear();
+
+        executor.submit(() -> {
+            try {
+                java.util.List<String> lines = new ValidationClientsService().apply(rootFolder,
+                        (prog, msg) -> Platform.runLater(() -> { progressBar.setProgress(prog); log.accept(msg); }));
+                Platform.runLater(() -> {
+                    lines.forEach(log::accept);
+                    statusLabel.setText("Validation terminée — " + lines.size() + " dossier(s).");
+                    openFileBtn.setVisible(false);
+                    statusBar.setVisible(true);
+                    statusBar.setManaged(true);
+                    setAllButtonsDisabled(false);
+                });
+            } catch (Exception ex) {
+                Platform.runLater(() -> { log.accept("FATAL: " + ex.getMessage()); setAllButtonsDisabled(false); });
+            }
+        });
     }
 
     private void showConfirmDialog(String title, String description,

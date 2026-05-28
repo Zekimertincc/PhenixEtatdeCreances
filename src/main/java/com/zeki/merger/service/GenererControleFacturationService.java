@@ -16,7 +16,7 @@ public class GenererControleFacturationService {
 
     private final FolderScanner scanner = new FolderScanner();
 
-    public File apply(File rootFolder, File outputFolder, File recupFile,
+    public File apply(File rootFolder, File outputFolder, File recupFile, File tableauFile,
                       BiConsumer<Double, String> progress) throws Exception {
         List<FolderScanner.CompanyFile> companies = scanner.scan(rootFolder);
         if (companies.isEmpty()) {
@@ -35,14 +35,21 @@ public class GenererControleFacturationService {
             }
         }
 
+        Map<String, Double> soldeMap = new LinkedHashMap<>();
+        if (tableauFile != null && tableauFile.exists()) {
+            soldeMap = readSoldeMap(tableauFile);
+            progress.accept(0.04, soldeMap.size() + " soldes lus depuis Tableau de bord.");
+        }
+
         int total = companies.size();
         List<Object[]> rows = new ArrayList<>();
+        final Map<String, Double> finalSoldeMap = soldeMap;
 
         for (int i = 0; i < total; i++) {
             FolderScanner.CompanyFile cf = companies.get(i);
             double prog = 0.05 + 0.85 * (i + 1.0) / total;
             try {
-                Object[] row = extractRow(cf);
+                Object[] row = extractRow(cf, finalSoldeMap);
                 if (row != null) rows.add(row);
                 progress.accept(prog, "[" + (i+1) + "/" + total + "] " + cf.companyName());
             } catch (Exception e) {
@@ -56,7 +63,7 @@ public class GenererControleFacturationService {
         return out;
     }
 
-    private Object[] extractRow(FolderScanner.CompanyFile cf) throws IOException {
+    private Object[] extractRow(FolderScanner.CompanyFile cf, Map<String, Double> soldeMap) throws IOException {
         try (Workbook wb = openWorkbook(cf.excelFile())) {
             Sheet creances = wb.getSheet("Créances");
             String nomClient = cf.companyName();
@@ -113,7 +120,16 @@ public class GenererControleFacturationService {
             double tva      = numVal(facture, ligneDuD+3, 2, fmt, ev);
             double totalTtc = numVal(facture, ligneDuD+4, 2, fmt, ev);
 
-            return new Object[]{nomClient, ag, cl, agcl, comsHt, prodHt, totalHt, tva, totalTtc};
+            String norm = DataReader.normalize(nomClient);
+            Double solde = soldeMap.get(norm);
+            if (solde == null) {
+                for (Map.Entry<String, Double> e : soldeMap.entrySet()) {
+                    String k = e.getKey();
+                    if (norm.contains(k) || k.contains(norm)) { solde = e.getValue(); break; }
+                }
+            }
+            double soldePrecedent = solde != null ? solde : 0.0;
+            return new Object[]{nomClient, ag, cl, agcl, comsHt, prodHt, totalHt, tva, totalTtc, soldePrecedent};
         }
     }
 
@@ -137,7 +153,7 @@ public class GenererControleFacturationService {
         String ts = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm"));
         File out = new File(outputFolder, "Controle_Facturation_" + ts + ".xlsx");
 
-        String[] headers = {"CLIENT", "AG", "CL", "AG+CL", "COMS HT", "PROD HT", "TOTAL HT", "TVA", "TOTAL TTC"};
+        String[] headers = {"CLIENT", "AG", "CL", "AG+CL", "COMS HT", "PROD HT", "TOTAL HT", "TVA", "TOTAL TTC", "SOLDES PRÉCÉDENTS"};
 
         try (XSSFWorkbook wb = new XSSFWorkbook()) {
             XSSFSheet sheet = wb.createSheet("Controle");
@@ -178,6 +194,32 @@ public class GenererControleFacturationService {
             try (FileOutputStream fos = new FileOutputStream(out)) { wb.write(fos); }
         }
         return out;
+    }
+
+    private Map<String, Double> readSoldeMap(File tableauFile) throws IOException {
+        Map<String, Double> map = new LinkedHashMap<>();
+        try (Workbook wb = openWorkbook(tableauFile)) {
+            Sheet sheet = wb.getSheet("Soldes");
+            if (sheet == null) return map;
+            DataFormatter fmt = new DataFormatter();
+            FormulaEvaluator ev = wb.getCreationHelper().createFormulaEvaluator();
+            for (int r = 1; r <= sheet.getLastRowNum(); r++) {
+                Row row = sheet.getRow(r);
+                if (row == null) continue;
+                Cell nameCell = row.getCell(0, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+                if (nameCell == null) continue;
+                String name = fmt.formatCellValue(nameCell, ev).trim();
+                if (name.isBlank()) continue;
+                Cell soldeCell = row.getCell(2, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+                if (soldeCell == null) continue;
+                CellType ct = soldeCell.getCellType() == CellType.FORMULA
+                        ? soldeCell.getCachedFormulaResultType() : soldeCell.getCellType();
+                if (ct == CellType.NUMERIC) {
+                    map.put(DataReader.normalize(name), soldeCell.getNumericCellValue());
+                }
+            }
+        }
+        return map;
     }
 
     private Set<String> readRecupNames(File recupFile) throws IOException {
