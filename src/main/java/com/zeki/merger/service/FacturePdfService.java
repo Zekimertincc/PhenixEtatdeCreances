@@ -286,8 +286,7 @@ public class FacturePdfService {
                         dr[c] = formatMoney(v);
                     } else if (ct == CellType.NUMERIC) {
                         double v = cell.getNumericCellValue();
-                        dr[c] = v == Math.floor(v) ? String.valueOf((long) v)
-                                : String.format(java.util.Locale.FRANCE, "%,.2f", v);
+                        dr[c] = String.valueOf((long) v);
                     } else {
                         dr[c] = fmt.formatCellValue(cell, ev).trim();
                     }
@@ -579,7 +578,7 @@ public class FacturePdfService {
                             "Encaissements", "Commissions", "Frais de procédure", "Lieu"};
                     float[] debWidths = {10, 10, 25, 15, 15, 15, 10};
                     // cols 3,4,5 = money → right aligned; others left
-                    boolean[] rightAlign = {false, false, false, true, true, true, false};
+                    boolean[] rightAlign = {false, false, false, true, true, true, true};
                     Table debTable = new Table(UnitValue.createPercentArray(debWidths))
                             .useAllAvailableWidth().setMarginBottom(4);
                     for (int hi = 0; hi < debHeaders.length; hi++) {
@@ -805,7 +804,6 @@ public class FacturePdfService {
         java.text.NumberFormat nf = java.text.NumberFormat.getNumberInstance(java.util.Locale.FRENCH);
         nf.setMinimumFractionDigits(2);
         nf.setMaximumFractionDigits(2);
-        // Replace regular space with non-breaking space for millier separator
         String formatted = nf.format(val).replace("\u0020", "\u00A0");
         return "€\u00A0" + formatted;
     }

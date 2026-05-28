@@ -112,9 +112,7 @@ public class RecupNumFactureService {
                 if (name.isBlank()) continue;
                 double solde     = numericVal(row, 2);  // col C = solde
                 double nonComp   = numericVal(row, 3);  // col D = -1 if non-comp
-                if (solde > 0.005) {
-                    map.put(DataReader.normalize(name), new double[]{solde, nonComp == -1.0 ? 1.0 : 0.0});
-                }
+                map.put(DataReader.normalize(name), new double[]{solde, nonComp == -1.0 ? 1.0 : 0.0});
             }
         }
         return map;
@@ -211,6 +209,8 @@ public class RecupNumFactureService {
                     Cell valCell = fr.getCell(2, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
                     if (valCell == null) valCell = fr.createCell(2);
                     valCell.setCellValue(solde); // pozitif yaz — J formülü C45>0 → "factures impayées"
+                    FormulaEvaluator ev2 = wb.getCreationHelper().createFormulaEvaluator();
+                    ev2.evaluateAll();
                     soldeInfo = String.format(" | Solde → J=+%.2f", solde);
                 }
             }
