@@ -1,18 +1,7 @@
 package com.zeki.merger.controller;
 
 import com.zeki.merger.AppPreferences;
-import com.zeki.merger.service.ClientInfoService;
-import com.zeki.merger.service.ConsoControleComparator;
-import com.zeki.merger.service.EspacePartageFixer;
-import com.zeki.merger.service.EspacePartageCleanerService;
-import com.zeki.merger.service.EtatCreancesSyncService;
-import com.zeki.merger.service.EtatPublicGenerator;
-import com.zeki.merger.service.FacturePdfService;
-import com.zeki.merger.service.GenererControleFacturationService;
-import com.zeki.merger.service.MergeService;
-import com.zeki.merger.service.MisAJourListingService;
-import com.zeki.merger.service.ProcreancesComparator;
-import com.zeki.merger.service.RecupNumFactureService;
+import com.zeki.merger.service.*;
 import com.zeki.merger.trf.TrfGeneratorService;
 import javafx.application.Platform;
 import javafx.geometry.Pos;
