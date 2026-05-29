@@ -195,6 +195,29 @@ public class FacturePdfService {
                 String a13 = cellStr(creances, 12, 0, fmt, ev);  // A13
                 codeClient = a13.length() >= 6 ? a13.substring(a13.length() - 6) : a13;
             }
+            // Read N° TVA Intracom — primary: Infos sheet, fallback: Facture en préparation B14
+            String nTvaIntracom = "";
+            Sheet infosSheet = wb.getSheet("Infos");
+            if (infosSheet != null) {
+                for (int r = 0; r <= Math.min(infosSheet.getLastRowNum(), 20); r++) {
+                    String a = cellStr(infosSheet, r, 0, fmt, ev);
+                    if (a.toLowerCase().contains("tva")) {
+                        nTvaIntracom = cellStr(infosSheet, r, 1, fmt, ev);
+                        break;
+                    }
+                }
+            }
+            if (nTvaIntracom.isBlank()) {
+                Sheet factPrep = wb.getSheet("Facture en préparation");
+                if (factPrep == null) {
+                    for (int i = 0; i < wb.getNumberOfSheets(); i++) {
+                        if (wb.getSheetName(i).toLowerCase().contains("facture")) {
+                            factPrep = wb.getSheetAt(i); break;
+                        }
+                    }
+                }
+                if (factPrep != null) nTvaIntracom = cellStr(factPrep, 13, 1, fmt, ev); // B14
+            }
             if (nomClient.isBlank()) nomClient = companyName;
 
             // Skip if not in factureMap (no facture number assigned this month)
@@ -424,7 +447,7 @@ public class FacturePdfService {
             }
 
             File primaryTarget = saveTargets.get(0);
-            generatePdf(primaryTarget, nomClient, codeClient, numFacture, dateFacture,
+            generatePdf(primaryTarget, nomClient, codeClient, nTvaIntracom, numFacture, dateFacture,
                     adresseLines, debiteurRows, ag, cl, agcl, comsHt, prodHt, totalHt, tva, ttc,
                     solde, retard, soldeComptable, montantVerse, rib, iban, bic,
                     conclusionText, mentionsText, headerText,
@@ -481,7 +504,7 @@ public class FacturePdfService {
     // PDF generation
     // =========================================================================
 
-    private void generatePdf(File pdfFile, String nomClient, String codeClient,
+    private void generatePdf(File pdfFile, String nomClient, String codeClient, String nTvaIntracom,
                              String numFacture, String dateFacture, List<String> adresse, List<Object[]> debiteurRows,
                              double ag, double cl, double agcl,
                              double comsHt, double prodHt, double totalHt, double tva, double ttc,
@@ -568,6 +591,11 @@ public class FacturePdfService {
                 // 4. Code client — plain paragraph
                 doc.add(new Paragraph("Code client : " + (codeClient.isBlank() ? "—" : codeClient))
                         .setFontSize(9).setMarginBottom(4));
+                if (!nTvaIntracom.isBlank()) {
+                    doc.add(new Paragraph("N° TVA intracommunautaire : " + nTvaIntracom)
+                            .setFontSize(9f)
+                            .setMarginBottom(6f));
+                }
 
                 // 5. Header text + Débiteur table
                 if (!headerText.isBlank()) {
@@ -663,8 +691,8 @@ public class FacturePdfService {
                     doc.add(concl);
                 }
 
-                // 10. RIB/IBAN/BIC — 2-column bordered table
-                if (!rib.isBlank() || !iban.isBlank()) {
+                // 10. IBAN — 2-column bordered table
+                if (!iban.isBlank()) {
                     Table ribTable = new Table(UnitValue.createPercentArray(new float[]{50, 50}))
                             .useAllAvailableWidth().setMarginBottom(4);
                     ribTable.addCell(new Cell()
@@ -672,9 +700,7 @@ public class FacturePdfService {
                                     .setFontSize(7.5f).setItalic())
                             .setBorder(new SolidBorder(1)).setPadding(4));
                     Cell ribCell = new Cell().setBorder(new SolidBorder(1)).setPadding(4);
-                    if (!rib.isBlank())  ribCell.add(new Paragraph(rib).setFontSize(7.5f));
-                    if (!iban.isBlank()) ribCell.add(new Paragraph(iban).setFontSize(7.5f));
-                    if (!bic.isBlank())  ribCell.add(new Paragraph(bic).setFontSize(7.5f));
+                    ribCell.add(new Paragraph(iban).setFontSize(7.5f));
                     ribTable.addCell(ribCell);
                     doc.add(ribTable);
                 }
