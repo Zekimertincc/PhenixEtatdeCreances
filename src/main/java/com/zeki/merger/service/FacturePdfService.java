@@ -85,14 +85,20 @@ public class FacturePdfService {
             }
         }
 
+        Map<String, String> trfClassMap = new java.util.LinkedHashMap<>();
+        if (mensuelFolder != null) {
+            trfClassMap = readTrfClassification(mensuelFolder);
+        }
+
         int total = companies.size();
+        final Map<String, String> finalTrfClassMap = trfClassMap;
         for (int i = 0; i < total; i++) {
             FolderScanner.CompanyFile cf = companies.get(i);
             double prog = 0.05 + 0.95 * (i + 1.0) / total;
             String result;
             try {
                 result = processCompany(cf.excelFile(), cf.companyName(),
-                        factureMap, nomMap, mensuelFolder, recupFile, clientInfoMap, mode);
+                        factureMap, nomMap, mensuelFolder, recupFile, clientInfoMap, finalTrfClassMap, mode);
             } catch (Exception e) {
                 result = "ERREUR: " + e.getMessage();
             }
@@ -181,6 +187,7 @@ public class FacturePdfService {
                                   File mensuelFolder,
                                   File recupFile,
                                   Map<String, com.zeki.merger.trf.model.ClientInfo> clientInfoMap,
+                                  Map<String, String> trfClassMap,
                                   Mode mode) throws Exception {
         try (Workbook wb = openWorkbook(excelFile)) {
             DataFormatter fmt = new DataFormatter();
@@ -278,23 +285,42 @@ public class FacturePdfService {
             String nom = lookup(nomClient, nomMap);
             if (nom.isBlank()) nom = lookup(companyName, nomMap);
             if (nom.isBlank()) nom = nomClient.isBlank() ? companyName : nomClient;
-            String pdfName = sanitize(nom) + ".pdf";
+            String safeNom = nom.isBlank() ? companyName : nom;
+            String pdfName = sanitize(safeNom) + "_" + (codeClient.isBlank() ? sanitize(companyName) : codeClient) + ".pdf";
 
-            // Address lines from Facture sheet cols D+E rows 0-16
-
+            // Address lines — try col E (index 4) first, fallback to col D (index 3)
             List<String> adresseLines = new ArrayList<>();
             for (int r = 4; r <= 12; r++) {
                 String e = cellStr(facture, r, 4, fmt, ev);
+                if (e.isBlank()) e = cellStr(facture, r, 3, fmt, ev);
                 if (!e.isBlank()) adresseLines.add(e);
             }
-            // Débiteur rows: row 17 = header (index 16), data starts row 18 (index 17)
+            // Find débiteur header row dynamically (the row containing "V/REF" in col A)
+            int debiteurHeaderRow = -1;
+            for (int r = 10; r <= Math.min(facture.getLastRowNum(), 25); r++) {
+                String colA = cellStr(facture, r, 0, fmt, ev);
+                if ("V/REF".equalsIgnoreCase(colA.trim())) {
+                    debiteurHeaderRow = r;
+                    break;
+                }
+            }
+            int debiteurDataStart = (debiteurHeaderRow >= 0) ? debiteurHeaderRow + 1 : 17;
+
             List<Object[]> debiteurRows = new ArrayList<>();
-            for (int r = 17; r <= facture.getLastRowNum(); r++) {
+            for (int r = debiteurDataStart; r <= facture.getLastRowNum(); r++) {
                 Row row = facture.getRow(r);
                 if (row == null) break;
                 org.apache.poi.ss.usermodel.Cell firstCell =
                         row.getCell(0, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
-                if (firstCell == null || fmt.formatCellValue(firstCell, ev).isBlank()) break;
+                if (firstCell == null) break;
+                // firstCell may be numeric (V/REF number like 70650) — check value not blank
+                CellType fcType = firstCell.getCellType() == CellType.FORMULA
+                        ? firstCell.getCachedFormulaResultType() : firstCell.getCellType();
+                boolean firstCellEmpty = (fcType == CellType.BLANK)
+                        || (fcType == CellType.STRING && firstCell.getStringCellValue().isBlank())
+                        || (fcType == CellType.NUMERIC && firstCell.getNumericCellValue() == 0
+                            && fmt.formatCellValue(firstCell, ev).isBlank());
+                if (firstCellEmpty) break;
                 Object[] dr = new Object[7];
                 for (int c = 0; c < 7; c++) {
                     org.apache.poi.ss.usermodel.Cell cell =
@@ -305,11 +331,14 @@ public class FacturePdfService {
                     // cols 3,4,5 = Encaissements, Commissions, Frais — always numeric amounts, never dates
                     boolean isMoneyCol = (c == 3 || c == 4 || c == 5);
                     if (ct == CellType.NUMERIC && isMoneyCol) {
-                        double v = cell.getNumericCellValue();
-                        dr[c] = formatMoney(v);
-                    } else if (ct == CellType.NUMERIC) {
-                        double v = cell.getNumericCellValue();
-                        dr[c] = String.valueOf((long) v);
+                        dr[c] = formatMoney(cell.getNumericCellValue());
+                    } else if (ct == CellType.NUMERIC && !isMoneyCol) {
+                        if (DateUtil.isCellDateFormatted(cell)) {
+                            // e.g. V/REF stored as date-formatted number — use raw numeric
+                            dr[c] = String.valueOf((long) cell.getNumericCellValue());
+                        } else {
+                            dr[c] = String.valueOf((long) cell.getNumericCellValue());
+                        }
                     } else {
                         dr[c] = fmt.formatCellValue(cell, ev).trim();
                     }
@@ -377,8 +406,19 @@ public class FacturePdfService {
             if (labelK.isBlank()) labelK = "Solde comptable en votre faveur de :";
             if (labelL.isBlank()) labelL = "Aussitôt que nous aurons reçu votre règlement, nous vous ferons parvenir les sommes recouvrées de :";
 
-            // Header text from row 16 (row index 15), col A
-            String headerText = cellStr(facture, 15, 0, fmt, ev);
+            // Header text: the italic sentence row just before the V/REF header
+            String headerText = "";
+            if (debiteurHeaderRow > 0) {
+                for (int r = debiteurHeaderRow - 1; r >= Math.max(0, debiteurHeaderRow - 4); r--) {
+                    String v = cellStr(facture, r, 0, fmt, ev);
+                    if (!v.isBlank() && !v.equalsIgnoreCase("V/REF")
+                            && v.length() > 20) {
+                        headerText = v;
+                        break;
+                    }
+                }
+            }
+            if (headerText.isBlank()) headerText = cellStr(facture, 15, 0, fmt, ev);
 
             String conclusionText = "";
             if (ligneConclusion >= 0) {
@@ -413,7 +453,26 @@ public class FacturePdfService {
             if (ciInfo == null) ciInfo = drReader.findClientInfo(companyName, clientInfoMap);
             // NON COMP = no I row (no virement to client), or flagged in listing
             boolean isNonComp = (ciInfo != null && ciInfo.isNonCompensation()) || (ligneDuI < 0 && ttc > 0.005);
-            String etatSubfolder = isNonComp ? "non_comp" : determineEtatSubfolder(ag, ttc);
+            // 1. Try TRF classification map (most reliable source)
+            String etatSubfolder = null;
+            String normForTrf = DataReader.normalize(nomClient.isBlank() ? companyName : nomClient);
+            if (!trfClassMap.isEmpty()) {
+                etatSubfolder = trfClassMap.get(normForTrf);
+                if (etatSubfolder == null) {
+                    // fallback: partial startsWith match
+                    for (Map.Entry<String, String> e : trfClassMap.entrySet()) {
+                        String k = e.getKey();
+                        if (k.length() >= 5 && (normForTrf.startsWith(k) || k.startsWith(normForTrf))) {
+                            etatSubfolder = e.getValue();
+                            break;
+                        }
+                    }
+                }
+            }
+            // 2. Fall back to listing + encaissement logic
+            if (etatSubfolder == null) {
+                etatSubfolder = isNonComp ? "non_comp" : determineEtatSubfolder(ag, ttc);
+            }
             List<File> saveTargets = new ArrayList<>();
 
             if (mode == Mode.OWN) {
@@ -463,6 +522,78 @@ public class FacturePdfService {
             return "PDF → " + pdfName + " [" + (isNonComp ? "NON COMP" : "COMP") + "] ["
                     + (mode == Mode.OWN ? "nos dossiers" : "espace partagé") + "]";
         }
+    }
+
+    // =========================================================================
+    // TRF classification reader
+    // =========================================================================
+
+    /**
+     * Reads the TRF output xlsx from the mensuel folder (trf_export_*.xlsx or TRF_*.xlsx),
+     * scans section headers, and returns a map of normalised client name → subfolder name.
+     * Section mapping: VIREMENTS CLIENTS→comp, CHÈQUES→comp_cb, NON COMP→non_comp,
+     * COMP PARTIELLE→comp_part, DEBITEURS/DÉBITEURS→debiteurs.
+     */
+    private Map<String, String> readTrfClassification(File mensuelFolder) {
+        Map<String, String> result = new java.util.LinkedHashMap<>();
+
+        // 1. Use explicitly configured TRF output path
+        File trfFile = null;
+        String configuredPath = AppPreferences.getTrfOutput();
+        if (configuredPath != null && !configuredPath.isBlank()) {
+            File f = new File(configuredPath);
+            if (f.exists() && f.getName().toLowerCase().endsWith(".xlsx")) trfFile = f;
+        }
+
+        // 2. Fallback: scan mensuel folder for trf_*.xlsx
+        if (trfFile == null && mensuelFolder != null && mensuelFolder.isDirectory()) {
+            File[] candidates = mensuelFolder.listFiles(f ->
+                    f.isFile() && f.getName().toLowerCase().endsWith(".xlsx")
+                    && (f.getName().toLowerCase().startsWith("trf_")
+                        || f.getName().toLowerCase().startsWith("trf ")));
+            if (candidates != null && candidates.length > 0) {
+                java.util.Arrays.sort(candidates,
+                        (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
+                trfFile = candidates[0];
+            }
+        }
+
+        if (trfFile == null) return result;
+
+        try (Workbook wb = openWorkbook(trfFile)) {
+            DataFormatter fmt = new DataFormatter();
+            FormulaEvaluator ev = wb.getCreationHelper().createFormulaEvaluator();
+            Sheet sheet = wb.getSheetAt(0);
+
+            String currentSubfolder = "";
+            for (int r = 0; r <= sheet.getLastRowNum(); r++) {
+                Row row = sheet.getRow(r);
+                if (row == null) continue;
+                String colA = cellStr(sheet, r, 0, fmt, ev).trim().toUpperCase();
+
+                // Detect section headers
+                if (colA.contains("VIREMENTS CLIENTS"))  { currentSubfolder = "comp";      continue; }
+                if (colA.contains("CHEQUES")
+                 || colA.contains("CHÈQUES"))             { currentSubfolder = "comp_cb";   continue; }
+                if (colA.contains("NON COMP"))            { currentSubfolder = "non_comp";  continue; }
+                if (colA.contains("COMP PARTIELLE"))      { currentSubfolder = "comp_part"; continue; }
+                if (colA.contains("DEBITEURS")
+                 || colA.contains("DÉBITEURS"))           { currentSubfolder = "debiteurs"; continue; }
+
+                // Skip sub-headers and totals
+                if (colA.startsWith("TOTAL") || colA.equals("CLIENT")
+                 || colA.equals("IBAN") || colA.isBlank()) continue;
+
+                // Data row under a known section → record the client
+                if (!currentSubfolder.isBlank()) {
+                    String rawName = cellStr(sheet, r, 0, fmt, ev).trim();
+                    if (!rawName.isBlank()) {
+                        result.put(DataReader.normalize(rawName), currentSubfolder);
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+        return result;
     }
 
     // =========================================================================

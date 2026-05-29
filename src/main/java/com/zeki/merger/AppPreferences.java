@@ -12,6 +12,7 @@ public class AppPreferences {
     private static final String KEY_TRF_CONSO      = "trf_consolidation_file";
     private static final String KEY_TRF_LISTING    = "trf_listing_file";
     private static final String KEY_TRF_TABLEAU    = "trf_tableau_file";
+    private static final String KEY_TRF_OUTPUT     = "trf_output_file";
     private static final String KEY_PROCREANCES    = "procreancesPath";
     private static final String KEY_CONSO_COMPARE  = "consoComparePath";
     private static final String KEY_CONTROLE_PATH  = "controlePath";
@@ -34,6 +35,9 @@ public class AppPreferences {
 
     public static String getTrfTableau()             { return PREFS.get(KEY_TRF_TABLEAU,   ""); }
     public static void   setTrfTableau(String p)     { PREFS.put(KEY_TRF_TABLEAU, p);           }
+
+    public static String getTrfOutput()              { return PREFS.get(KEY_TRF_OUTPUT,    ""); }
+    public static void   setTrfOutput(String p)      { PREFS.put(KEY_TRF_OUTPUT, p);           }
 
     public static String getProcreancesPath()        { return PREFS.get(KEY_PROCREANCES,   ""); }
     public static void   setProcreancesPath(String p){ PREFS.put(KEY_PROCREANCES, p);           }
