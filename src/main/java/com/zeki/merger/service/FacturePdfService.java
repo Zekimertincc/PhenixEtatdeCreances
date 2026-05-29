@@ -480,7 +480,7 @@ public class FacturePdfService {
                 if (mensuelFolder != null && mensuelFolder.isDirectory()) {
                     File toutesDir = new File(mensuelFolder, "toutes");
                     toutesDir.mkdirs();
-                    for (String folder : new String[]{"comp", "non_comp", "comp_part", "debiteurs"}) {
+                    for (String folder : new String[]{"comp", "non_comp", "comp_part", "debiteurs", "comp_cb"}) {
                         new File(toutesDir, folder).mkdirs();
                     }
                     File etatDir = new File(toutesDir, etatSubfolder);
@@ -563,7 +563,24 @@ public class FacturePdfService {
         try (Workbook wb = openWorkbook(trfFile)) {
             DataFormatter fmt = new DataFormatter();
             FormulaEvaluator ev = wb.getCreationHelper().createFormulaEvaluator();
-            Sheet sheet = wb.getSheetAt(0);
+            Sheet sheet = wb.getSheet("TRF");
+            if (sheet == null) {
+                // fallback: scan all sheets for one containing section headers
+                for (int i = 0; i < wb.getNumberOfSheets(); i++) {
+                    Sheet s = wb.getSheetAt(i);
+                    DataFormatter f2 = new DataFormatter();
+                    FormulaEvaluator e2 = wb.getCreationHelper().createFormulaEvaluator();
+                    for (int r = 0; r <= Math.min(s.getLastRowNum(), 50); r++) {
+                        String v = cellStr(s, r, 0, f2, e2).toUpperCase();
+                        if (v.contains("VIREMENTS CLIENTS") || v.contains("NON COMP")) {
+                            sheet = s;
+                            break;
+                        }
+                    }
+                    if (sheet != null) break;
+                }
+            }
+            if (sheet == null) return result;
 
             String currentSubfolder = "";
             for (int r = 0; r <= sheet.getLastRowNum(); r++) {

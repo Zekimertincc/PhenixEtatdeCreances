@@ -143,14 +143,15 @@ public class ConfigController {
                 AppPreferences.getRecupFacturePath(),
                 AppPreferences.getTableauBordPath(),
                 AppPreferences.getFacturationMensuelPath(),
-                AppPreferences.getEntetePdfPath()
+                AppPreferences.getEntetePdfPath(),
+                AppPreferences.getTrfOutput()
         };
         String[]  labels = {"Dossier source", "Dossier de sortie", "ConsolidationGénérale",
                 "Listing Cabinet Phénix", "Tableau de Bord", "Export PROCREANCES",
                 "Contrôle Facturation", "Récup. Num Facture", "Tableau de bord soldes",
-                "Facturation mensuel", "En-tête PDF (Phénix)"};
-        boolean[] isDir  = {true, true, false, false, false, false, false, false, false, true, false};
-        String[]  exts   = {null, null, "xlsx", "xlsx", "xlsx", "xls", "xlsx", "xlsx", "xlsx", null, "pdf"};
+                "Facturation mensuel", "En-tête PDF (Phénix)", "TRF output (classement PDF)"};
+        boolean[] isDir  = {true, true, false, false, false, false, false, false, false, true, false, false};
+        String[]  exts   = {null, null, "xlsx", "xlsx", "xlsx", "xls", "xlsx", "xlsx", "xlsx", null, "pdf", "xlsx"};
 
         Stage dialog = new Stage();
         dialog.initModality(Modality.APPLICATION_MODAL);
@@ -211,6 +212,7 @@ public class ConfigController {
             AppPreferences.setTableauBordPath(paths[8]);
             AppPreferences.setFacturationMensuelPath(paths[9]);
             AppPreferences.setEntetePdfPath(paths[10]);
+            if (paths.length > 11) AppPreferences.setTrfOutput(paths[11]);
             dialog.close();
             refreshBadges();
         });
