@@ -159,22 +159,11 @@ public class FacturePdfService {
 
     private String lookup(String clientName, Map<String, String> map) {
         if (clientName == null || clientName.isBlank() || map.isEmpty()) return "";
-        String norm = DataReader.normalize(clientName);
-        String v = map.get(norm);
-        if (v != null) return v;
-        for (Map.Entry<String, String> e : map.entrySet()) {
-            String k = e.getKey();
-            if (norm.contains(k) || k.contains(norm)) return e.getValue();
-        }
-        return "";
+        return map.getOrDefault(DataReader.normalize(clientName), "");
     }
 
     private boolean hasPartialMatch(String normName, Map<String, String> map) {
-        if (map.containsKey(normName)) return true;
-        for (String k : map.keySet()) {
-            if (normName.contains(k) || k.contains(normName)) return true;
-        }
-        return false;
+        return map.containsKey(normName);
     }
 
     // =========================================================================
@@ -295,13 +284,10 @@ public class FacturePdfService {
             String safeNom = nom.isBlank() ? companyName : nom;
             String pdfName = sanitize(safeNom) + "_" + (codeClient.isBlank() ? sanitize(companyName) : codeClient) + ".pdf";
 
-            // Address lines — try col E (index 4) first, fallback to col D (index 3)
-            // Rows 4..10 only (0-based): row 11+ may contain FACTURE No or other data
             List<String> adresseLines = new ArrayList<>();
             for (int r = 4; r <= 10; r++) {
-                String e = cellStr(facture, r, 4, fmt, ev);
-                if (e.isBlank()) e = cellStr(facture, r, 3, fmt, ev);
-                // Skip pure numeric values (e.g. facture number leaked into address area)
+                String e = readAddressCell(facture, r, 4, fmt, ev);
+                if (e.isBlank()) e = readAddressCell(facture, r, 3, fmt, ev);
                 if (!e.isBlank() && !e.matches("\\d+")) adresseLines.add(e);
             }
             // Find débiteur header row dynamically (the row containing "V/REF" in col A)
@@ -330,6 +316,13 @@ public class FacturePdfService {
                         || (fcType == CellType.NUMERIC && firstCell.getNumericCellValue() == 0
                             && fmt.formatCellValue(firstCell, ev).isBlank());
                 if (firstCellEmpty) break;
+                // Stop if col A contains a section header keyword (not a V/REF data row)
+                String firstVal = fcType == CellType.STRING
+                        ? firstCell.getStringCellValue().trim().toUpperCase()
+                        : fmt.formatCellValue(firstCell, ev).trim().toUpperCase();
+                if (firstVal.contains("ENCAISSEMENT") || firstVal.contains("INFORMATION")
+                 || firstVal.contains("CONCLUSION") || firstVal.contains("VERSEMENT")
+                 || firstVal.contains("MENTION") || firstVal.startsWith("LES ")) break;
                 Object[] dr = new Object[7];
                 for (int c = 0; c < 7; c++) {
                     org.apache.poi.ss.usermodel.Cell cell =
@@ -620,6 +613,27 @@ public class FacturePdfService {
             }
         } catch (Exception ignored) {}
         return result;
+    }
+
+    private String readAddressCell(Sheet sheet, int rowIdx, int colIdx,
+                                   DataFormatter fmt, FormulaEvaluator ev) {
+        Row row = sheet.getRow(rowIdx);
+        if (row == null) return "";
+        org.apache.poi.ss.usermodel.Cell cell =
+                row.getCell(colIdx, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+        if (cell == null) return "";
+        if (cell.getCellType() == CellType.FORMULA) {
+            CellType cached = cell.getCachedFormulaResultType();
+            if (cached == CellType.STRING) {
+                String v = cell.getStringCellValue().trim();
+                if (!v.isBlank()) return v;
+            }
+            if (cached == CellType.NUMERIC) {
+                return fmt.formatCellValue(cell, ev).trim();
+            }
+            return "";
+        }
+        return fmt.formatCellValue(cell, ev).trim();
     }
 
     // =========================================================================
