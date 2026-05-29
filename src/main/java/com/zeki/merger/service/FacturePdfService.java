@@ -251,14 +251,21 @@ public class FacturePdfService {
                                 ? dateCell.getCachedFormulaResultType() : dateCell.getCellType();
                         if (ct == CellType.NUMERIC) {
                             try {
-                                java.time.LocalDate d = dateCell.getLocalDateTimeCellValue().toLocalDate();
+                                java.time.LocalDate d = DateUtil.getLocalDateTime(
+                                        dateCell.getNumericCellValue(), false).toLocalDate();
                                 dateFacture = "Paris, le " + d.format(
                                         DateTimeFormatter.ofPattern("dd/MM/yyyy"));
-                            } catch (Exception ignored) {}
+                            } catch (Exception ignored) {
+                                try {
+                                    java.time.LocalDate d = dateCell.getLocalDateTimeCellValue().toLocalDate();
+                                    dateFacture = "Paris, le " + d.format(
+                                            DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+                                } catch (Exception ignored2) {}
+                            }
                         }
                         if (dateFacture.isBlank()) {
-                            // fallback: try to parse whatever string is there
-                            String raw = fmt.formatCellValue(dateCell, ev).trim();
+                            String raw = fmt.formatCellValue(dateCell, ev).trim()
+                                    .replaceAll("\\s+", "");
                             if (!raw.isBlank()) dateFacture = "Paris, le " + raw;
                         }
                     }
@@ -289,11 +296,13 @@ public class FacturePdfService {
             String pdfName = sanitize(safeNom) + "_" + (codeClient.isBlank() ? sanitize(companyName) : codeClient) + ".pdf";
 
             // Address lines — try col E (index 4) first, fallback to col D (index 3)
+            // Rows 4..10 only (0-based): row 11+ may contain FACTURE No or other data
             List<String> adresseLines = new ArrayList<>();
-            for (int r = 4; r <= 12; r++) {
+            for (int r = 4; r <= 10; r++) {
                 String e = cellStr(facture, r, 4, fmt, ev);
                 if (e.isBlank()) e = cellStr(facture, r, 3, fmt, ev);
-                if (!e.isBlank()) adresseLines.add(e);
+                // Skip pure numeric values (e.g. facture number leaked into address area)
+                if (!e.isBlank() && !e.matches("\\d+")) adresseLines.add(e);
             }
             // Find débiteur header row dynamically (the row containing "V/REF" in col A)
             int debiteurHeaderRow = -1;
@@ -712,11 +721,20 @@ public class FacturePdfService {
                 // 1. Date — left
                 doc.add(new Paragraph(dateDisplay).setFontSize(9).setMarginBottom(2));
 
-                // 2. Address — right-aligned
-                if (!adresse.isEmpty()) {
+                // 2. Address — right-aligned, prepend client name if not already first line
+                if (!adresse.isEmpty() || !nomClient.isBlank()) {
                     Paragraph addrPara = new Paragraph()
                             .setTextAlignment(TextAlignment.RIGHT)
                             .setFontSize(9).setMarginBottom(6);
+                    // Prepend nomClient if address doesn't already start with it
+                    String firstLine = adresse.isEmpty() ? "" : adresse.get(0);
+                    boolean nameAlreadyFirst = !nomClient.isBlank()
+                            && DataReader.normalize(firstLine).contains(
+                               DataReader.normalize(nomClient));
+                    if (!nomClient.isBlank() && !nameAlreadyFirst) {
+                        addrPara.add(nomClient);
+                        if (!adresse.isEmpty()) addrPara.add("\n");
+                    }
                     for (int ai = 0; ai < adresse.size(); ai++) {
                         addrPara.add(adresse.get(ai));
                         if (ai < adresse.size() - 1) addrPara.add("\n");
