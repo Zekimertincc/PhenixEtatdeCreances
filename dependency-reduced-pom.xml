@@ -22,6 +22,8 @@
           <mainClass>com.zeki.merger.App</mainClass>
           <options>
             <option>--add-opens=java.base/java.lang=ALL-UNNAMED</option>
+            <option>-Djdk.xml.maxGeneralEntitySizeLimit=0</option>
+            <option>-Djdk.xml.totalEntitySizeLimit=0</option>
           </options>
         </configuration>
       </plugin>
