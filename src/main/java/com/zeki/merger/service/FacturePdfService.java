@@ -279,6 +279,12 @@ public class FacturePdfService {
             }
             if (facture == null) return "sheet 'Facture en préparation' introuvable";
 
+            // overrideDate varsa Excel'deki tarihi ez
+            if (overrideDate != null) {
+                dateFacture = "Paris, le " + overrideDate.format(
+                        DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+            }
+
             // N° facture from recupFile (col B), fallback to D13
             String numFacture = lookup(nomClient, factureMap);
             if (numFacture.isBlank()) numFacture = lookup(companyName, factureMap);

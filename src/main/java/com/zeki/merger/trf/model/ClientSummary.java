@@ -145,7 +145,7 @@ public class ClientSummary {
 
     /** True if there are no encaissements this period and the invoice is still owed. */
     public boolean isDebtor() {
-        return !nonCompensation && sommesCzPhenix < 0.005
+        return sommesCzPhenix < 0.005
             && nousDoit_ApreFacturation > 0.005;
     }
 

@@ -472,7 +472,7 @@ public class TrfSheetWriter {
     private int writeNonCompSection(XSSFSheet sheet, List<ClientSummary> summaries,
                                     int rowIdx, Styles s) {
         List<ClientSummary> list = summaries.stream()
-                .filter(ClientSummary::isNonCompensation)
+                .filter(cs -> cs.isNonCompensation() && cs.getSommesCzPhenix() > 0.005)
                 .collect(Collectors.toList());
         if (list.isEmpty()) return rowIdx;
 
