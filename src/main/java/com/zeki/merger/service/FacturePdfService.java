@@ -54,10 +54,16 @@ public class FacturePdfService {
 
     public List<String> apply(File rootFolder, File recupFile,
                               BiConsumer<Double, String> progress) throws Exception {
-        return apply(rootFolder, recupFile, Mode.OWN, progress);
+        return apply(rootFolder, recupFile, Mode.OWN, null, progress);
     }
 
     public List<String> apply(File rootFolder, File recupFile, Mode mode,
+                              BiConsumer<Double, String> progress) throws Exception {
+        return apply(rootFolder, recupFile, mode, null, progress);
+    }
+
+    public List<String> apply(File rootFolder, File recupFile, Mode mode,
+                              java.time.LocalDate overrideDate,
                               BiConsumer<Double, String> progress) throws Exception {
         List<String> log = new ArrayList<>();
 
@@ -98,7 +104,7 @@ public class FacturePdfService {
             String result;
             try {
                 result = processCompany(cf.excelFile(), cf.companyName(),
-                        factureMap, nomMap, mensuelFolder, recupFile, clientInfoMap, finalTrfClassMap, mode);
+                        factureMap, nomMap, mensuelFolder, recupFile, clientInfoMap, finalTrfClassMap, mode, overrideDate);
             } catch (Exception e) {
                 result = "ERREUR: " + e.getMessage();
             }
@@ -177,7 +183,8 @@ public class FacturePdfService {
                                   File recupFile,
                                   Map<String, com.zeki.merger.trf.model.ClientInfo> clientInfoMap,
                                   Map<String, String> trfClassMap,
-                                  Mode mode) throws Exception {
+                                  Mode mode,
+                                  java.time.LocalDate overrideDate) throws Exception {
         try (Workbook wb = openWorkbook(excelFile)) {
             DataFormatter fmt = new DataFormatter();
             FormulaEvaluator ev = wb.getCreationHelper().createFormulaEvaluator();
@@ -282,7 +289,7 @@ public class FacturePdfService {
             if (nom.isBlank()) nom = lookup(companyName, nomMap);
             if (nom.isBlank()) nom = nomClient.isBlank() ? companyName : nomClient;
             String safeNom = nom.isBlank() ? companyName : nom;
-            String pdfName = sanitize(safeNom) + "_" + (codeClient.isBlank() ? sanitize(companyName) : codeClient) + ".pdf";
+            String pdfName = sanitize(safeNom) + "_" + numFacture + ".pdf";
 
             List<String> adresseLines = new ArrayList<>();
             for (int r = 4; r <= 10; r++) {
@@ -315,7 +322,18 @@ public class FacturePdfService {
                         || (fcType == CellType.STRING && firstCell.getStringCellValue().isBlank())
                         || (fcType == CellType.NUMERIC && firstCell.getNumericCellValue() == 0
                             && fmt.formatCellValue(firstCell, ev).isBlank());
-                if (firstCellEmpty) break;
+                if (firstCellEmpty) {
+                    // V/REF boş olabilir ama N/REF (col 1) veya Débiteur (col 2) doluysa data satırıdır
+                    org.apache.poi.ss.usermodel.Cell nrefCell =
+                            row.getCell(1, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+                    org.apache.poi.ss.usermodel.Cell debCell =
+                            row.getCell(2, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+                    String nrefVal = nrefCell != null ? fmt.formatCellValue(nrefCell, ev).trim() : "";
+                    String debVal  = debCell  != null ? fmt.formatCellValue(debCell,  ev).trim() : "";
+                    if (nrefVal.isBlank() && debVal.isBlank()) break; // gerçekten boş satır, dur
+                    // yoksa devam et (V/REF sadece boş)
+                }
+
                 // Stop if col A contains a section header keyword (not a V/REF data row)
                 String firstVal = fcType == CellType.STRING
                         ? firstCell.getStringCellValue().trim().toUpperCase()
@@ -512,7 +530,7 @@ public class FacturePdfService {
                     adresseLines, debiteurRows, ag, cl, agcl, comsHt, prodHt, totalHt, tva, ttc,
                     solde, retard, soldeComptable, montantVerse, rib, iban, bic,
                     conclusionText, mentionsText, headerText,
-                    labelI, labelJ, labelK, labelL, isNonComp);
+                    labelI, labelJ, labelK, labelL, isNonComp, overrideDate);
 
             for (int t = 1; t < saveTargets.size(); t++) {
                 try {
@@ -683,11 +701,13 @@ public class FacturePdfService {
                              String rib, String iban, String bic,
                              String conclusion, String mentions, String headerText,
                              String labelI, String labelJ, String labelK, String labelL,
-                             boolean isNonComp) throws Exception {
+                             boolean isNonComp,
+                         java.time.LocalDate overrideDate) throws Exception {
 
+        java.time.LocalDate effectiveDate = overrideDate != null ? overrideDate : java.time.LocalDate.now();
         String dateDisplay = dateFacture.isBlank()
-                ? "Paris, le " + java.time.LocalDate.now().format(
-                DateTimeFormatter.ofPattern("dd/MM/yyyy")): dateFacture;
+                ? "Paris, le " + effectiveDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                : dateFacture;
 
         // Load letterhead: first try user-configured path, then classpath resource
         InputStream lhStream = null;

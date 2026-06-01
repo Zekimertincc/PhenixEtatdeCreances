@@ -4,6 +4,7 @@ import com.zeki.merger.AppPreferences;
 import com.zeki.merger.service.*;
 import com.zeki.merger.trf.TrfGeneratorService;
 import javafx.application.Platform;
+import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
@@ -548,6 +549,32 @@ public class OperationsController {
             recupFile = null;
         }
         final File finalRecupFile = recupFile;
+
+        Dialog<java.time.LocalDate> dateDialog = new Dialog<>();
+        dateDialog.setTitle("Date de facturation");
+        dateDialog.setHeaderText("Choisissez la date à imprimer sur les factures :");
+
+        DatePicker datePicker = new DatePicker(java.time.LocalDate.now());
+        datePicker.setPromptText("jj/mm/aaaa");
+        datePicker.setConverter(new javafx.util.StringConverter<java.time.LocalDate>() {
+            private final java.time.format.DateTimeFormatter fmt =
+                    java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy");
+            @Override public String toString(java.time.LocalDate d) { return d != null ? fmt.format(d) : ""; }
+            @Override public java.time.LocalDate fromString(String s) {
+                return (s != null && !s.isBlank()) ? java.time.LocalDate.parse(s, fmt) : null;
+            }
+        });
+
+        VBox content = new VBox(8, new Label("Date :"), datePicker);
+        content.setPadding(new Insets(10));
+        dateDialog.getDialogPane().setContent(content);
+        dateDialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        dateDialog.setResultConverter(bt -> bt == ButtonType.OK ? datePicker.getValue() : null);
+
+        java.util.Optional<java.time.LocalDate> result = dateDialog.showAndWait();
+        if (result.isEmpty() || result.get() == null) return;
+        final java.time.LocalDate chosenDate = result.get();
+
         setAllButtonsDisabled(true);
         progressBar.setProgress(-1);
         String modeLabel = mode == FacturePdfService.Mode.OWN ? "nos dossiers" : "espace partagé client";
@@ -555,6 +582,7 @@ public class OperationsController {
         new Thread(() -> {
             try {
                 java.util.List<String> lines = facturePdfService.apply(rootFolder, finalRecupFile, mode,
+                        chosenDate,
                         (p, msg) -> Platform.runLater(() -> { progressBar.setProgress(p); log.accept(msg); }));
                 Platform.runLater(() -> {
                     progressBar.setProgress(1.0);
