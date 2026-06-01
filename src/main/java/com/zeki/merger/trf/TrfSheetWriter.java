@@ -429,12 +429,11 @@ public class TrfSheetWriter {
         }
 
         if (!list.isEmpty()) {
+            double total = list.stream().mapToDouble(ClientSummary::getSommesAReverserFinal).sum();
             XSSFRow tot = sheet.createRow(rowIdx++);
             txt(tot, 0, "TOTAL VIREMENTS", s.totalStyle);
             txt(tot, 1, "", s.totalStyle);
-            XSSFCell tc = tot.createCell(2);
-            tc.setCellStyle(s.totalMoneyStyle);
-            tc.setCellFormula("SUM(C" + (dataStart + 1) + ":C" + rowIdx + ")");
+            dbl(tot, 2, total, s.totalMoneyStyle);
         }
 
         sheet.createRow(rowIdx++);
@@ -458,11 +457,10 @@ public class TrfSheetWriter {
             txt(row, 0, cs.getClientName(),           s.textStyle);
             dbl(row, 1, cs.getSommesAReverserFinal(), s.moneyStyle);
         }
+        double total = list.stream().mapToDouble(ClientSummary::getSommesAReverserFinal).sum();
         XSSFRow tot = sheet.createRow(rowIdx++);
         txt(tot, 0, "TOTAL CHÈQUES", s.totalStyle);
-        XSSFCell tc = tot.createCell(1);
-        tc.setCellStyle(s.totalMoneyStyle);
-        tc.setCellFormula("SUM(B" + (dataStart + 1) + ":B" + rowIdx + ")");
+        dbl(tot, 1, total, s.totalMoneyStyle);
 
         sheet.createRow(rowIdx++);
         return rowIdx;
@@ -487,12 +485,12 @@ public class TrfSheetWriter {
             dbl(row, 1, cs.getSommesCzPhenix(),           s.moneyStyle);
             dbl(row, 2, cs.getNousDoit_ApreFacturation(), s.moneyStyle);
         }
+        double t1 = list.stream().mapToDouble(ClientSummary::getSommesCzPhenix).sum();
+        double t2 = list.stream().mapToDouble(ClientSummary::getNousDoit_ApreFacturation).sum();
         XSSFRow tot = sheet.createRow(rowIdx++);
         txt(tot, 0, "TOTAL NON COMP", s.totalStyle);
-        XSSFCell tc1 = tot.createCell(1); tc1.setCellStyle(s.totalMoneyStyle);
-        tc1.setCellFormula("SUM(B" + (dataStart + 1) + ":B" + rowIdx + ")");
-        XSSFCell tc2 = tot.createCell(2); tc2.setCellStyle(s.totalMoneyStyle);
-        tc2.setCellFormula("SUM(C" + (dataStart + 1) + ":C" + rowIdx + ")");
+        dbl(tot, 1, t1, s.totalMoneyStyle);
+        dbl(tot, 2, t2, s.totalMoneyStyle);
 
         sheet.createRow(rowIdx++);
         return rowIdx;
@@ -517,12 +515,12 @@ public class TrfSheetWriter {
             dbl(row, 1, cs.getEncaissementsParCompensation(), s.moneyStyle);
             dbl(row, 2, cs.getNousDoit_ApreFacturation(),     s.moneyStyle);
         }
+        double t1 = list.stream().mapToDouble(ClientSummary::getEncaissementsParCompensation).sum();
+        double t2 = list.stream().mapToDouble(ClientSummary::getNousDoit_ApreFacturation).sum();
         XSSFRow tot = sheet.createRow(rowIdx++);
         txt(tot, 0, "TOTAL COMP PARTIELLE", s.totalStyle);
-        XSSFCell tc1 = tot.createCell(1); tc1.setCellStyle(s.totalMoneyStyle);
-        tc1.setCellFormula("SUM(B" + (dataStart + 1) + ":B" + rowIdx + ")");
-        XSSFCell tc2 = tot.createCell(2); tc2.setCellStyle(s.totalMoneyStyle);
-        tc2.setCellFormula("SUM(C" + (dataStart + 1) + ":C" + rowIdx + ")");
+        dbl(tot, 1, t1, s.totalMoneyStyle);
+        dbl(tot, 2, t2, s.totalMoneyStyle);
 
         sheet.createRow(rowIdx++);
         return rowIdx;
@@ -546,10 +544,10 @@ public class TrfSheetWriter {
             txt(row, 0, cs.getClientName(),               s.textStyle);
             dbl(row, 1, cs.getNousDoit_ApreFacturation(), s.moneyStyle);
         }
+        double total = list.stream().mapToDouble(ClientSummary::getNousDoit_ApreFacturation).sum();
         XSSFRow tot = sheet.createRow(rowIdx++);
         txt(tot, 0, "TOTAL DEBITEURS", s.totalStyle);
-        XSSFCell tc = tot.createCell(1); tc.setCellStyle(s.totalMoneyStyle);
-        tc.setCellFormula("SUM(B" + (dataStart + 1) + ":B" + rowIdx + ")");
+        dbl(tot, 1, total, s.totalMoneyStyle);
 
         return rowIdx;
     }

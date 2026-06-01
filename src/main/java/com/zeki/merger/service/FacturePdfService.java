@@ -155,7 +155,22 @@ public class FacturePdfService {
                 if (row == null) continue;
                 String name = cellStr(row, 0, fmt, ev); // col A = CLIENT
                 if (name.isBlank()) break;
-                String nom = cellStr(row, 3, fmt, ev);  // col D = NOM
+                // col D = NOM — formül ise cached string value'yu oku, evaluate etme
+                String nom = "";
+                org.apache.poi.ss.usermodel.Cell nomCell =
+                        row.getCell(3, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+                if (nomCell != null) {
+                    if (nomCell.getCellType() == CellType.FORMULA) {
+                        CellType cached = nomCell.getCachedFormulaResultType();
+                        if (cached == CellType.STRING) {
+                            nom = nomCell.getStringCellValue().trim();
+                        } else if (cached == CellType.NUMERIC) {
+                            nom = String.valueOf((long) nomCell.getNumericCellValue());
+                        }
+                    } else {
+                        nom = fmt.formatCellValue(nomCell, ev).trim();
+                    }
+                }
                 if (nom.isBlank()) nom = name;           // fallback to client name
                 map.put(DataReader.normalize(name), nom);
             }
@@ -295,7 +310,7 @@ public class FacturePdfService {
             if (nom.isBlank()) nom = lookup(companyName, nomMap);
             if (nom.isBlank()) nom = nomClient.isBlank() ? companyName : nomClient;
             String safeNom = nom.isBlank() ? companyName : nom;
-            String pdfName = sanitize(safeNom) + "_" + numFacture + ".pdf";
+            String pdfName = sanitize(safeNom) + ".pdf";
 
             List<String> adresseLines = new ArrayList<>();
             for (int r = 4; r <= 10; r++) {
@@ -504,12 +519,22 @@ public class FacturePdfService {
             if (mode == Mode.OWN) {
                 // Mode OWN — sadece kendi klasörlerimize: facturation_mensuel/toutes/{etat}/
                 if (mensuelFolder != null && mensuelFolder.isDirectory()) {
-                    File toutesDir = new File(mensuelFolder, "toutes");
+                    // TOUTES klasörüne her zaman yaz
+                    File toutesDir = new File(mensuelFolder, "TOUTES");
                     toutesDir.mkdirs();
-                    for (String folder : new String[]{"comp", "non_comp", "comp_part", "debiteurs", "comp_cb"}) {
-                        new File(toutesDir, folder).mkdirs();
-                    }
-                    File etatDir = new File(toutesDir, etatSubfolder);
+                    saveTargets.add(new File(toutesDir, pdfName));
+
+                    // etatSubfolder → gerçek klasör adı
+                    String subName = switch (etatSubfolder) {
+                        case "comp"       -> "01 Virements";
+                        case "non_comp"   -> "02 Non Compesation";
+                        case "comp_part"  -> "03 Comp Partielle";
+                        case "debiteurs"  -> "04 Débiteurs";
+                        case "comp_cb"    -> "05 Compensation et CB";
+                        default           -> etatSubfolder;
+                    };
+                    File etatDir = new File(mensuelFolder, subName);
+                    etatDir.mkdirs();
                     saveTargets.add(new File(etatDir, pdfName));
                 }
                 // Fallback
