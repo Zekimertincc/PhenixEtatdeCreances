@@ -89,7 +89,10 @@ public class ValidationClientsService {
                 String lieu = fmt.formatCellValue(sCell, ev).trim();
                 double rVal = numericVal(rCell, ev);
 
-                if (!"AG".equalsIgnoreCase(lieu) || rVal <= 0.0) continue;
+                boolean validLieu = "AG".equalsIgnoreCase(lieu)
+                        || "CL".equalsIgnoreCase(lieu)
+                        || "NA".equalsIgnoreCase(lieu);
+                if (!validLieu || rVal <= 0.0) continue;
 
                 // Compute U = I + R
                 double iVal = iCell != null ? numericVal(iCell, ev) : 0.0;
@@ -107,7 +110,7 @@ public class ValidationClientsService {
                 modifiedCount++;
             }
 
-            if (modifiedCount == 0) return "aucune ligne AG avec montant trouvée";
+            if (modifiedCount == 0) return "aucune ligne AG/CL/NA avec montant trouvée";
 
             try (FileOutputStream fos = new FileOutputStream(excelFile)) {
                 wb.write(fos);
