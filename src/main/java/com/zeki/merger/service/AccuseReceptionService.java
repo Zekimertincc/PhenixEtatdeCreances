@@ -220,28 +220,27 @@ public class AccuseReceptionService {
 
         } else {
             // Windows: VBScript → Outlook draft
-            String safeBody = body.replace("\"", "\"\"")
-                                  .replace("\n", "\" & Chr(10) & \"");
-            String vbs = "Set ol = CreateObject(\"Outlook.Application\")\n"
-                       + "Set mail = ol.CreateItem(0)\n"
-                       + "mail.To = \"" + to + "\"\n"
-                       + "mail.Subject = \"" + subject + "\"\n"
-                       + "mail.Body = \"" + safeBody + "\"\n"
-                       + "mail.BCC = \"info@cabinetphenix.fr\"\n"
-                       + (attachmentPath != null && !attachmentPath.isBlank()
-                           ? "mail.Attachments.Add \"" + attachmentPath + "\"\n"
-                           : "")
-                       + "mail.Display\n";
+            String safeBody = body.replace("\"", "`\"").replace("\n", "`n");
+            String ps = "$ol = New-Object -ComObject Outlook.Application\n"
+                      + "$mail = $ol.CreateItem(0)\n"
+                      + "$mail.To = \"" + to + "\"\n"
+                      + "$mail.Subject = \"" + subject + "\"\n"
+                      + "$mail.Body = \"" + safeBody + "\"\n"
+                      + "$mail.BCC = \"info@cabinetphenix.fr\"\n"
+                      + (attachmentPath != null && !attachmentPath.isBlank()
+                          ? "$mail.Attachments.Add(\"" + attachmentPath + "\")\n"
+                          : "")
+                      + "$mail.Save()\n"
+                      + "$ol.Quit()\n";
 
-            System.out.println("[DRAFT LOG - VBS]\n" + vbs);
+            System.out.println("[DRAFT LOG - PS]\n" + ps);
 
-            File tmpVbs = File.createTempFile("draft_", ".vbs");
-            java.nio.file.Files.writeString(tmpVbs.toPath(), vbs,
+            File tmpPs = File.createTempFile("draft_", ".ps1");
+            java.nio.file.Files.writeString(tmpPs.toPath(), ps,
                     java.nio.charset.StandardCharsets.UTF_8);
 
-            // .bat aracılığıyla çalıştır
-            String batContent = "@echo off\r\nwscript.exe \""
-                    + tmpVbs.getAbsolutePath().replace("\\", "\\\\") + "\"\r\n";
+            String batContent = "@echo off\r\npowershell.exe -ExecutionPolicy Bypass -File \""
+                    + tmpPs.getAbsolutePath() + "\"\r\n";
             File tmpBat = File.createTempFile("run_", ".bat");
             java.nio.file.Files.writeString(tmpBat.toPath(), batContent,
                     java.nio.charset.Charset.forName("windows-1252"));
@@ -253,10 +252,10 @@ public class AccuseReceptionService {
             new Thread(() -> {
                 try {
                     String out = new String(proc.getInputStream().readAllBytes());
-                    if (!out.isBlank()) System.out.println("[BAT OUT] " + out);
+                    if (!out.isBlank()) System.out.println("[PS OUT] " + out);
                     proc.waitFor();
                     Thread.sleep(3000);
-                    tmpVbs.delete();
+                    tmpPs.delete();
                     tmpBat.delete();
                 } catch (Exception ignored) {}
             }).start();
