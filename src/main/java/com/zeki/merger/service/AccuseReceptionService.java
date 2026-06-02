@@ -123,7 +123,53 @@ public class AccuseReceptionService {
         if (folderPath == null || folderPath.isBlank()) return null;
         File dir = new File(folderPath);
         if (!dir.isDirectory()) return null;
-        File[] pdfs = dir.listFiles(f ->
+        return findLatestPdf(dir);
+    }
+
+    /**
+     * rootFolder altında clientName'e uyan şirket klasörünü bulur,
+     * içindeki "Espace partagé" → "Etat des créances" klasöründeki
+     * en son PDF'i döndürür.
+     */
+    public File findEtatPublicForClient(String clientName, File rootFolder) {
+        if (rootFolder == null || !rootFolder.isDirectory()) return null;
+        String normClient = DataReader.normalize(clientName);
+
+        File[] dirs = rootFolder.listFiles(File::isDirectory);
+        if (dirs == null) return null;
+
+        File bestMatch = null;
+        for (File dir : dirs) {
+            String normDir = DataReader.normalize(dir.getName());
+            if (normDir.contains(normClient) || normClient.contains(normDir)
+                    || normDir.startsWith(normClient.substring(0, Math.min(4, normClient.length())))) {
+                bestMatch = dir;
+                break;
+            }
+        }
+        if (bestMatch == null) return null;
+
+        File[] subDirs = bestMatch.listFiles(File::isDirectory);
+        if (subDirs == null) return null;
+        for (File d : subDirs) {
+            String n = DataReader.normalize(d.getName());
+            if (n.contains("espace") && n.contains("partag")) {
+                File[] edcDirs = d.listFiles(File::isDirectory);
+                if (edcDirs != null) {
+                    for (File edc : edcDirs) {
+                        String en = DataReader.normalize(edc.getName());
+                        if (en.contains("etat") && en.contains("cr")) {
+                            return findLatestPdf(edc);
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private File findLatestPdf(File folder) {
+        File[] pdfs = folder.listFiles(f ->
                 f.isFile() && f.getName().toLowerCase().endsWith(".pdf"));
         if (pdfs == null || pdfs.length == 0) return null;
         Arrays.sort(pdfs, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));

@@ -241,28 +241,10 @@ public class AccuseReceptionDialog {
             try {
                 ClientInfo ci = row.getClientInfo();
 
-                // Find étatPublic folder from correspondance map
-                String normName = DataReader.normalize(ci.getName());
-                String etatFolder = correspondanceMap.get(normName);
-                if (etatFolder == null) {
-                    for (Map.Entry<String, String> e : correspondanceMap.entrySet()) {
-                        String key = e.getKey();
-                        if (normName.contains(key) || key.contains(normName)
-                                || normName.startsWith(key) || key.startsWith(normName)) {
-                            etatFolder = e.getValue();
-                            break;
-                        }
-                    }
-                }
-
-                File attachment = null;
-                if (etatFolder != null) {
-                    System.out.println("[CORR] etatFolder for " + ci.getName() + " = " + etatFolder);
-                    attachment = service.findLatestEtatPublic(etatFolder);
-                    System.out.println("[CORR] attachment = " + (attachment != null ? attachment.getAbsolutePath() : "NULL"));
-                } else {
-                    System.out.println("[CORR] no etatFolder found for " + ci.getName() + " (normName=" + DataReader.normalize(ci.getName()) + ")");
-                }
+                // rootFolder'dan direkt bul — Correspondance dosyasına gerek yok
+                String rootPath = AppPreferences.getMergeRoot();
+                File rootFolder = (rootPath != null && !rootPath.isBlank()) ? new File(rootPath) : null;
+                File attachment = service.findEtatPublicForClient(ci.getName(), rootFolder);
 
                 String email = ci.getEmail();
                 if (email.isBlank()) {
