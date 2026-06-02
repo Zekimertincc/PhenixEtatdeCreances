@@ -173,29 +173,30 @@ public class AccuseReceptionService {
             }).start();
 
         } else {
-            // Windows: VBScript → Outlook draft
-            String safeBody = body.replace("\"", "\"\"")
-                                  .replace("\n", "\" & Chr(10) & \"");
-            String vbs = "Set ol = CreateObject(\"Outlook.Application\")\n"
-                       + "Set mail = ol.CreateItem(0)\n"
-                       + "mail.To = \"" + to + "\"\n"
-                       + "mail.Subject = \"" + subject + "\"\n"
-                       + "mail.Body = \"" + safeBody + "\"\n"
-                       + "mail.BCC = \"info@cabinetphenix.fr\"\n"
-                       + (attachmentPath != null && !attachmentPath.isBlank()
-                           ? "mail.Attachments.Add \"" + attachmentPath.replace("\\", "\\\\") + "\"\n"
-                           : "")
-                       + "mail.Display\n";
+            // Windows: PowerShell → Outlook draft
+            String safeBody = body.replace("\"", "`\"").replace("\n", "`n");
+            String ps = "$ol = New-Object -ComObject Outlook.Application\n"
+                      + "$mail = $ol.CreateItem(0)\n"
+                      + "$mail.To = \"" + to + "\"\n"
+                      + "$mail.Subject = \"" + subject + "\"\n"
+                      + "$mail.Body = \"" + safeBody + "\"\n"
+                      + "$mail.BCC = \"info@cabinetphenix.fr\"\n"
+                      + (attachmentPath != null && !attachmentPath.isBlank()
+                          ? "$mail.Attachments.Add(\"" + attachmentPath + "\")\n"
+                          : "")
+                      + "$mail.Display()\n";
 
-            System.out.println("[DRAFT LOG - VBS]\n" + vbs);
+            System.out.println("[DRAFT LOG - PS]\n" + ps);
 
-            File tmpVbs = File.createTempFile("draft_", ".vbs");
-            java.nio.file.Files.writeString(tmpVbs.toPath(), vbs,
+            File tmpPs = File.createTempFile("draft_", ".ps1");
+            java.nio.file.Files.writeString(tmpPs.toPath(), ps,
                     java.nio.charset.StandardCharsets.UTF_8);
-            Runtime.getRuntime().exec(new String[]{"wscript", tmpVbs.getAbsolutePath()});
+            Runtime.getRuntime().exec(new String[]{
+                    "powershell", "-ExecutionPolicy", "Bypass", "-File",
+                    tmpPs.getAbsolutePath()});
 
             new Thread(() -> {
-                try { Thread.sleep(5000); tmpVbs.delete(); }
+                try { Thread.sleep(5000); tmpPs.delete(); }
                 catch (Exception ignored) {}
             }).start();
         }
