@@ -87,12 +87,15 @@ public class ValidationClientsService {
                 if (sCell == null || rCell == null) continue;
 
                 String lieu = fmt.formatCellValue(sCell, ev).trim();
+                Cell tCell = row.getCell(19, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL); // T = Frais de procédure
                 double rVal = numericVal(rCell, ev);
+                double tVal = tCell != null ? numericVal(tCell, ev) : 0.0;
 
                 boolean validLieu = "AG".equalsIgnoreCase(lieu)
                         || "CL".equalsIgnoreCase(lieu)
                         || "NA".equalsIgnoreCase(lieu);
-                if (!validLieu || rVal <= 0.0) continue;
+                // R veya T'den biri doluysa işlem yap
+                if (!validLieu || (rVal <= 0.0 && tVal <= 0.0)) continue;
 
                 // Compute U = I + R
                 double iVal = iCell != null ? numericVal(iCell, ev) : 0.0;
