@@ -42,6 +42,7 @@ public class AccuseReceptionDialog {
     private Map<String, ClientInfo>  clientInfoMap     = new LinkedHashMap<>();
     private Map<String, String>      correspondanceMap = new LinkedHashMap<>();
     private final AccuseReceptionService service = new AccuseReceptionService();
+    private File lastDraftFolder = null;
 
     // -------------------------------------------------------------------------
 
@@ -236,41 +237,51 @@ public class AccuseReceptionDialog {
         String subject = subjectField.getText().trim();
         String body    = bodyArea.getText().trim();
 
-        int ok = 0, err = 0;
+        // Önceki klasörü temizle
+        service.cleanPreviousDraftFolder(lastDraftFolder);
+
+        List<AccuseReceptionService.DraftRequest> drafts = new ArrayList<>();
+
         for (ClientRow row : selected) {
-            try {
-                ClientInfo ci = row.getClientInfo();
+            ClientInfo ci = row.getClientInfo();
 
-                // rootFolder'dan direkt bul — Correspondance dosyasına gerek yok
-                String rootPath = AppPreferences.getMergeRoot();
-                File rootFolder = (rootPath != null && !rootPath.isBlank()) ? new File(rootPath) : null;
-                File attachment = service.findEtatPublicForClient(ci.getName(), rootFolder);
-
-                String email = ci.getEmail();
-                if (email.isBlank()) {
-                    log.accept("AVERT: Pas d'email pour " + ci.getName() + " — draft ignoré");
-                    err++;
-                    continue;
-                }
-
-                String attachPath = attachment != null ? attachment.getAbsolutePath() : null;
-                log.accept("Draft → " + ci.getName() + " <" + email + ">"
-                        + (attachPath != null ? " [" + attachment.getName() + "]" : " [sans PJ]"));
-
-                service.openOutlookDraft(email, subject, body, attachPath);
-                ok++;
-
-                // Small delay between drafts
-                Thread.sleep(800);
-
-            } catch (Exception e) {
-                log.accept("ERREUR draft " + row.getClientInfo().getName() + " : " + e.getMessage());
-                err++;
+            String email = ci.getEmail();
+            if (email.isBlank()) {
+                log.accept("AVERT: Pas d'email pour " + ci.getName() + " — ignoré");
+                continue;
             }
+
+            String rootPath = AppPreferences.getMergeRoot();
+            File rootFolder = (rootPath != null && !rootPath.isBlank()) ? new File(rootPath) : null;
+            File attachment = service.findEtatPublicForClient(ci.getName(), rootFolder);
+            String attachPath = attachment != null ? attachment.getAbsolutePath() : "";
+
+            log.accept("Draft → " + ci.getName() + " <" + email + ">"
+                    + (attachPath.isBlank() ? " [sans PJ]" : " [" + attachment.getName() + "]"));
+
+            drafts.add(new AccuseReceptionService.DraftRequest(
+                    ci.getName(), email, subject, body, attachPath));
         }
 
-        log.accept("Drafts créés : " + ok + " OK, " + err + " erreur(s).");
-        if (err == 0) stage.close();
+        if (drafts.isEmpty()) {
+            new Alert(Alert.AlertType.WARNING, "Aucun client avec email valide.").showAndWait();
+            return;
+        }
+
+        try {
+            lastDraftFolder = service.prepareDraftFolder(drafts);
+            log.accept(drafts.size() + " draft(s) préparé(s) → " + lastDraftFolder.getAbsolutePath());
+
+            Alert info = new Alert(Alert.AlertType.INFORMATION);
+            info.setTitle("Drafts prêts");
+            info.setHeaderText(drafts.size() + " draft(s) préparé(s)");
+            info.setContentText("Le dossier s'est ouvert.\n\nDouble-cliquez sur 'lancer_tous.bat' pour envoyer tous les drafts vers Outlook.");
+            info.showAndWait();
+
+        } catch (Exception e) {
+            log.accept("ERREUR: " + e.getMessage());
+            new Alert(Alert.AlertType.ERROR, "Erreur: " + e.getMessage()).showAndWait();
+        }
     }
 
     // -------------------------------------------------------------------------

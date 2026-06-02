@@ -180,85 +180,89 @@ public class AccuseReceptionService {
     // Open Outlook/Mail draft — Mac (.eml) or Windows (VBScript)
     // -------------------------------------------------------------------------
 
-    public void openOutlookDraft(String to, String subject, String body,
-                                 String attachmentPath) throws Exception {
-        boolean isMac = System.getProperty("os.name").toLowerCase().contains("mac");
+    /**
+     * Tüm draft'lar için VBS dosyaları + lancer_tous.bat oluşturur,
+     * klasörü Windows Explorer'da açar.
+     * @return oluşturulan klasör path'i
+     */
+    public File prepareDraftFolder(List<DraftRequest> drafts) throws Exception {
+        String timestamp = java.time.LocalDateTime.now()
+                .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+        File draftDir = new File(System.getProperty("java.io.tmpdir"), "phenix_drafts_" + timestamp);
+        draftDir.mkdirs();
 
-        if (isMac) {
-            System.out.println("[DRAFT LOG] To: " + to);
-            System.out.println("[DRAFT LOG] Subject: " + subject);
-            System.out.println("[DRAFT LOG] Attachment: " + attachmentPath);
+        StringBuilder bat = new StringBuilder("@echo off\r\n");
+        bat.append("echo Envoi des drafts vers Outlook...\r\n");
 
-            String safeBody    = body.replace("\"", "\\\"").replace("\n", "\\n");
-            String safeTo      = to.replace("\"", "\\\"");
-            String safeSubject = subject.replace("\"", "\\\"");
+        for (DraftRequest req : drafts) {
+            String safeName = req.clientName.replaceAll("[^a-zA-Z0-9]", "_");
+            File vbs = new File(draftDir, "draft_" + safeName + ".vbs");
 
-            String script = "tell application \"Mail\"\n"
-                    + "  set newMsg to make new outgoing message with properties"
-                    + " {subject:\"" + safeSubject + "\","
-                    + " content:\"" + safeBody + "\","
-                    + " visible:true}\n"
-                    + "  tell newMsg\n"
-                    + "    make new to recipient with properties {address:\"" + safeTo + "\"}\n"
-                    + (attachmentPath != null && !attachmentPath.isBlank()
-                        ? "    make new attachment with properties {file name:POSIX file \"" + attachmentPath + "\"}\n"
-                        : "")
-                    + "  end tell\n"
-                    + "end tell\n";
+            String safeBody    = req.body.replace("\"", "\"\"")
+                    .replace("\n", "\" & Chr(10) & \"");
+            String safeSubject = req.subject.replace("\"", "\"\"");
+            String safeTo      = req.to.replace("\"", "\"\"");
 
-            System.out.println("[APPLESCRIPT]\n" + script);
+            StringBuilder vbsContent = new StringBuilder();
+            vbsContent.append("Set ol = CreateObject(\"Outlook.Application\")\n");
+            vbsContent.append("Set mail = ol.CreateItem(0)\n");
+            vbsContent.append("mail.To = \"").append(safeTo).append("\"\n");
+            vbsContent.append("mail.Subject = \"").append(safeSubject).append("\"\n");
+            vbsContent.append("mail.Body = \"").append(safeBody).append("\"\n");
+            vbsContent.append("mail.BCC = \"info@cabinetphenix.fr\"\n");
+            if (req.attachmentPath != null && !req.attachmentPath.isBlank()) {
+                vbsContent.append("mail.Attachments.Add \"").append(req.attachmentPath).append("\"\n");
+            }
+            vbsContent.append("mail.Save\n");
 
-            File tmpScript = File.createTempFile("draft_", ".scpt");
-            java.nio.file.Files.writeString(tmpScript.toPath(), script,
-                    java.nio.charset.StandardCharsets.UTF_8);
-            Runtime.getRuntime().exec(new String[]{"osascript", tmpScript.getAbsolutePath()});
-
-            new Thread(() -> {
-                try { Thread.sleep(5000); tmpScript.delete(); }
-                catch (Exception ignored) {}
-            }).start();
-
-        } else {
-            // Windows: VBScript → Outlook draft
-            String safeBody = body.replace("\"", "`\"").replace("\n", "`n");
-            String ps = "$ol = New-Object -ComObject Outlook.Application\n"
-                      + "$mail = $ol.CreateItem(0)\n"
-                      + "$mail.To = \"" + to + "\"\n"
-                      + "$mail.Subject = \"" + subject + "\"\n"
-                      + "$mail.Body = \"" + safeBody + "\"\n"
-                      + "$mail.BCC = \"info@cabinetphenix.fr\"\n"
-                      + (attachmentPath != null && !attachmentPath.isBlank()
-                          ? "$mail.Attachments.Add(\"" + attachmentPath + "\")\n"
-                          : "")
-                      + "$mail.Save()\n"
-                      + "$ol.Quit()\n";
-
-            System.out.println("[DRAFT LOG - PS]\n" + ps);
-
-            File tmpPs = File.createTempFile("draft_", ".ps1");
-            java.nio.file.Files.writeString(tmpPs.toPath(), ps,
-                    java.nio.charset.StandardCharsets.UTF_8);
-
-            String batContent = "@echo off\r\npowershell.exe -ExecutionPolicy Bypass -File \""
-                    + tmpPs.getAbsolutePath() + "\"\r\n";
-            File tmpBat = File.createTempFile("run_", ".bat");
-            java.nio.file.Files.writeString(tmpBat.toPath(), batContent,
+            java.nio.file.Files.writeString(vbs.toPath(), vbsContent.toString(),
                     java.nio.charset.Charset.forName("windows-1252"));
 
-            ProcessBuilder pb = new ProcessBuilder("cmd.exe", "/c", tmpBat.getAbsolutePath());
-            pb.redirectErrorStream(true);
-            Process proc = pb.start();
+            bat.append("wscript.exe \"").append(vbs.getName()).append("\"\r\n");
+            bat.append("timeout /t 1 /nobreak >nul\r\n");
+        }
 
-            new Thread(() -> {
-                try {
-                    String out = new String(proc.getInputStream().readAllBytes());
-                    if (!out.isBlank()) System.out.println("[PS OUT] " + out);
-                    proc.waitFor();
-                    Thread.sleep(3000);
-                    tmpPs.delete();
-                    tmpBat.delete();
-                } catch (Exception ignored) {}
-            }).start();
+        bat.append("echo Termine!\r\n");
+        bat.append("pause\r\n");
+
+        File batFile = new File(draftDir, "lancer_tous.bat");
+        java.nio.file.Files.writeString(batFile.toPath(), bat.toString(),
+                java.nio.charset.Charset.forName("windows-1252"));
+
+        boolean isMac = System.getProperty("os.name").toLowerCase().contains("mac");
+        if (isMac) {
+            Runtime.getRuntime().exec(new String[]{"open", draftDir.getAbsolutePath()});
+        } else {
+            Runtime.getRuntime().exec(new String[]{"explorer.exe", draftDir.getAbsolutePath()});
+        }
+
+        return draftDir;
+    }
+
+    /**
+     * Önceki draft klasörünü temizle
+     */
+    public void cleanPreviousDraftFolder(File folder) {
+        if (folder == null || !folder.exists()) return;
+        File[] files = folder.listFiles();
+        if (files != null) for (File f : files) f.delete();
+        folder.delete();
+    }
+
+    public static class DraftRequest {
+        public final String clientName;
+        public final String to;
+        public final String subject;
+        public final String body;
+        public final String attachmentPath;
+
+        public DraftRequest(String clientName, String to, String subject,
+                           String body, String attachmentPath) {
+            this.clientName     = clientName;
+            this.to             = to;
+            this.subject        = subject;
+            this.body           = body;
+            this.attachmentPath = attachmentPath != null ? attachmentPath : "";
         }
     }
 }
