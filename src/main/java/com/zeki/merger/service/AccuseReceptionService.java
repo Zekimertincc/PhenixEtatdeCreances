@@ -67,18 +67,32 @@ public class AccuseReceptionService {
     public Map<String, String> readCorrespondanceMap(File file) throws Exception {
         Map<String, String> map = new LinkedHashMap<>();
         if (file == null || !file.exists()) return map;
-        List<String> lines = java.nio.file.Files.readAllLines(file.toPath(),
-                java.nio.charset.StandardCharsets.UTF_8);
-        for (String line : lines) {
-            line = line.trim();
-            if (line.isBlank() || line.startsWith("#")) continue;
-            String[] parts = line.split(";", 2);
-            if (parts.length < 2) continue;
-            String name   = parts[0].trim();
-            String folder = parts[1].trim();
-            if (!name.isBlank() && !folder.isBlank()) {
-                map.put(DataReader.normalize(name), folder);
+        try (java.io.FileInputStream fis = new java.io.FileInputStream(file)) {
+            byte[] bytes = fis.readAllBytes();
+            java.io.ByteArrayInputStream bais = new java.io.ByteArrayInputStream(bytes);
+            org.apache.poi.ss.usermodel.Workbook wb = file.getName().toLowerCase().endsWith(".xls")
+                    ? new org.apache.poi.hssf.usermodel.HSSFWorkbook(bais)
+                    : new org.apache.poi.xssf.usermodel.XSSFWorkbook(bais);
+            org.apache.poi.ss.usermodel.Sheet sheet = wb.getSheet("Correspondance");
+            if (sheet == null) sheet = wb.getSheetAt(0);
+            org.apache.poi.ss.usermodel.DataFormatter fmt = new org.apache.poi.ss.usermodel.DataFormatter();
+            org.apache.poi.ss.usermodel.FormulaEvaluator ev = wb.getCreationHelper().createFormulaEvaluator();
+            for (int r = 1; r <= sheet.getLastRowNum(); r++) {
+                org.apache.poi.ss.usermodel.Row row = sheet.getRow(r);
+                if (row == null) continue;
+                // col B (index 1) = MotClé, col C (index 2) = EspacePartagé path
+                org.apache.poi.ss.usermodel.Cell motCleCell = row.getCell(1,
+                        org.apache.poi.ss.usermodel.Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+                org.apache.poi.ss.usermodel.Cell pathCell = row.getCell(2,
+                        org.apache.poi.ss.usermodel.Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+                if (motCleCell == null || pathCell == null) continue;
+                String motCle = fmt.formatCellValue(motCleCell, ev).trim();
+                String path   = fmt.formatCellValue(pathCell,   ev).trim();
+                if (!motCle.isBlank() && !path.isBlank()) {
+                    map.put(DataReader.normalize(motCle), path);
+                }
             }
+            wb.close();
         }
         return map;
     }

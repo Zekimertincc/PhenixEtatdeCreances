@@ -245,9 +245,10 @@ public class AccuseReceptionDialog {
                 String normName = DataReader.normalize(ci.getName());
                 String etatFolder = correspondanceMap.get(normName);
                 if (etatFolder == null) {
-                    // partial match
                     for (Map.Entry<String, String> e : correspondanceMap.entrySet()) {
-                        if (normName.contains(e.getKey()) || e.getKey().contains(normName)) {
+                        String key = e.getKey();
+                        if (normName.contains(key) || key.contains(normName)
+                                || normName.startsWith(key) || key.startsWith(normName)) {
                             etatFolder = e.getValue();
                             break;
                         }
