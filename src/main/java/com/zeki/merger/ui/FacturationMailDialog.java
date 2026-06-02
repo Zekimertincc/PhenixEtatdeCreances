@@ -20,7 +20,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.function.Consumer;
 
-public class AccuseReceptionDialog {
+public class FacturationMailDialog {
 
     private static final DateTimeFormatter FR =
             DateTimeFormatter.ofPattern("dd/MM/yyyy");
@@ -46,11 +46,11 @@ public class AccuseReceptionDialog {
 
     // -------------------------------------------------------------------------
 
-    public AccuseReceptionDialog(Stage owner, Consumer<String> log) {
+    public FacturationMailDialog(Stage owner, Consumer<String> log) {
         this.log = log;
         stage.initOwner(owner);
         stage.initModality(Modality.WINDOW_MODAL);
-        stage.setTitle("Accusés de réception");
+        stage.setTitle("Facturation — Envoi des mails");
         stage.setWidth(900);
         stage.setHeight(620);
         stage.setResizable(true);
@@ -68,6 +68,7 @@ public class AccuseReceptionDialog {
         VBox root = new VBox(10);
         root.setPadding(new Insets(12));
 
+        // — Top: date range row —
         HBox dateRow = new HBox(8);
         dateRow.setAlignment(Pos.CENTER_LEFT);
         dateFrom.setConverter(makeDateConverter());
@@ -79,11 +80,13 @@ public class AccuseReceptionDialog {
                 new Label("Au :"), dateTo,
                 btnFilter);
 
+        // — Center: split pane —
         SplitPane split = new SplitPane();
         split.setDividerPositions(0.42);
         VBox.setVgrow(split, Priority.ALWAYS);
         split.getItems().addAll(buildLeftPane(), buildRightPane());
 
+        // — Bottom buttons —
         HBox bottomRow = new HBox(10);
         bottomRow.setAlignment(Pos.CENTER_RIGHT);
         Button btnCancel = new Button("Annuler");
@@ -102,13 +105,21 @@ public class AccuseReceptionDialog {
         VBox pane = new VBox(8);
         pane.setPadding(new Insets(4));
 
+        // Shortcut filter buttons
         HBox shortcuts = new HBox(6);
-        Button btnAll  = new Button("Tout sélectionner");
-        Button btnNone = new Button("Tout désélectionner");
-        btnAll.setOnAction(e  -> { allRows.forEach(r -> r.setSelected(true));  clientList.refresh(); });
-        btnNone.setOnAction(e -> { allRows.forEach(r -> r.setSelected(false)); clientList.refresh(); });
-        shortcuts.getChildren().addAll(btnAll, btnNone);
+        Button btnAll      = new Button("Tout");
+        Button btnVirement = new Button("VIREMENT");
+        Button btnNonComp  = new Button("NON COMP");
+        Button btnPartiel  = new Button("COMP PART.");
+        Button btnDebiteur = new Button("DÉBITEURS");
+        btnAll.setOnAction(e      -> selectByType(null));
+        btnVirement.setOnAction(e -> selectByType("VIREMENT"));
+        btnNonComp.setOnAction(e  -> selectByType("NON COMP"));
+        btnPartiel.setOnAction(e  -> selectByType("COMP PART."));
+        btnDebiteur.setOnAction(e -> selectByType("DÉBITEURS"));
+        shortcuts.getChildren().addAll(btnAll, btnVirement, btnNonComp, btnPartiel, btnDebiteur);
 
+        // Client list with checkboxes
         clientList.setItems(allRows);
         clientList.setCellFactory(lv -> new CheckBoxListCell());
         VBox.setVgrow(clientList, Priority.ALWAYS);
@@ -121,21 +132,30 @@ public class AccuseReceptionDialog {
         VBox pane = new VBox(8);
         pane.setPadding(new Insets(4));
 
+        // Subject
         subjectField.setPromptText("Objet du mail...");
         subjectField.setText("Cabinet Phénix, votre état des créances");
 
+        // Template shortcuts
+        HBox templateRow = new HBox(6);
+        Button btnTplVirement  = new Button("Virement");
+        Button btnTplNonComp   = new Button("Non Comp");
+        Button btnTplPartielle = new Button("Comp Partielle");
+        btnTplVirement.setOnAction(e  -> bodyArea.setText(service.buildBody(FacturationMailService.CompType.VIREMENT)));
+        btnTplNonComp.setOnAction(e   -> bodyArea.setText(service.buildBody(FacturationMailService.CompType.NON_COMP)));
+        btnTplPartielle.setOnAction(e -> bodyArea.setText(service.buildBody(FacturationMailService.CompType.COMP_PARTIELLE)));
+        templateRow.getChildren().addAll(
+                new Label("Charger modèle :"),
+                btnTplVirement, btnTplNonComp, btnTplPartielle);
+
+        // Body
         bodyArea.setWrapText(true);
-        bodyArea.setText(
-            "Bonjour,\n\n" +
-            "Veuillez trouver ci-joint votre état mensuel des créances.\n\n" +
-            "Nous restons à votre disposition pour tout renseignement complémentaire.\n\n" +
-            "Cordialement,\n" +
-            "Cabinet Phénix"
-        );
+        bodyArea.setText(service.buildBody(FacturationMailService.CompType.VIREMENT));
         VBox.setVgrow(bodyArea, Priority.ALWAYS);
 
         pane.getChildren().addAll(
                 new Label("Objet :"), subjectField,
+                templateRow,
                 new Label("Message :"), bodyArea);
         return pane;
     }
@@ -201,7 +221,7 @@ public class AccuseReceptionDialog {
     }
 
     // -------------------------------------------------------------------------
-    // Draft creation — PJ = état des créances (Espace partagé/Etat des créances)
+    // Draft creation
     // -------------------------------------------------------------------------
 
     private void createDrafts() {
@@ -232,7 +252,7 @@ public class AccuseReceptionDialog {
 
             String rootPath = AppPreferences.getMergeRoot();
             File rootFolder = (rootPath != null && !rootPath.isBlank()) ? new File(rootPath) : null;
-            File attachment = service.findEtatPublicForClient(ci.getName(), rootFolder);
+            File attachment = service.findFacturePdfForClient(ci.getName(), rootFolder);
             String attachPath = attachment != null ? attachment.getAbsolutePath() : "";
 
             log.accept("Draft → " + ci.getName() + " <" + email + ">"
@@ -281,7 +301,7 @@ public class AccuseReceptionDialog {
         public void       setSelected(boolean v) { this.selected = v; }
 
         @Override public String toString() {
-            return ci.getName();
+            return ci.getName() + "  —  " + type;
         }
     }
 

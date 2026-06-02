@@ -8,7 +8,7 @@ import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class AccuseReceptionService {
+public class FacturationMailService {
 
     public enum CompType { VIREMENT, NON_COMP, COMP_PARTIELLE }
 
@@ -61,7 +61,7 @@ public class AccuseReceptionService {
 
     // -------------------------------------------------------------------------
     // Correspondance map: normalized client name → étatPublic folder path
-    // Reads a simple 2-column text/CSV file: "client name;/path/to/folder"
+    // Col B (index 1) = MotClé, col C (index 2) = EspacePartagé path
     // -------------------------------------------------------------------------
 
     public Map<String, String> readCorrespondanceMap(File file) throws Exception {
@@ -80,7 +80,6 @@ public class AccuseReceptionService {
             for (int r = 1; r <= sheet.getLastRowNum(); r++) {
                 org.apache.poi.ss.usermodel.Row row = sheet.getRow(r);
                 if (row == null) continue;
-                // col B (index 1) = MotClé, col C (index 2) = EspacePartagé path
                 org.apache.poi.ss.usermodel.Cell motCleCell = row.getCell(1,
                         org.apache.poi.ss.usermodel.Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
                 org.apache.poi.ss.usermodel.Cell pathCell = row.getCell(2,
@@ -99,7 +98,6 @@ public class AccuseReceptionService {
 
     // -------------------------------------------------------------------------
     // Filter clients whose dateLastDossier falls within [from, to]
-    // Clients with null dateLastDossier are always included
     // -------------------------------------------------------------------------
 
     public List<ClientInfo> filterByDateRange(Map<String, ClientInfo> clientInfoMap,
@@ -116,7 +114,7 @@ public class AccuseReceptionService {
     }
 
     // -------------------------------------------------------------------------
-    // Find latest état public PDF in a folder
+    // PDF finders
     // -------------------------------------------------------------------------
 
     public File findLatestEtatPublic(String folderPath) {
@@ -132,24 +130,9 @@ public class AccuseReceptionService {
      * en son PDF'i döndürür.
      */
     public File findEtatPublicForClient(String clientName, File rootFolder) {
-        if (rootFolder == null || !rootFolder.isDirectory()) return null;
-        String normClient = DataReader.normalize(clientName);
-
-        File[] dirs = rootFolder.listFiles(File::isDirectory);
-        if (dirs == null) return null;
-
-        File bestMatch = null;
-        for (File dir : dirs) {
-            String normDir = DataReader.normalize(dir.getName());
-            if (normDir.contains(normClient) || normClient.contains(normDir)
-                    || normDir.startsWith(normClient.substring(0, Math.min(4, normClient.length())))) {
-                bestMatch = dir;
-                break;
-            }
-        }
-        if (bestMatch == null) return null;
-
-        File[] subDirs = bestMatch.listFiles(File::isDirectory);
+        File companyDir = findCompanyDir(clientName, rootFolder);
+        if (companyDir == null) return null;
+        File[] subDirs = companyDir.listFiles(File::isDirectory);
         if (subDirs == null) return null;
         for (File d : subDirs) {
             String n = DataReader.normalize(d.getName());
@@ -168,6 +151,43 @@ public class AccuseReceptionService {
         return null;
     }
 
+    /**
+     * rootFolder altında clientName'e uyan şirket klasörünü bulur,
+     * Espace partagé → factures/ klasöründeki en son PDF'i döndürür.
+     */
+    public File findFacturePdfForClient(String clientName, File rootFolder) {
+        File companyDir = findCompanyDir(clientName, rootFolder);
+        if (companyDir == null) return null;
+        File[] subDirs = companyDir.listFiles(File::isDirectory);
+        if (subDirs == null) return null;
+        for (File d : subDirs) {
+            String n = DataReader.normalize(d.getName());
+            if (n.contains("espace") && n.contains("partag")) {
+                File facturesDir = new File(d, "factures");
+                if (facturesDir.isDirectory()) {
+                    return findLatestPdf(facturesDir);
+                }
+            }
+        }
+        return null;
+    }
+
+    private File findCompanyDir(String clientName, File rootFolder) {
+        if (rootFolder == null || !rootFolder.isDirectory()) return null;
+        String normClient = DataReader.normalize(clientName);
+        File[] dirs = rootFolder.listFiles(File::isDirectory);
+        if (dirs == null) return null;
+        for (File dir : dirs) {
+            String normDir = DataReader.normalize(dir.getName());
+            if (normDir.contains(normClient) || normClient.contains(normDir)
+                    || (normClient.length() >= 4 && normDir.startsWith(
+                            normClient.substring(0, Math.min(4, normClient.length()))))) {
+                return dir;
+            }
+        }
+        return null;
+    }
+
     private File findLatestPdf(File folder) {
         File[] pdfs = folder.listFiles(f ->
                 f.isFile() && f.getName().toLowerCase().endsWith(".pdf"));
@@ -177,12 +197,12 @@ public class AccuseReceptionService {
     }
 
     // -------------------------------------------------------------------------
-    // Open Outlook/Mail draft — Mac (.eml) or Windows (VBScript)
+    // Draft folder preparation
     // -------------------------------------------------------------------------
 
     /**
      * Tüm draft'lar için VBS dosyaları + lancer_tous.bat oluşturur,
-     * klasörü Windows Explorer'da açar.
+     * klasörü Finder/Explorer'da açar.
      * @return oluşturulan klasör path'i
      */
     public File prepareDraftFolder(List<DraftRequest> drafts) throws Exception {
@@ -239,9 +259,6 @@ public class AccuseReceptionService {
         return draftDir;
     }
 
-    /**
-     * Önceki draft klasörünü temizle
-     */
     public void cleanPreviousDraftFolder(File folder) {
         if (folder == null || !folder.exists()) return;
         File[] files = folder.listFiles();
