@@ -63,4 +63,11 @@ public class AppPreferences {
     private static final String KEY_WATCH_ENABLED = "watchEnabled";
     public static boolean isWatchEnabled()           { return PREFS.getBoolean(KEY_WATCH_ENABLED, false); }
     public static void    setWatchEnabled(boolean v) { PREFS.putBoolean(KEY_WATCH_ENABLED, v); }
+
+    public static String getCorrespondancePath() {
+        return PREFS.get("correspondance_path", "");
+    }
+    public static void setCorrespondancePath(String path) {
+        PREFS.put("correspondance_path", path);
+    }
 }

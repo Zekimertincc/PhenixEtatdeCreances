@@ -124,8 +124,25 @@ public class DataReader {
                 String nonComp = cellStr(row, 20, fmt, eval);
                 String iban    = cellStr(row, 21, fmt, eval);
                 String bic     = cellStr(row, 22, fmt, eval);
+                String email   = cellStr(row,  8, fmt, eval); // col I = email
 
-                map.putIfAbsent(normalize(name), new ClientInfo(name, code, nonComp, iban, bic));
+                // col 19 = DateDernierDossier (index 19 = col T)
+                java.time.LocalDate dateLastDossier = null;
+                Row rowRef = row;
+                org.apache.poi.ss.usermodel.Cell dateCell =
+                        rowRef.getCell(19, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+                if (dateCell != null) {
+                    CellType ct = dateCell.getCellType() == CellType.FORMULA
+                            ? dateCell.getCachedFormulaResultType() : dateCell.getCellType();
+                    if (ct == CellType.NUMERIC && DateUtil.isCellDateFormatted(dateCell)) {
+                        try {
+                            dateLastDossier = dateCell.getLocalDateTimeCellValue().toLocalDate();
+                        } catch (Exception ignored) {}
+                    }
+                }
+
+                map.putIfAbsent(normalize(name), new ClientInfo(name, code, nonComp, iban, bic,
+                        email, dateLastDossier));
             }
         }
         return map;

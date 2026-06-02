@@ -127,10 +127,10 @@
     </dependency>
   </dependencies>
   <properties>
-    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <javafx.version>21.0.4</javafx.version>
     <maven.compiler.target>22</maven.compiler.target>
     <maven.compiler.source>22</maven.compiler.source>
     <poi.version>5.2.5</poi.version>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <javafx.version>21.0.4</javafx.version>
   </properties>
 </project>

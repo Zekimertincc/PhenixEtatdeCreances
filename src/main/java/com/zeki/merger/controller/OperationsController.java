@@ -2,6 +2,8 @@ package com.zeki.merger.controller;
 
 import com.zeki.merger.AppPreferences;
 import com.zeki.merger.service.*;
+import com.zeki.merger.ui.AccuseReceptionDialog;
+import javafx.stage.Stage;
 import com.zeki.merger.trf.TrfGeneratorService;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -55,6 +57,7 @@ public class OperationsController {
     private Button validationClientsBtn;
     private Button recupInfoClientsBtn;
     private Button misAJourListingBtn;
+    private Button accuseReceptionBtn;
 
     public OperationsController(MergeService mergeService,
                                 EspacePartageFixer espacePartageFixer,
@@ -105,6 +108,7 @@ public class OperationsController {
         validationClientsBtn = createActionBtn("Validation des clients", "Clôture mensuelle AG → I, reset R/S/T", "action-card", e -> showConfirmDialog("Validation des clients", "Transfère Recouvré total (U) vers Recouvré et Facturé (I) pour les lignes AG, puis remet à zéro les colonnes R, S, T.", new String[]{"Dossier racine"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank()}, this::validationClients));
 
         recupInfoClientsBtn = createActionBtn("Récup. Info Clients",     "TVA + Infos → Etat de créances",          "action-card",         e -> showConfirmDialog("Récup. Info Clients", "Récupère les informations TVA et coordonnées depuis le Listing.", new String[]{"Dossier racine", "Listing Cabinet"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank(), !AppPreferences.getTrfListing().isBlank()}, this::recupInfoClients));
+        accuseReceptionBtn  = createActionBtn("Accusés de réception",    "Créer drafts mail avec état en PJ",       "action-card",         e -> openAccuseReceptionDialog());
         syncDbBtn        = createActionBtn("Sync sociétés",              "Synchroniser toutes les sociétés",        "action-card",         e -> showConfirmDialog("Sync sociétés", "Synchronise toutes les sociétés dans la base de données locale.", new String[]{"Dossier racine"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank()}, this::syncDatabase));
         fixBtn           = createActionBtn("Corriger espaces",           "Mise à jour Espace Partagé",              "action-card",         e -> showConfirmDialog("Corriger espaces", "Corrige les chemins et met à jour les fichiers dans l'Espace Partagé.", new String[]{"Dossier racine"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank()}, this::fixPaths));
         nettoyerBtn      = createActionBtn("Nettoyer Espace Partagé",   "Supprimer PDF/XLS des espaces partagés",  "action-card-danger",  e -> showConfirmDialog("Nettoyer Espace Partagé", "Supprime définitivement les PDF et XLS des espaces partagés. Action irréversible.", new String[]{"Dossier racine"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank()}, this::nettoyerEspacePartage));
@@ -141,6 +145,7 @@ public class OperationsController {
         actionsGrid.add(syncDbBtn,           1, 10);
         actionsGrid.add(fixBtn,              0, 11);
         actionsGrid.add(nettoyerBtn,         1, 11);
+        actionsGrid.add(accuseReceptionBtn,  0, 12); GridPane.setColumnSpan(accuseReceptionBtn, 2);
     }
 
     public void openFile() {
@@ -505,6 +510,7 @@ public class OperationsController {
         if (misAJourListingBtn     != null) misAJourListingBtn.setDisable(disabled);
         if (validationClientsBtn   != null) validationClientsBtn.setDisable(disabled);
         if (runActionBtn           != null) runActionBtn.setDisable(disabled);
+        if (accuseReceptionBtn     != null) accuseReceptionBtn.setDisable(disabled);
     }
 
     private void misAJourListing() {
@@ -712,6 +718,13 @@ public class OperationsController {
                 Platform.runLater(() -> { log.accept("FATAL: " + ex.getMessage()); setAllButtonsDisabled(false); });
             }
         });
+    }
+
+    private void openAccuseReceptionDialog() {
+        new AccuseReceptionDialog(
+                (Stage) accuseReceptionBtn.getScene().getWindow(),
+                log
+        ).show();
     }
 
     private void showConfirmDialog(String title, String description,

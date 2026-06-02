@@ -45,7 +45,8 @@ public class ConfigController {
                 AppPreferences.getTableauBordPath(),
                 AppPreferences.getFacturationMensuelPath(),
                 AppPreferences.getEntetePdfPath(),
-                AppPreferences.getTrfOutput()
+                AppPreferences.getTrfOutput(),
+                AppPreferences.getCorrespondancePath()
         };
         String[] labels = {
                 "Dossier source (Dropbox)",
@@ -57,10 +58,11 @@ public class ConfigController {
                 "Tableau de bord soldes.xlsx",
                 "Facturation mensuel (dossier)",
                 "En-tête PDF (Phénix)",
-                "TRF output (classement PDF)"
+                "TRF output (classement PDF)",
+                "Correspondance clients"
         };
-        boolean[] isDir = {true, false, false, false, false, false, false, true, false, false};
-        String[]  exts  = {null, "xlsx", "xls", "xlsx", "xlsx", "xlsx", "xlsx", null, "pdf", "xlsx"};
+        boolean[] isDir = {true, false, false, false, false, false, false, true, false, false, false};
+        String[]  exts  = {null, "xlsx", "xls", "xlsx", "xlsx", "xlsx", "xlsx", null, "pdf", "xlsx", "xlsx"};
         configPathLabels = new Label[configPaths.length];
 
         configFormBox.getChildren().clear();
@@ -101,7 +103,8 @@ public class ConfigController {
         if (configPaths.length > 6) AppPreferences.setTableauBordPath(configPaths[6]);
         if (configPaths.length > 7) AppPreferences.setFacturationMensuelPath(configPaths[7]);
         if (configPaths.length > 8) AppPreferences.setEntetePdfPath(configPaths[8]);
-        if (configPaths.length > 9) AppPreferences.setTrfOutput(configPaths[9]);
+        if (configPaths.length > 9)  AppPreferences.setTrfOutput(configPaths[9]);
+        if (configPaths.length > 10) AppPreferences.setCorrespondancePath(configPaths[10]);
         refreshBadges();
         log.accept("Configuration enregistrée.");
         onSaved.run();
@@ -262,8 +265,13 @@ public class ConfigController {
         FileChooser fc = new FileChooser();
         fc.setTitle(title);
         if (ext != null) {
-            String desc = "pdf".equalsIgnoreCase(ext) ? "PDF Files" : "Excel Files";
-            fc.getExtensionFilters().add(new FileChooser.ExtensionFilter(desc, "*." + ext));
+            if (ext.equals("xls") || ext.equals("xlsx")) {
+                fc.getExtensionFilters().add(
+                    new FileChooser.ExtensionFilter("Fichiers Excel", "*.xls", "*.xlsx"));
+            } else {
+                fc.getExtensionFilters().add(
+                    new FileChooser.ExtensionFilter("Fichiers " + ext.toUpperCase(), "*." + ext));
+            }
         }
         if (lastPath != null && !lastPath.isEmpty()) {
             File parent = new File(lastPath).getParentFile();
