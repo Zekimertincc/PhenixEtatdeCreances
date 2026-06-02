@@ -239,17 +239,25 @@ public class AccuseReceptionService {
             java.nio.file.Files.writeString(tmpVbs.toPath(), vbs,
                     java.nio.charset.StandardCharsets.UTF_8);
 
-            ProcessBuilder pb = new ProcessBuilder("wscript.exe", tmpVbs.getAbsolutePath());
+            // .bat aracılığıyla çalıştır
+            String batContent = "@echo off\r\nwscript.exe \""
+                    + tmpVbs.getAbsolutePath().replace("\\", "\\\\") + "\"\r\n";
+            File tmpBat = File.createTempFile("run_", ".bat");
+            java.nio.file.Files.writeString(tmpBat.toPath(), batContent,
+                    java.nio.charset.Charset.forName("windows-1252"));
+
+            ProcessBuilder pb = new ProcessBuilder("cmd.exe", "/c", tmpBat.getAbsolutePath());
             pb.redirectErrorStream(true);
             Process proc = pb.start();
 
             new Thread(() -> {
                 try {
                     String out = new String(proc.getInputStream().readAllBytes());
-                    if (!out.isBlank()) System.out.println("[VBS OUT] " + out);
+                    if (!out.isBlank()) System.out.println("[BAT OUT] " + out);
                     proc.waitFor();
                     Thread.sleep(3000);
                     tmpVbs.delete();
+                    tmpBat.delete();
                 } catch (Exception ignored) {}
             }).start();
         }
