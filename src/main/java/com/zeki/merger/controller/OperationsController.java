@@ -2,7 +2,7 @@ package com.zeki.merger.controller;
 
 import com.zeki.merger.AppPreferences;
 import com.zeki.merger.service.*;
-import com.zeki.merger.ui.AccuseReceptionDialog;
+import com.zeki.merger.ui.FacturationMailDialog;
 import javafx.stage.Stage;
 import com.zeki.merger.trf.TrfGeneratorService;
 import javafx.application.Platform;
@@ -721,7 +721,7 @@ public class OperationsController {
     }
 
     private void openAccuseReceptionDialog() {
-        new AccuseReceptionDialog(
+        new FacturationMailDialog(
                 (Stage) accuseReceptionBtn.getScene().getWindow(),
                 log
         ).show();

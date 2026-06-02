@@ -1,7 +1,7 @@
 package com.zeki.merger.ui;
 
 import com.zeki.merger.AppPreferences;
-import com.zeki.merger.service.AccuseReceptionService;
+import com.zeki.merger.service.FacturationMailService;
 import com.zeki.merger.trf.DataReader;
 import com.zeki.merger.trf.model.ClientInfo;
 import javafx.collections.FXCollections;
@@ -20,7 +20,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.function.Consumer;
 
-public class AccuseReceptionDialog {
+public class FacturationMailDialog {
 
     private static final DateTimeFormatter FR =
             DateTimeFormatter.ofPattern("dd/MM/yyyy");
@@ -41,16 +41,16 @@ public class AccuseReceptionDialog {
     // State
     private Map<String, ClientInfo>  clientInfoMap     = new LinkedHashMap<>();
     private Map<String, String>      correspondanceMap = new LinkedHashMap<>();
-    private final AccuseReceptionService service = new AccuseReceptionService();
+    private final FacturationMailService service = new FacturationMailService();
     private File lastDraftFolder = null;
 
     // -------------------------------------------------------------------------
 
-    public AccuseReceptionDialog(Stage owner, Consumer<String> log) {
+    public FacturationMailDialog(Stage owner, Consumer<String> log) {
         this.log = log;
         stage.initOwner(owner);
         stage.initModality(Modality.WINDOW_MODAL);
-        stage.setTitle("Accusés de réception");
+        stage.setTitle("Facturation — Envoi des mails");
         stage.setWidth(900);
         stage.setHeight(620);
         stage.setResizable(true);
@@ -108,14 +108,16 @@ public class AccuseReceptionDialog {
         // Shortcut filter buttons
         HBox shortcuts = new HBox(6);
         Button btnAll      = new Button("Tout");
-        Button btnComp     = new Button("COMP");
+        Button btnVirement = new Button("VIREMENT");
         Button btnNonComp  = new Button("NON COMP");
         Button btnPartiel  = new Button("COMP PART.");
-        btnAll.setOnAction(e     -> selectByType(null));
-        btnComp.setOnAction(e    -> selectByType("COMP"));
-        btnNonComp.setOnAction(e -> selectByType("NON COMP"));
-        btnPartiel.setOnAction(e -> selectByType("COMP PART."));
-        shortcuts.getChildren().addAll(btnAll, btnComp, btnNonComp, btnPartiel);
+        Button btnDebiteur = new Button("DÉBITEURS");
+        btnAll.setOnAction(e      -> selectByType(null));
+        btnVirement.setOnAction(e -> selectByType("VIREMENT"));
+        btnNonComp.setOnAction(e  -> selectByType("NON COMP"));
+        btnPartiel.setOnAction(e  -> selectByType("COMP PART."));
+        btnDebiteur.setOnAction(e -> selectByType("DÉBITEURS"));
+        shortcuts.getChildren().addAll(btnAll, btnVirement, btnNonComp, btnPartiel, btnDebiteur);
 
         // Client list with checkboxes
         clientList.setItems(allRows);
@@ -139,16 +141,16 @@ public class AccuseReceptionDialog {
         Button btnTplVirement  = new Button("Virement");
         Button btnTplNonComp   = new Button("Non Comp");
         Button btnTplPartielle = new Button("Comp Partielle");
-        btnTplVirement.setOnAction(e  -> bodyArea.setText(service.buildBody(AccuseReceptionService.CompType.VIREMENT)));
-        btnTplNonComp.setOnAction(e   -> bodyArea.setText(service.buildBody(AccuseReceptionService.CompType.NON_COMP)));
-        btnTplPartielle.setOnAction(e -> bodyArea.setText(service.buildBody(AccuseReceptionService.CompType.COMP_PARTIELLE)));
+        btnTplVirement.setOnAction(e  -> bodyArea.setText(service.buildBody(FacturationMailService.CompType.VIREMENT)));
+        btnTplNonComp.setOnAction(e   -> bodyArea.setText(service.buildBody(FacturationMailService.CompType.NON_COMP)));
+        btnTplPartielle.setOnAction(e -> bodyArea.setText(service.buildBody(FacturationMailService.CompType.COMP_PARTIELLE)));
         templateRow.getChildren().addAll(
                 new Label("Charger modèle :"),
                 btnTplVirement, btnTplNonComp, btnTplPartielle);
 
         // Body
         bodyArea.setWrapText(true);
-        bodyArea.setText(service.buildBody(AccuseReceptionService.CompType.VIREMENT));
+        bodyArea.setText(service.buildBody(FacturationMailService.CompType.VIREMENT));
         VBox.setVgrow(bodyArea, Priority.ALWAYS);
 
         pane.getChildren().addAll(
@@ -163,7 +165,6 @@ public class AccuseReceptionDialog {
     // -------------------------------------------------------------------------
 
     private void loadData() {
-        // Load Listing
         String listingPath = AppPreferences.getTrfListing();
         if (listingPath != null && !listingPath.isBlank()) {
             try {
@@ -173,7 +174,6 @@ public class AccuseReceptionDialog {
             }
         }
 
-        // Load Correspondance
         String corrPath = AppPreferences.getCorrespondancePath();
         if (corrPath != null && !corrPath.isBlank()) {
             try {
@@ -205,8 +205,8 @@ public class AccuseReceptionDialog {
 
     private String resolveType(ClientInfo ci) {
         if (ci.isNonCompensation()) return "NON COMP";
-        // TODO: comp_partielle detection when TRF classification available
-        return "COMP";
+        // TODO: COMP PART. ve DÉBITEURS için TRF classification eklenecek
+        return "VIREMENT";
     }
 
     // -------------------------------------------------------------------------
@@ -237,10 +237,9 @@ public class AccuseReceptionDialog {
         String subject = subjectField.getText().trim();
         String body    = bodyArea.getText().trim();
 
-        // Önceki klasörü temizle
         service.cleanPreviousDraftFolder(lastDraftFolder);
 
-        List<AccuseReceptionService.DraftRequest> drafts = new ArrayList<>();
+        List<FacturationMailService.DraftRequest> drafts = new ArrayList<>();
 
         for (ClientRow row : selected) {
             ClientInfo ci = row.getClientInfo();
@@ -253,13 +252,13 @@ public class AccuseReceptionDialog {
 
             String rootPath = AppPreferences.getMergeRoot();
             File rootFolder = (rootPath != null && !rootPath.isBlank()) ? new File(rootPath) : null;
-            File attachment = service.findEtatPublicForClient(ci.getName(), rootFolder);
+            File attachment = service.findFacturePdfForClient(ci.getName(), rootFolder);
             String attachPath = attachment != null ? attachment.getAbsolutePath() : "";
 
             log.accept("Draft → " + ci.getName() + " <" + email + ">"
                     + (attachPath.isBlank() ? " [sans PJ]" : " [" + attachment.getName() + "]"));
 
-            drafts.add(new AccuseReceptionService.DraftRequest(
+            drafts.add(new FacturationMailService.DraftRequest(
                     ci.getName(), email, subject, body, attachPath));
         }
 
