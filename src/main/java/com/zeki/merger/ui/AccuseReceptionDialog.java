@@ -255,8 +255,14 @@ public class AccuseReceptionDialog {
                     }
                 }
 
-                File attachment = etatFolder != null
-                        ? service.findLatestEtatPublic(etatFolder) : null;
+                File attachment = null;
+                if (etatFolder != null) {
+                    System.out.println("[CORR] etatFolder for " + ci.getName() + " = " + etatFolder);
+                    attachment = service.findLatestEtatPublic(etatFolder);
+                    System.out.println("[CORR] attachment = " + (attachment != null ? attachment.getAbsolutePath() : "NULL"));
+                } else {
+                    System.out.println("[CORR] no etatFolder found for " + ci.getName() + " (normName=" + DataReader.normalize(ci.getName()) + ")");
+                }
 
                 String email = ci.getEmail();
                 if (email.isBlank()) {
