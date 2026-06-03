@@ -250,7 +250,41 @@ public class FacturationMailService {
                 java.nio.charset.Charset.forName("windows-1252"));
 
         boolean isMac = System.getProperty("os.name").toLowerCase().contains("mac");
+
         if (isMac) {
+            String plainSignature = "\n\nCABINET PHÉNIX\n"
+                    + "1, rue de Stockholm — 75008 PARIS\n"
+                    + "Mob. : +33 (0)6 72 86 38 78\n"
+                    + "Tél. : +33 (0)1 53 20 12 76\n"
+                    + "contact@cabinetphenix.fr | www.cabinetphenix.fr";
+
+            for (DraftRequest req : drafts) {
+                String safeBody    = (req.body + plainSignature)
+                        .replace("\"", "\\\"").replace("\n", "\\n");
+                String safeSubject = req.subject.replace("\"", "\\\"");
+                String safeTo      = req.to.replace("\"", "\\\"");
+
+                String script = "tell application \"Mail\"\n"
+                        + "  set newMsg to make new outgoing message with properties"
+                        + " {subject:\"" + safeSubject + "\","
+                        + " content:\"" + safeBody + "\","
+                        + " visible:true}\n"
+                        + "  tell newMsg\n"
+                        + "    make new to recipient with properties {address:\""
+                        + safeTo + "\"}\n"
+                        + (!req.attachmentPath.isBlank()
+                            ? "    make new attachment with properties {file name:POSIX file \""
+                              + req.attachmentPath + "\"}\n"
+                            : "")
+                        + "  end tell\n"
+                        + "end tell\n";
+
+                File tmpScript = File.createTempFile("draft_", ".scpt", draftDir);
+                java.nio.file.Files.writeString(tmpScript.toPath(), script,
+                        java.nio.charset.StandardCharsets.UTF_8);
+                Runtime.getRuntime().exec(new String[]{"osascript", tmpScript.getAbsolutePath()});
+                Thread.sleep(800);
+            }
             Runtime.getRuntime().exec(new String[]{"open", draftDir.getAbsolutePath()});
         } else {
             Runtime.getRuntime().exec(new String[]{"explorer.exe", draftDir.getAbsolutePath()});
@@ -269,8 +303,8 @@ public class FacturationMailService {
     private String buildHtmlSignature() {
         String logoBase64 = "";
         try {
-            java.io.InputStream is = getClass().getResourceAsStream(
-                    "/com/zeki/merger/phenix_logo.png");
+            java.io.InputStream is = getClass().getResourceAsStream("/phenix.png");
+            if (is == null) is = getClass().getResourceAsStream("/com/zeki/merger/phenix_logo.png");
             if (is != null) {
                 byte[] bytes = is.readAllBytes();
                 logoBase64 = java.util.Base64.getEncoder().encodeToString(bytes);
