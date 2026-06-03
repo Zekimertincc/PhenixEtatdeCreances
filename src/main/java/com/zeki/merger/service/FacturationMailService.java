@@ -201,6 +201,13 @@ public class FacturationMailService {
     }
 
     private File findLatestPdf(File folder) {
+        // Önce xlsx ara, yoksa pdf'e bak
+        File[] xlsxFiles = folder.listFiles(f ->
+                f.isFile() && f.getName().toLowerCase().endsWith(".xlsx"));
+        if (xlsxFiles != null && xlsxFiles.length > 0) {
+            Arrays.sort(xlsxFiles, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
+            return xlsxFiles[0];
+        }
         File[] pdfs = folder.listFiles(f ->
                 f.isFile() && f.getName().toLowerCase().endsWith(".pdf"));
         if (pdfs == null || pdfs.length == 0) return null;
