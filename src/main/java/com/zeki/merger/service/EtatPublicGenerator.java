@@ -284,10 +284,9 @@ public class EtatPublicGenerator {
                     logoStream.close();
                     int pictureIdx = wb.addPicture(logoBytes, XSSFWorkbook.PICTURE_TYPE_PNG);
                     org.apache.poi.ss.usermodel.Drawing<?> drawing = sheet.createDrawingPatriarch();
-                    org.apache.poi.ss.usermodel.ClientAnchor anchor =
-                            wb.getCreationHelper().createClientAnchor();
-                    anchor.setCol1(6); anchor.setRow1(0);
-                    anchor.setCol2(9); anchor.setRow2(3);
+                    org.apache.poi.xssf.usermodel.XSSFClientAnchor anchor =
+                            new org.apache.poi.xssf.usermodel.XSSFClientAnchor(
+                                    740520, 0, 2867760, 102600, 3, 0, 5, 6);
                     drawing.createPicture(anchor, pictureIdx);
                 }
             } catch (Exception ignored) {}
@@ -296,9 +295,9 @@ public class EtatPublicGenerator {
             adresStyle.cloneStyleFrom(plain);
             adresStyle.setAlignment(org.apache.poi.ss.usermodel.HorizontalAlignment.RIGHT);
 
-            Row r0 = sheet.getRow(4); if (r0 == null) r0 = sheet.createRow(4);
-            Row r1 = sheet.getRow(5); if (r1 == null) r1 = sheet.createRow(5);
-            Row r2 = sheet.getRow(6); if (r2 == null) r2 = sheet.createRow(6);
+            XSSFRow r0 = sheet.getRow(4); if (r0 == null) r0 = sheet.createRow(4);
+            XSSFRow r1 = sheet.getRow(5); if (r1 == null) r1 = sheet.createRow(5);
+            XSSFRow r2 = sheet.getRow(6); if (r2 == null) r2 = sheet.createRow(6);
 
             putString(r0, 6, "1, rue de Stockholm — 75008 PARIS", adresStyle);
             putString(r1, 6, "Tél. : +33 (0)1 53 20 12 76  |  Mob. : +33 (0)6 72 86 38 78", adresStyle);
