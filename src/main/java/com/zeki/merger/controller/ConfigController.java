@@ -61,6 +61,21 @@ public class ConfigController {
                 "TRF output (classement PDF)",
                 "Correspondance clients"
         };
+        String[] descriptions = {
+                "Dossier racine contenant tous les dossiers clients",
+                "Classement de la consolidation générale",
+                "Sélectionner le fichier de consolidation",
+                "Listing principal de tous les clients Cabinet Phénix",
+                "Utilisé pour la génération du TRF",
+                "Pour comparaison avec la consolidation",
+                "Sélectionner après avoir généré le Contrôle Facturation",
+                "Pour le numéro de facture et le nom des factures",
+                "Pour reporter les soldes clients",
+                "Classer les factures chez Phénix",
+                "Fichier PDF de l'en-tête Cabinet Phénix",
+                "Pour le classement des factures (PDF)",
+                "Fichier de correspondance client ↔ espace partagé (pour les mails)"
+        };
         boolean[] isDir = {true, false, false, false, false, false, false, true, false, false, false};
         String[]  exts  = {null, "xlsx", "xls", "xlsx", "xlsx", "xlsx", "xlsx", null, "pdf", "xlsx", "xlsx"};
         configPathLabels = new Label[configPaths.length];
@@ -71,7 +86,11 @@ public class ConfigController {
             HBox row = new HBox(8);
             row.setAlignment(Pos.CENTER_LEFT);
             Label lbl = new Label(labels[i] + ":");
-            lbl.setMinWidth(260);
+            lbl.setStyle("-fx-font-weight: bold;");
+            Label desc = new Label(descriptions[i]);
+            desc.setStyle("-fx-text-fill: #888; -fx-font-size: 10px;");
+            VBox labelBox = new VBox(2, lbl, desc);
+            labelBox.setMinWidth(220);
             lbl.getStyleClass().add("config-label");
             configPathLabels[i] = new Label();
             configPathLabels[i].setMaxWidth(Double.MAX_VALUE);
@@ -88,7 +107,7 @@ public class ConfigController {
                     updatePathLabel(configPathLabels[idx], configPaths[idx], isDir[idx]);
                 }
             });
-            row.getChildren().addAll(lbl, configPathLabels[i], browseBtn);
+            row.getChildren().addAll(labelBox, configPathLabels[i], browseBtn);
             configFormBox.getChildren().add(row);
         }
     }
@@ -153,6 +172,19 @@ public class ConfigController {
                 "Listing Cabinet Phénix", "Tableau de Bord", "Export PROCREANCES",
                 "Contrôle Facturation", "Récup. Num Facture", "Tableau de bord soldes",
                 "Facturation mensuel", "En-tête PDF (Phénix)", "TRF output (classement PDF)"};
+        String[] descs = {
+                "Dossier racine contenant tous les dossiers clients",
+                "Classement de la consolidation générale",
+                "Sélectionner le fichier de consolidation",
+                "Listing principal de tous les clients Cabinet Phénix",
+                "Utilisé pour la génération du TRF",
+                "Pour comparaison avec la consolidation",
+                "Sélectionner après avoir généré le Contrôle Facturation",
+                "Pour le numéro de facture et le nom des factures",
+                "Pour reporter les soldes clients",
+                "Classer les factures chez Phénix",
+                "Fichier PDF de l'en-tête Cabinet Phénix",
+                "Pour le classement des factures (PDF)"};
         boolean[] isDir  = {true, true, false, false, false, false, false, false, false, true, false, false};
         String[]  exts   = {null, null, "xlsx", "xlsx", "xlsx", "xls", "xlsx", "xlsx", "xlsx", null, "pdf", "xlsx"};
 
@@ -173,8 +205,11 @@ public class ConfigController {
             HBox row = new HBox(8);
             row.setAlignment(Pos.CENTER_LEFT);
             Label lbl = new Label(labels[i] + ":");
-            lbl.setMinWidth(200);
-            lbl.setStyle("-fx-font-weight:bold;-fx-font-family:'Courier New',monospace;");
+            lbl.setStyle("-fx-font-weight: bold;");
+            Label descLbl = new Label(i < descs.length ? descs[i] : "");
+            descLbl.setStyle("-fx-text-fill: #888; -fx-font-size: 10px;");
+            VBox labelBox = new VBox(2, lbl, descLbl);
+            labelBox.setMinWidth(200);
             pathLabels[i] = new Label();
             pathLabels[i].setMaxWidth(Double.MAX_VALUE);
             HBox.setHgrow(pathLabels[i], Priority.ALWAYS);
@@ -191,7 +226,7 @@ public class ConfigController {
                     changeBtn.setText("Changer");
                 }
             });
-            row.getChildren().addAll(lbl, pathLabels[i], changeBtn);
+            row.getChildren().addAll(labelBox, pathLabels[i], changeBtn);
             root.getChildren().add(row);
         }
 
