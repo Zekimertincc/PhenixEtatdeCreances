@@ -141,12 +141,14 @@ public class FacturationMailDialog {
         Button btnTplVirement  = new Button("Virement");
         Button btnTplNonComp   = new Button("Non Comp");
         Button btnTplPartielle = new Button("Comp Partielle");
+        Button btnTplDebiteurs = new Button("Débiteurs");
         btnTplVirement.setOnAction(e  -> bodyArea.setText(service.buildBody(FacturationMailService.CompType.VIREMENT)));
         btnTplNonComp.setOnAction(e   -> bodyArea.setText(service.buildBody(FacturationMailService.CompType.NON_COMP)));
         btnTplPartielle.setOnAction(e -> bodyArea.setText(service.buildBody(FacturationMailService.CompType.COMP_PARTIELLE)));
+        btnTplDebiteurs.setOnAction(e -> bodyArea.setText(service.buildBody(FacturationMailService.CompType.DEBITEURS)));
         templateRow.getChildren().addAll(
                 new Label("Charger modèle :"),
-                btnTplVirement, btnTplNonComp, btnTplPartielle);
+                btnTplVirement, btnTplNonComp, btnTplPartielle, btnTplDebiteurs);
 
         // Body
         bodyArea.setWrapText(true);

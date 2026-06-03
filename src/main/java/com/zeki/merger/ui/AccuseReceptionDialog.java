@@ -122,15 +122,20 @@ public class AccuseReceptionDialog {
         pane.setPadding(new Insets(4));
 
         subjectField.setPromptText("Objet du mail...");
-        subjectField.setText("Cabinet Phénix, votre état des créances");
+        subjectField.setText("Cabinet Phénix, accusé de réception de dossier(s)");
 
         bodyArea.setWrapText(true);
         bodyArea.setText(
             "Bonjour,\n\n" +
-            "Veuillez trouver ci-joint votre état mensuel des créances.\n\n" +
-            "Nous restons à votre disposition pour tout renseignement complémentaire.\n\n" +
-            "Cordialement,\n" +
-            "Cabinet Phénix"
+            "Nous vous prions de bien vouloir trouver ci-joint votre (vos) état(s) de créances " +
+            "à jour prenant en compte les derniers dossiers que vous nous avez confiés.\n\n" +
+            "Les derniers dossiers confiés seront affichés en premier.\n\n" +
+            "Notre équipe met en œuvre toutes les diligences nécessaires afin de recouvrer vos créances.\n\n" +
+            "Si l'un de vos débiteurs venait à vous contacter, nous vous conseillons de l'orienter vers nous.\n\n" +
+            "Par ailleurs, si un règlement vous est adressé directement, nous vous remercions de nous en tenir informés.\n\n" +
+            "Pour toute remise de nouveaux dossiers, nous vous invitons à nous les adresser par e-mail aux adresses " +
+            "contact@cabinetphenix.fr, info@cabinetphenix.fr ou par courrier.\n\n" +
+            "Nous restons à votre disposition pour toute information."
         );
         VBox.setVgrow(bodyArea, Priority.ALWAYS);
 

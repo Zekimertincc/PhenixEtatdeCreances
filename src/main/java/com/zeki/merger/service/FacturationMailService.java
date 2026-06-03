@@ -10,7 +10,7 @@ import java.util.stream.Collectors;
 
 public class FacturationMailService {
 
-    public enum CompType { VIREMENT, NON_COMP, COMP_PARTIELLE }
+    public enum CompType { VIREMENT, NON_COMP, COMP_PARTIELLE, DEBITEURS }
 
     // -------------------------------------------------------------------------
     // Template bodies
@@ -56,6 +56,18 @@ public class FacturationMailService {
                     Cordialement,
                     Cabinet Phénix
                     """;
+            case DEBITEURS -> """
+                    Bonjour,
+
+                    Nous avons le plaisir de vous adresser votre facture de commission relative au mois en cours dont le règlement reste à votre charge.
+
+                    Pour toute correspondance avec nos services, nous vous invitons à utiliser exclusivement les adresses suivantes : contact@cabinetphenix.fr / info@cabinetphenix.fr ou par courrier.
+
+                    Nous vous remercions de votre confiance et restons à votre disposition pour toute information complémentaire.
+
+                    Cordialement,
+
+                    CABINET PHENIX""";
         };
     }
 
