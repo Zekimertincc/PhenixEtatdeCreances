@@ -460,4 +460,13 @@ public class DatabaseManager {
             ps.setNull(idx, Types.NULL);
         }
     }
+
+    public synchronized void closeTrfMonth(int year, int month) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE trf_months SET status='closed', closed_at=datetime('now') WHERE year=? AND month=?")) {
+            ps.setInt(1, year);
+            ps.setInt(2, month);
+            ps.executeUpdate();
+        }
+    }
 }
