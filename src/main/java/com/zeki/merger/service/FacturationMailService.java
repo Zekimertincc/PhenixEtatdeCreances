@@ -218,8 +218,8 @@ public class FacturationMailService {
             String safeName = req.clientName.replaceAll("[^a-zA-Z0-9]", "_");
             File vbs = new File(draftDir, "draft_" + safeName + ".vbs");
 
-            String safeBody    = req.body.replace("\"", "\"\"")
-                    .replace("\n", "\" & Chr(10) & \"");
+            String htmlBody  = buildHtmlBody(req.body);
+            String safeHtml  = htmlBody.replace("\"", "\"\"");
             String safeSubject = req.subject.replace("\"", "\"\"");
             String safeTo      = req.to.replace("\"", "\"\"");
 
@@ -228,7 +228,7 @@ public class FacturationMailService {
             vbsContent.append("Set mail = ol.CreateItem(0)\n");
             vbsContent.append("mail.To = \"").append(safeTo).append("\"\n");
             vbsContent.append("mail.Subject = \"").append(safeSubject).append("\"\n");
-            vbsContent.append("mail.Body = \"").append(safeBody).append("\"\n");
+            vbsContent.append("mail.HTMLBody = \"").append(safeHtml).append("\"\n");
             vbsContent.append("mail.BCC = \"info@cabinetphenix.fr\"\n");
             if (req.attachmentPath != null && !req.attachmentPath.isBlank()) {
                 vbsContent.append("mail.Attachments.Add \"").append(req.attachmentPath).append("\"\n");
@@ -264,6 +264,51 @@ public class FacturationMailService {
         File[] files = folder.listFiles();
         if (files != null) for (File f : files) f.delete();
         folder.delete();
+    }
+
+    private String buildHtmlSignature() {
+        String logoBase64 = "";
+        try {
+            java.io.InputStream is = getClass().getResourceAsStream(
+                    "/com/zeki/merger/phenix_logo.png");
+            if (is != null) {
+                byte[] bytes = is.readAllBytes();
+                logoBase64 = java.util.Base64.getEncoder().encodeToString(bytes);
+                is.close();
+            }
+        } catch (Exception ignored) {}
+
+        String logoTag = logoBase64.isBlank() ? ""
+                : "<img src=\"data:image/png;base64," + logoBase64
+                  + "\" width=\"160\" style=\"display:block;margin-bottom:8px;\" />";
+
+        return "<br><br>"
+             + "<table style=\"font-family:Arial,sans-serif;font-size:12px;"
+             + "color:#333;border-left:3px solid #E8670A;padding-left:12px;"
+             + "margin-top:10px;\">"
+             + "<tr><td>" + logoTag + "</td></tr>"
+             + "<tr><td style=\"font-weight:bold;color:#1a1a1a;\">CABINET PHÉNIX</td></tr>"
+             + "<tr><td>1, rue de Stockholm — 75008 PARIS</td></tr>"
+             + "<tr><td>Mob. : +33 (0)6 72 86 38 78 &nbsp;|&nbsp; "
+             + "Tél. : +33 (0)1 53 20 12 76</td></tr>"
+             + "<tr><td>E-mail : <a href=\"mailto:contact@cabinetphenix.fr\" "
+             + "style=\"color:#E8670A;\">contact@cabinetphenix.fr</a></td></tr>"
+             + "<tr><td>Site : <a href=\"https://www.cabinetphenix.fr\" "
+             + "style=\"color:#E8670A;\">www.cabinetphenix.fr</a></td></tr>"
+             + "</table>";
+    }
+
+    private String buildHtmlBody(String plainBody) {
+        String htmlBody = plainBody
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\n", "<br>\n");
+        return "<html><body style=\"font-family:Arial,sans-serif;font-size:13px;"
+             + "color:#333;line-height:1.6;\">"
+             + htmlBody
+             + buildHtmlSignature()
+             + "</body></html>";
     }
 
     public static class DraftRequest {
