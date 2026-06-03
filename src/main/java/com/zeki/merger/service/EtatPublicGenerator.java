@@ -264,7 +264,7 @@ public class EtatPublicGenerator {
 
             int rowIdx = 0;
 
-            // Company info block (rows 0–7)
+            // Company info block (rows 0–7) — left side
             putString(sheet.createRow(rowIdx++), 0, companyName,  plain);
             putString(sheet.createRow(rowIdx++), 0, addr1,        plain);
             putString(sheet.createRow(rowIdx++), 0, addr2,        plain);
@@ -273,6 +273,40 @@ public class EtatPublicGenerator {
             sheet.createRow(rowIdx++);                             // blank
             putString(sheet.createRow(rowIdx++), 0, codeClient,   plain);
             sheet.createRow(rowIdx++);                             // blank separator
+
+            // Cabinet Phénix info — right side (cols 6-9, rows 0-4)
+            try {
+                java.io.InputStream logoStream = getClass().getResourceAsStream("/phenix.png");
+                if (logoStream == null)
+                    logoStream = getClass().getResourceAsStream("/com/zeki/merger/phenix_logo.png");
+                if (logoStream != null) {
+                    byte[] logoBytes = logoStream.readAllBytes();
+                    logoStream.close();
+                    int pictureIdx = wb.addPicture(logoBytes, XSSFWorkbook.PICTURE_TYPE_PNG);
+                    org.apache.poi.ss.usermodel.Drawing<?> drawing = sheet.createDrawingPatriarch();
+                    org.apache.poi.xssf.usermodel.XSSFClientAnchor anchor =
+                            new org.apache.poi.xssf.usermodel.XSSFClientAnchor(
+                                    740520, 0, 2867760, 102600, 3, 0, 5, 6);
+                    drawing.createPicture(anchor, pictureIdx);
+                }
+            } catch (Exception ignored) {}
+
+            XSSFCellStyle adresStyle = wb.createCellStyle();
+            adresStyle.cloneStyleFrom(plain);
+            adresStyle.setAlignment(org.apache.poi.ss.usermodel.HorizontalAlignment.RIGHT);
+
+            XSSFRow r0 = sheet.getRow(4); if (r0 == null) r0 = sheet.createRow(4);
+            XSSFRow r1 = sheet.getRow(5); if (r1 == null) r1 = sheet.createRow(5);
+            XSSFRow r2 = sheet.getRow(6); if (r2 == null) r2 = sheet.createRow(6);
+
+            putString(r0, 6, "1, rue de Stockholm — 75008 PARIS", adresStyle);
+            putString(r1, 6, "Tél. : +33 (0)1 53 20 12 76  |  Mob. : +33 (0)6 72 86 38 78", adresStyle);
+            putString(r2, 6, "contact@cabinetphenix.fr  |  www.cabinetphenix.fr", adresStyle);
+
+            // Merge adres cells across cols 6-9
+            sheet.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(4, 4, 6, 9));
+            sheet.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(5, 5, 6, 9));
+            sheet.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(6, 6, 6, 9));
 
             // Header row (row index 8)
             XSSFRow headerRow = sheet.createRow(rowIdx++);
@@ -342,14 +376,57 @@ public class EtatPublicGenerator {
 
             doc.setMargins(20, 20, 20, 20);
 
-            // Company info block
-            doc.add(new Paragraph(companyName).setBold().setFontSize(11));
-            if (!addr1.isBlank())       doc.add(new Paragraph(addr1).setFontSize(9));
-            if (!addr2.isBlank())       doc.add(new Paragraph(addr2).setFontSize(9));
-            if (!contactName.isBlank()) doc.add(new Paragraph(contactName).setFontSize(9));
-            if (!codeClient.isBlank())
-                doc.add(new Paragraph("Code client : " + codeClient).setFontSize(9));
-            doc.add(new Paragraph(" "));
+            // Header: 2-column table — client info left, Cabinet Phénix right
+            Table headerTable = new Table(UnitValue.createPercentArray(new float[]{55, 45}))
+                    .useAllAvailableWidth()
+                    .setMarginBottom(8);
+
+            // Left cell — client info
+            com.itextpdf.layout.element.Cell leftCell =
+                    new com.itextpdf.layout.element.Cell()
+                    .setBorder(com.itextpdf.layout.borders.Border.NO_BORDER)
+                    .setPadding(0);
+            leftCell.add(new Paragraph(companyName).setBold().setFontSize(11));
+            if (!addr1.isBlank())       leftCell.add(new Paragraph(addr1).setFontSize(9));
+            if (!addr2.isBlank())       leftCell.add(new Paragraph(addr2).setFontSize(9));
+            if (!contactName.isBlank()) leftCell.add(new Paragraph(contactName).setFontSize(9));
+            if (!codeClient.isBlank())  leftCell.add(new Paragraph("Code client : " + codeClient).setFontSize(9));
+
+            // Right cell — Cabinet Phénix logo + adres
+            com.itextpdf.layout.element.Cell rightCell =
+                    new com.itextpdf.layout.element.Cell()
+                    .setBorder(com.itextpdf.layout.borders.Border.NO_BORDER)
+                    .setPadding(0)
+                    .setTextAlignment(com.itextpdf.layout.properties.TextAlignment.RIGHT);
+
+            // Logo
+            try {
+                java.io.InputStream logoStream = getClass().getResourceAsStream("/phenix.png");
+                if (logoStream == null)
+                    logoStream = getClass().getResourceAsStream("/com/zeki/merger/phenix_logo.png");
+                if (logoStream != null) {
+                    com.itextpdf.io.image.ImageData imgData =
+                            com.itextpdf.io.image.ImageDataFactory.create(logoStream.readAllBytes());
+                    com.itextpdf.layout.element.Image logo =
+                            new com.itextpdf.layout.element.Image(imgData)
+                            .setWidth(120)
+                            .setHorizontalAlignment(
+                                    com.itextpdf.layout.properties.HorizontalAlignment.RIGHT);
+                    rightCell.add(logo);
+                    logoStream.close();
+                }
+            } catch (Exception ignored) {}
+
+            rightCell.add(new Paragraph("1, rue de Stockholm — 75008 PARIS")
+                    .setFontSize(8).setMarginTop(4));
+            rightCell.add(new Paragraph("Tél. : +33 (0)1 53 20 12 76  |  Mob. : +33 (0)6 72 86 38 78")
+                    .setFontSize(8));
+            rightCell.add(new Paragraph("contact@cabinetphenix.fr  |  www.cabinetphenix.fr")
+                    .setFontSize(8));
+
+            headerTable.addCell(leftCell);
+            headerTable.addCell(rightCell);
+            doc.add(headerTable);
 
             // Table — A4 landscape ~841 pt wide minus 40 pt margins = ~801 pt
             float[] colWidths = {50, 52, 68, 50, 60, 136, 90, 76, 110, 72, 37};
