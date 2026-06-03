@@ -218,8 +218,13 @@ public class FacturationMailService {
             String safeName = req.clientName.replaceAll("[^a-zA-Z0-9]", "_");
             File vbs = new File(draftDir, "draft_" + safeName + ".vbs");
 
-            String htmlBody  = buildHtmlBody(req.body);
-            String safeHtml  = htmlBody.replace("\"", "\"\"");
+            String htmlBody = buildHtmlBody(req.body);
+            // VBScript'te uzun HTML string'i Chr() ile parçalara böl
+            String safeHtml = htmlBody
+                    .replace("\\", "\\\\")
+                    .replace("\"", "\" & Chr(34) & \"")
+                    .replace("\n", "\" & Chr(10) & \"")
+                    .replace("\r", "");
             String safeSubject = req.subject.replace("\"", "\"\"");
             String safeTo      = req.to.replace("\"", "\"\"");
 
