@@ -65,7 +65,7 @@ public class ClientInfoService {
     // =========================================================================
     // Listing okuma — rawStr ile, DataFormatter YOK
     // Kolonlar (0-bazlı): 2=name, 3=code, 5=adresse, 6=cp, 7=ville,
-    //                     8=mail, 9=tel, 21=iban, 22=bic, 23=libelle, 26=tva
+    //                     8=mail, 9=tel, 21=iban, 22=bic, 23=libelle, 24=tva
     // =========================================================================
 
     private void readListing(File file,
@@ -93,7 +93,7 @@ public class ClientInfoService {
                         rawStr(row, 21),  // iban
                         rawStr(row, 22),  // bic
                         rawStr(row, 23),  // libelle (commercial)
-                        rawStr(row, 26)   // tva
+                        rawStr(row, 24)   // tva — col Y (index 24)
                 );
 
                 String code = cd.code();
