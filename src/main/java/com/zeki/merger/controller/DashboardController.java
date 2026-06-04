@@ -2,10 +2,7 @@ package com.zeki.merger.controller;
 
 import com.zeki.merger.AppPreferences;
 import com.zeki.merger.db.DatabaseManager;
-import com.zeki.merger.db.TrfHistoryRecord;
-import com.zeki.merger.db.TrfMonthRecord;
-import com.zeki.merger.service.MonthClotureService;
-import com.zeki.merger.trf.TrfGeneratorService;
+import com.zeki.merger.service.EtatCreancesSyncService;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -16,8 +13,6 @@ import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 
 import java.io.File;
-import java.time.LocalDate;
-import java.time.format.TextStyle;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
@@ -25,349 +20,453 @@ import java.util.stream.Collectors;
 
 public class DashboardController {
 
-    private final DatabaseManager     db;
-    private final MonthClotureService monthService;
-    private final TrfGeneratorService trfService;
-    private final Consumer<String>    log;
-    private final ExecutorService     executor;
+    private final DatabaseManager         db;
+    private final EtatCreancesSyncService syncService;
+    private final Consumer<String>        log;
+    private final ExecutorService         executor;
 
-    // Filters
-    private Integer filterYear  = null;
-    private Integer filterMonth = null;
+    private long selectedCompanyId = -1L;
 
-    public DashboardController(DatabaseManager db, MonthClotureService monthService,
-                                TrfGeneratorService trfService, Consumer<String> log,
+    public DashboardController(DatabaseManager db,
+                                EtatCreancesSyncService syncService,
+                                Consumer<String> log,
                                 ExecutorService executor) {
-        this.db           = db;
-        this.monthService = monthService;
-        this.trfService   = trfService;
-        this.log          = log;
-        this.executor     = executor;
+        this.db          = db;
+        this.syncService = syncService;
+        this.log         = log;
+        this.executor    = executor;
     }
 
     // =========================================================================
-    // Load
+    // Entry point
     // =========================================================================
 
     public void load(VBox container) {
         container.getChildren().clear();
-        container.setPadding(new Insets(16, 24, 12, 24));
-        container.setSpacing(12);
+        container.setPadding(Insets.EMPTY);
+        container.setSpacing(0);
 
-        List<TrfMonthRecord> allMonths = monthService.getAllMonths();
+        List<Map<String, Object>> summaries = db.getAllCompanySummaries();
 
-        // Top bar — filters + refresh
-        container.getChildren().add(buildTopBar(container, allMonths));
+        HBox root = new HBox();
+        VBox.setVgrow(root, Priority.ALWAYS);
+        root.setPrefHeight(Double.MAX_VALUE);
 
-        if (allMonths.isEmpty()) {
-            Label empty = new Label("Aucune donnée — cliquez sur Actualiser pour charger les données.");
-            empty.setStyle("-fx-text-fill: #888; -fx-font-size: 13px;");
-            container.getChildren().add(empty);
-            return;
+        VBox sidebar = buildSidebar(summaries, root);
+        sidebar.setPrefWidth(220);
+        sidebar.setMinWidth(180);
+        sidebar.setMaxWidth(220);
+
+        VBox detail = new VBox();
+        HBox.setHgrow(detail, Priority.ALWAYS);
+        detail.setStyle("-fx-background-color: #FAFAF8;");
+
+        if (summaries.isEmpty()) {
+            detail.getChildren().add(buildEmptyState());
+        } else {
+            Map<String, Object> initial = summaries.stream()
+                    .filter(s -> toLong(s.get("company_id")) == selectedCompanyId)
+                    .findFirst()
+                    .orElse(summaries.get(0));
+            buildDetail(detail, initial, summaries);
+            selectedCompanyId = toLong(initial.get("company_id"));
         }
 
-        // Get filtered data
-        List<TrfHistoryRecord> records = getFilteredRecords(allMonths);
-
-        // KPI row
-        container.getChildren().add(buildKpiRow(records, allMonths));
-
-        // Charts + client table
-        HBox mainRow = new HBox(16);
-        VBox.setVgrow(mainRow, Priority.ALWAYS);
-
-        VBox leftCol  = new VBox(12);
-        leftCol.setPrefWidth(420);
-        leftCol.setMinWidth(320);
-
-        VBox rightCol = new VBox(12);
-        HBox.setHgrow(rightCol, Priority.ALWAYS);
-
-        leftCol.getChildren().addAll(
-                buildMonthlyChart(allMonths),
-                buildEtatChart(records)
-        );
-        rightCol.getChildren().add(buildClientTable(records));
-
-        mainRow.getChildren().addAll(leftCol, rightCol);
-        container.getChildren().add(mainRow);
+        root.getChildren().addAll(sidebar, detail);
+        container.getChildren().add(root);
     }
 
     // =========================================================================
-    // Top bar — period filter + refresh
+    // Sidebar
     // =========================================================================
 
-    private HBox buildTopBar(VBox container, List<TrfMonthRecord> months) {
-        HBox bar = new HBox(10);
-        bar.setAlignment(Pos.CENTER_LEFT);
+    private VBox buildSidebar(List<Map<String, Object>> summaries, HBox root) {
+        VBox sidebar = new VBox();
+        sidebar.setStyle("-fx-background-color: #F2F0EB; -fx-border-color: rgba(0,0,0,0.10); -fx-border-width: 0 1 0 0;");
 
-        Label periodLabel = new Label("Période :");
-        periodLabel.setStyle("-fx-font-size: 12px;");
+        Label header = new Label("SOCIÉTÉS");
+        header.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #6B6B6B; -fx-padding: 14 12 8 14; -fx-background-color: #F2F0EB;");
+        header.setMaxWidth(Double.MAX_VALUE);
 
-        ComboBox<String> periodBox = new ComboBox<>();
-        periodBox.getItems().add("Tout l'historique");
-        for (TrfMonthRecord m : months) {
-            periodBox.getItems().add(monthLabel(m.month(), m.year()));
-        }
-        periodBox.setValue(filterYear == null ? "Tout l'historique"
-                : monthLabel(filterMonth, filterYear));
-        periodBox.setPrefWidth(160);
-        periodBox.setOnAction(e -> {
-            String selected = periodBox.getValue();
-            if ("Tout l'historique".equals(selected)) {
-                filterYear = null; filterMonth = null;
-            } else {
-                for (TrfMonthRecord m : months) {
-                    if (monthLabel(m.month(), m.year()).equals(selected)) {
-                        filterYear  = m.year();
-                        filterMonth = m.month();
-                        break;
-                    }
-                }
-            }
-            load(container);
+        TextField search = new TextField();
+        search.setPromptText("Rechercher…");
+        search.getStyleClass().add("path-field");
+        search.setStyle("-fx-font-size: 12px;");
+        VBox.setMargin(search, new Insets(0, 10, 8, 10));
+
+        VBox list = new VBox();
+        VBox.setVgrow(list, Priority.ALWAYS);
+        ScrollPane scroll = new ScrollPane(list);
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background-color: transparent; -fx-background: transparent; -fx-border-color: transparent;");
+        VBox.setVgrow(scroll, Priority.ALWAYS);
+
+        Button syncBtn = new Button("↻  Sync sociétés");
+        syncBtn.setMaxWidth(Double.MAX_VALUE);
+        syncBtn.getStyleClass().add("secondary-btn");
+        syncBtn.setStyle("-fx-font-size: 11px;");
+        VBox.setMargin(syncBtn, new Insets(8, 10, 10, 10));
+        syncBtn.setOnAction(e -> syncAll(root, syncBtn));
+
+        sidebar.getChildren().addAll(header, search, scroll, syncBtn);
+
+        populateCompanyList(list, summaries, root);
+
+        search.textProperty().addListener((obs, old, val) -> {
+            String q = val.trim().toLowerCase();
+            List<Map<String, Object>> filtered = summaries.stream()
+                    .filter(s -> q.isEmpty() || str(s, "name").toLowerCase().contains(q))
+                    .collect(Collectors.toList());
+            populateCompanyList(list, filtered, root);
         });
 
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
+        return sidebar;
+    }
 
-        Button refreshBtn = new Button("↻  Actualiser");
-        refreshBtn.getStyleClass().add("save-btn");
-        refreshBtn.setOnAction(e -> refresh(container));
+    private void populateCompanyList(VBox list, List<Map<String, Object>> summaries, HBox root) {
+        list.getChildren().clear();
+        for (Map<String, Object> s : summaries) {
+            long    id      = toLong(s.get("company_id"));
+            String  name    = str(s, "name");
+            int     nb      = toInt(s.get("nb_dossiers"));
+            String  code    = str(s, "code_client");
+            boolean synced  = nb > 0;
 
-        bar.getChildren().addAll(periodLabel, periodBox, spacer, refreshBtn);
-        return bar;
+            Button btn = new Button();
+            btn.setMaxWidth(Double.MAX_VALUE);
+            btn.setAlignment(Pos.CENTER_LEFT);
+            btn.getStyleClass().add("company-list-item");
+
+            Label nameLbl = new Label(name);
+            nameLbl.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #1a1a1a; -fx-wrap-text: true;");
+            nameLbl.setMaxWidth(180);
+            nameLbl.setWrapText(true);
+
+            String metaText = synced ? nb + " dossiers" + (code.isEmpty() ? "" : " · " + code) : "—  pas synchronisé";
+            Label metaLbl = new Label(metaText);
+            metaLbl.setStyle("-fx-font-size: 10px; -fx-text-fill: " + (synced ? "#6B6B6B" : "#9B9B9B") + ";");
+
+            VBox content = new VBox(2, nameLbl, metaLbl);
+            btn.setGraphic(content);
+            btn.setPadding(new Insets(8, 12, 8, 12));
+
+            if (id == selectedCompanyId) btn.getStyleClass().add("company-list-selected");
+
+            btn.setOnAction(e -> {
+                selectedCompanyId = id;
+                VBox detail = (VBox) root.getChildren().get(1);
+                buildDetail(detail, s, summaries);
+                populateCompanyList(list, summaries, root);
+            });
+
+            list.getChildren().add(btn);
+        }
+    }
+
+    // =========================================================================
+    // Detail pane
+    // =========================================================================
+
+    private void buildDetail(VBox detail, Map<String, Object> s, List<Map<String, Object>> all) {
+        detail.getChildren().clear();
+        detail.setSpacing(0);
+
+        boolean synced = toInt(s.get("nb_dossiers")) > 0;
+
+        detail.getChildren().add(buildDetailHeader(s, synced));
+
+        if (!synced) {
+            detail.getChildren().add(buildNotSyncedPane(str(s, "name")));
+            return;
+        }
+
+        detail.getChildren().add(buildKpiRow(s, all));
+
+        HBox charts = buildChartsRow(s, all);
+        VBox.setVgrow(charts, Priority.ALWAYS);
+        detail.getChildren().add(charts);
+    }
+
+    private HBox buildDetailHeader(Map<String, Object> s, boolean synced) {
+        HBox header = new HBox();
+        header.setAlignment(Pos.CENTER_LEFT);
+        header.setPadding(new Insets(14, 20, 12, 20));
+        header.setStyle("-fx-background-color: #FAFAF8; -fx-border-color: rgba(0,0,0,0.10); -fx-border-width: 0 0 1 0;");
+
+        VBox nameBox = new VBox(2);
+        HBox.setHgrow(nameBox, Priority.ALWAYS);
+
+        Label nameLbl = new Label(str(s, "name"));
+        nameLbl.getStyleClass().add("detail-company-name");
+
+        String code = str(s, "code_client");
+        String resp = str(s, "responsable");
+        String sync = str(s, "last_sync");
+        String meta = synced
+                ? (code.isEmpty() ? "" : "Code : " + code + "  ·  ")
+                  + (resp.isEmpty() ? "" : resp + "  ·  ")
+                  + (sync.isEmpty() ? "" : "sync " + sync.substring(0, Math.min(10, sync.length())))
+                : "Pas encore synchronisé";
+        Label metaLbl = new Label(meta);
+        metaLbl.getStyleClass().add("detail-company-code");
+
+        nameBox.getChildren().addAll(nameLbl, metaLbl);
+        header.getChildren().add(nameBox);
+        return header;
     }
 
     // =========================================================================
     // KPI row
     // =========================================================================
 
-    private HBox buildKpiRow(List<TrfHistoryRecord> records, List<TrfMonthRecord> months) {
-        double totalEncaissements = records.stream().mapToDouble(TrfHistoryRecord::encaissements).sum();
-        double totalCommissions   = records.stream().mapToDouble(TrfHistoryRecord::montantFacturer).sum();
-        double totalReverser      = records.stream().mapToDouble(TrfHistoryRecord::sommesReverser).sum();
-        double totalNousDoit      = records.stream().mapToDouble(TrfHistoryRecord::nousDoit).sum();
-        long   nbClients          = records.stream().map(TrfHistoryRecord::clientName).distinct().count();
-        long   nbMonths           = filterYear != null ? 1 : (long) months.size();
+    private HBox buildKpiRow(Map<String, Object> s, List<Map<String, Object>> all) {
+        double creance  = toDouble(s.get("creance_principale"));
+        double recouvre = toDouble(s.get("recouvre_total"));
+        double pct      = creance > 0 ? recouvre / creance * 100.0 : 0.0;
+        int    nbActive = toInt(s.get("nb_dossiers")) - toInt(s.get("nb_soldes"));
 
-        HBox row = new HBox(12,
-                kpiCard("Clients actifs",       String.valueOf(nbClients),          "#4CAF50"),
-                kpiCard("Encaissements CZ",      formatMoney(totalEncaissements),    "#2196F3"),
-                kpiCard("Commissions TTC",        formatMoney(totalCommissions),      "#FF9800"),
-                kpiCard("Sommes à reverser",      formatMoney(totalReverser),         "#9C27B0"),
-                kpiCard("Nous doit (cumul)",      formatMoney(totalNousDoit),         "#F44336"),
-                kpiCard("Mois enregistrés",       String.valueOf(nbMonths),           "#607D8B")
+        double totalCreance  = all.stream().mapToDouble(m -> toDouble(m.get("creance_principale"))).sum();
+        double totalRecouvre = all.stream().mapToDouble(m -> toDouble(m.get("recouvre_total"))).sum();
+        double globalPct     = totalCreance > 0 ? totalRecouvre / totalCreance * 100.0 : 0.0;
+
+        HBox row = new HBox(10);
+        row.setPadding(new Insets(14, 20, 14, 20));
+        row.setStyle("-fx-background-color: #FAFAF8; -fx-border-color: rgba(0,0,0,0.10); -fx-border-width: 0 0 1 0;");
+
+        row.getChildren().addAll(
+                kpiCard("Créance principale",  fmt(creance) + " €",              "#1a1a1a"),
+                kpiCard("Recouvré total",       fmt(recouvre) + " €",             "#0F6E56"),
+                kpiCard("Taux de recouvrement", String.format("%.1f%%", pct),
+                        pct >= 50 ? "#0F6E56" : pct >= 25 ? "#BA7517" : "#A32D2D"),
+                kpiCard("Dossiers actifs",      String.valueOf(nbActive),          "#185FA5"),
+                kpiCard("Taux global (toutes)", String.format("%.1f%%", globalPct), "#6B6B6B")
         );
-        row.setFillHeight(true);
         return row;
     }
 
+    private VBox kpiCard(String label, String value, String color) {
+        Label lbl = new Label(label);
+        lbl.getStyleClass().add("kpi-label");
+        Label val = new Label(value);
+        val.getStyleClass().add("kpi-value");
+        val.setStyle("-fx-text-fill: " + color + "; -fx-font-size: 16px;");
+        VBox card = new VBox(4, lbl, val);
+        card.getStyleClass().add("kpi-card");
+        HBox.setHgrow(card, Priority.ALWAYS);
+        return card;
+    }
+
     // =========================================================================
-    // Monthly bar chart
+    // Charts row
     // =========================================================================
 
-    private VBox buildMonthlyChart(List<TrfMonthRecord> months) {
-        Label title = new Label("Tendance mensuelle");
-        title.setStyle("-fx-font-weight: bold; -fx-font-size: 12px;");
+    private HBox buildChartsRow(Map<String, Object> s, List<Map<String, Object>> all) {
+        HBox row = new HBox(12);
+        row.setPadding(new Insets(16, 20, 16, 20));
+        row.setStyle("-fx-background-color: #FAFAF8;");
 
-        if (months.isEmpty()) return new VBox(title);
+        VBox leftCard = buildEtatChart(s);
+        leftCard.setPrefWidth(260);
+        leftCard.setMinWidth(220);
 
-        CategoryAxis xAxis = new CategoryAxis();
-        NumberAxis   yAxis = new NumberAxis();
-        yAxis.setLabel("€");
-        BarChart<String, Number> chart = new BarChart<>(xAxis, yAxis);
-        chart.setLegendVisible(true);
+        VBox rightCard = buildComparaisonChart(all);
+        HBox.setHgrow(rightCard, Priority.ALWAYS);
+
+        row.getChildren().addAll(leftCard, rightCard);
+        return row;
+    }
+
+    private VBox buildEtatChart(Map<String, Object> s) {
+        Label title = new Label("Répartition des dossiers");
+        title.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #6B6B6B;");
+
+        int soldes  = toInt(s.get("nb_soldes"));
+        int gestion = toInt(s.get("nb_gestion"));
+        int irr     = toInt(s.get("nb_irr"));
+        int arj     = toInt(s.get("nb_arj"));
+        int autres  = toInt(s.get("nb_autres"));
+
+        PieChart pie = new PieChart();
+        pie.setAnimated(false);
+        pie.setLegendVisible(false);
+        pie.setLabelsVisible(false);
+        pie.setPrefHeight(180);
+        pie.setStyle("-fx-background-color: transparent;");
+
+        if (soldes  > 0) addSlice(pie, "Soldé",   soldes,  "#1D9E75");
+        if (gestion > 0) addSlice(pie, "Gestion",  gestion, "#BA7517");
+        if (irr     > 0) addSlice(pie, "IRR",      irr,     "#E24B4A");
+        if (arj     > 0) addSlice(pie, "ARJ",      arj,     "#378ADD");
+        if (autres  > 0) addSlice(pie, "Autres",   autres,  "#888780");
+
+        VBox legend = new VBox(4);
+        legend.setPadding(new Insets(8, 0, 0, 0));
+        addLegendRow(legend, "Soldé",   soldes,  "#1D9E75");
+        addLegendRow(legend, "Gestion", gestion, "#BA7517");
+        addLegendRow(legend, "IRR",     irr,     "#E24B4A");
+        addLegendRow(legend, "ARJ",     arj,     "#378ADD");
+        addLegendRow(legend, "Autres",  autres,  "#888780");
+
+        VBox card = new VBox(8, title, pie, legend);
+        card.getStyleClass().add("kpi-card");
+        card.setPadding(new Insets(12));
+        return card;
+    }
+
+    private void addSlice(PieChart pie, String name, int count, String hex) {
+        PieChart.Data slice = new PieChart.Data(name, count);
+        pie.getData().add(slice);
+        slice.getNode().setStyle("-fx-pie-color: " + hex + ";");
+    }
+
+    private void addLegendRow(VBox legend, String label, int count, String hex) {
+        Rectangle dot = new Rectangle(10, 10);
+        dot.setFill(Color.web(hex));
+        dot.setArcWidth(3); dot.setArcHeight(3);
+        Label lbl = new Label(label + " — " + count);
+        lbl.setStyle("-fx-font-size: 11px; -fx-text-fill: #6B6B6B;");
+        HBox row = new HBox(6, dot, lbl);
+        row.setAlignment(Pos.CENTER_LEFT);
+        legend.getChildren().add(row);
+    }
+
+    private VBox buildComparaisonChart(List<Map<String, Object>> all) {
+        Label title = new Label("Créance vs recouvré — toutes les sociétés");
+        title.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #6B6B6B;");
+
+        List<Map<String, Object>> synced = all.stream()
+                .filter(m -> toInt(m.get("nb_dossiers")) > 0)
+                .sorted(Comparator.comparingDouble(m -> -toDouble(((Map<?,?>) m).get("creance_principale"))))
+                .limit(8)
+                .collect(Collectors.toList());
+
+        CategoryAxis yAxis = new CategoryAxis();
+        NumberAxis   xAxis = new NumberAxis();
+        xAxis.setLabel("€");
+        xAxis.setTickLabelFormatter(new NumberAxis.DefaultFormatter(xAxis) {
+            @Override public String toString(Number v) {
+                double d = v.doubleValue();
+                if (d >= 1_000_000) return String.format("%.1fM", d / 1_000_000);
+                if (d >= 1_000)     return String.format("%.0fk", d / 1_000);
+                return String.valueOf((int) d);
+            }
+        });
+
+        BarChart<Number, String> chart = new BarChart<>(xAxis, yAxis);
         chart.setAnimated(false);
-        chart.setPrefHeight(200);
+        chart.setLegendVisible(false);
+        chart.setPrefHeight(220);
+        chart.setBarGap(2);
+        chart.setCategoryGap(8);
         chart.setStyle("-fx-background-color: transparent;");
 
-        XYChart.Series<String, Number> encSeries = new XYChart.Series<>();
-        encSeries.setName("Encaissements");
-        XYChart.Series<String, Number> comSeries = new XYChart.Series<>();
-        comSeries.setName("Commissions");
+        XYChart.Series<Number, String> creanceSeries = new XYChart.Series<>();
+        creanceSeries.setName("Créance");
+        XYChart.Series<Number, String> recouvSeries  = new XYChart.Series<>();
+        recouvSeries.setName("Recouvré");
 
-        // Show last 12 months max, oldest first
-        List<TrfMonthRecord> sorted = new ArrayList<>(months);
-        Collections.reverse(sorted);
-        int start = Math.max(0, sorted.size() - 12);
-        for (int i = start; i < sorted.size(); i++) {
-            TrfMonthRecord m = sorted.get(i);
-            String label = monthLabel(m.month(), m.year());
-            List<TrfHistoryRecord> recs = monthService.getHistoryForMonth(m.id());
-            double enc = recs.stream().mapToDouble(TrfHistoryRecord::encaissements).sum();
-            double com = recs.stream().mapToDouble(TrfHistoryRecord::montantFacturer).sum();
-            encSeries.getData().add(new XYChart.Data<>(label, enc));
-            comSeries.getData().add(new XYChart.Data<>(label, com));
+        for (Map<String, Object> m : synced) {
+            String name = abbreviate(str(m, "name"), 18);
+            creanceSeries.getData().add(new XYChart.Data<>(toDouble(m.get("creance_principale")), name));
+            recouvSeries.getData().add(new XYChart.Data<>(toDouble(m.get("recouvre_total")), name));
         }
-        chart.getData().addAll(encSeries, comSeries);
+        chart.getData().addAll(creanceSeries, recouvSeries);
 
-        VBox box = new VBox(6, title, chart);
-        box.getStyleClass().add("kpi-card");
-        box.setPadding(new Insets(10));
+        Platform.runLater(() -> {
+            for (XYChart.Data<Number, String> d : creanceSeries.getData()) {
+                if (d.getNode() != null) d.getNode().setStyle("-fx-bar-fill: #B5D4F4;");
+            }
+            for (XYChart.Data<Number, String> d : recouvSeries.getData()) {
+                if (d.getNode() != null) d.getNode().setStyle("-fx-bar-fill: #1D9E75;");
+            }
+        });
+
+        HBox legend = new HBox(12);
+        legend.setPadding(new Insets(4, 0, 0, 0));
+        legend.getChildren().addAll(
+                legendChip("Créance",  "#B5D4F4"),
+                legendChip("Recouvré", "#1D9E75")
+        );
+
+        VBox card = new VBox(8, title, chart, legend);
+        card.getStyleClass().add("kpi-card");
+        card.setPadding(new Insets(12));
+        VBox.setVgrow(card, Priority.ALWAYS);
+        return card;
+    }
+
+    private HBox legendChip(String label, String hex) {
+        Rectangle dot = new Rectangle(10, 10);
+        dot.setFill(Color.web(hex));
+        dot.setArcWidth(3); dot.setArcHeight(3);
+        Label lbl = new Label(label);
+        lbl.setStyle("-fx-font-size: 11px; -fx-text-fill: #6B6B6B;");
+        HBox box = new HBox(5, dot, lbl);
+        box.setAlignment(Pos.CENTER_LEFT);
         return box;
     }
 
     // =========================================================================
-    // Etat distribution chart
+    // Empty / not-synced states
     // =========================================================================
 
-    private VBox buildEtatChart(List<TrfHistoryRecord> records) {
-        Label title = new Label("Répartition par type");
-        title.setStyle("-fx-font-weight: bold; -fx-font-size: 12px;");
-
-        long comp     = records.stream().filter(r -> isComp(r.etat())).count();
-        long nonComp  = records.stream().filter(r -> r.nonCompensation()).count();
-        long partiel  = records.stream().filter(r -> isPartiel(r.etat())).count();
-        long debiteur = records.stream().filter(r -> isDebiteur(r)).count();
-
-        VBox bars = new VBox(8);
-        long total = records.size();
-        if (total > 0) {
-            bars.getChildren().addAll(
-                    etatBar("VIREMENTS",   comp,     total, "#4CAF50"),
-                    etatBar("NON COMP",    nonComp,  total, "#F44336"),
-                    etatBar("COMP PART.",  partiel,  total, "#FF9800"),
-                    etatBar("DÉBITEURS",   debiteur, total, "#9C27B0")
-            );
-        }
-
-        VBox box = new VBox(8, title, bars);
-        box.getStyleClass().add("kpi-card");
-        box.setPadding(new Insets(10));
-        return box;
-    }
-
-    private HBox etatBar(String label, long count, long total, String color) {
-        Label lbl = new Label(String.format("%-15s %d", label, count));
-        lbl.setStyle("-fx-font-size: 11px; -fx-font-family: monospace;");
-        lbl.setMinWidth(140);
-
-        double pct = total > 0 ? (double) count / total : 0;
-        Rectangle fill = new Rectangle(Math.max(2, pct * 180), 14);
-        fill.setFill(Color.web(color));
-        fill.setArcWidth(4); fill.setArcHeight(4);
-
-        Label pctLbl = new Label(String.format("%.0f%%", pct * 100));
-        pctLbl.setStyle("-fx-font-size: 10px; -fx-text-fill: #888;");
-
-        HBox bar = new HBox(8, lbl, fill, pctLbl);
-        bar.setAlignment(Pos.CENTER_LEFT);
-        return bar;
-    }
-
-    // =========================================================================
-    // Client table
-    // =========================================================================
-
-    private VBox buildClientTable(List<TrfHistoryRecord> records) {
-        Label title = new Label("Détail par client");
-        title.setStyle("-fx-font-weight: bold; -fx-font-size: 12px;");
-
-        Map<String, double[]> agg     = new LinkedHashMap<>();
-        Map<String, String>   etats   = new LinkedHashMap<>();
-        Map<String, Boolean>  nonComps = new LinkedHashMap<>();
-
-        for (TrfHistoryRecord r : records) {
-            double[] vals = agg.computeIfAbsent(r.clientName(), k -> new double[4]);
-            vals[0] += r.encaissements();
-            vals[1] += r.montantFacturer();
-            vals[2] += r.sommesReverser();
-            vals[3] += r.nousDoit();
-            etats.put(r.clientName(), r.etat());
-            nonComps.put(r.clientName(), r.nonCompensation());
-        }
-
-        HBox header = tableRow("CLIENT", "ENCAISSEMENTS", "COMMISSIONS", "À REVERSER", "NOUS DOIT", "TYPE", true);
-        VBox rows = new VBox(2, header);
-
-        agg.entrySet().stream()
-                .sorted((a, b) -> Double.compare(b.getValue()[0], a.getValue()[0]))
-                .forEach(entry -> {
-                    String name   = entry.getKey();
-                    double[] vals = entry.getValue();
-                    String type   = resolveType(etats.get(name), nonComps.getOrDefault(name, false));
-                    rows.getChildren().add(tableRow(
-                            name,
-                            formatMoney(vals[0]),
-                            formatMoney(vals[1]),
-                            formatMoney(vals[2]),
-                            formatMoney(vals[3]),
-                            type,
-                            false
-                    ));
-                });
-
-        ScrollPane scroll = new ScrollPane(rows);
-        scroll.setFitToWidth(true);
-        scroll.setStyle("-fx-background-color: transparent; -fx-border-color: transparent;");
-        VBox.setVgrow(scroll, Priority.ALWAYS);
-
-        VBox box = new VBox(8, title, scroll);
-        box.getStyleClass().add("kpi-card");
-        box.setPadding(new Insets(10));
+    private VBox buildEmptyState() {
+        Label lbl = new Label("Aucune société synchronisée.\nCliquez sur « Sync sociétés » pour charger les données.");
+        lbl.setStyle("-fx-text-fill: #9B9B9B; -fx-font-size: 13px; -fx-text-alignment: center;");
+        lbl.setWrapText(true);
+        VBox box = new VBox(lbl);
+        box.setAlignment(Pos.CENTER);
+        box.setPadding(new Insets(40));
         VBox.setVgrow(box, Priority.ALWAYS);
         return box;
     }
 
-    private HBox tableRow(String c1, String c2, String c3, String c4, String c5, String c6, boolean header) {
-        HBox row = new HBox();
-        row.setAlignment(Pos.CENTER_LEFT);
-        if (header) {
-            row.setStyle("-fx-background-color: #2a2a2a; -fx-padding: 4 8;");
-        } else {
-            row.setStyle("-fx-padding: 3 8; -fx-border-color: transparent transparent #2a2a2a transparent;");
-        }
-
-        String[] vals   = {c1, c2, c3, c4, c5, c6};
-        double[] widths = {0.28, 0.15, 0.13, 0.13, 0.13, 0.10};
-
-        for (int i = 0; i < vals.length; i++) {
-            Label lbl = new Label(vals[i]);
-            lbl.setStyle("-fx-font-size: " + (header ? "10" : "11") + "px;"
-                    + (header ? " -fx-font-weight: bold; -fx-text-fill: #aaa;" : "")
-                    + (i > 0 ? " -fx-text-alignment: right;" : ""));
-            lbl.setMaxWidth(Double.MAX_VALUE);
-            HBox.setHgrow(lbl, Priority.ALWAYS);
-            lbl.prefWidthProperty().bind(row.widthProperty().multiply(widths[i]));
-            row.getChildren().add(lbl);
-        }
-        return row;
+    private VBox buildNotSyncedPane(String name) {
+        Label lbl = new Label(name + " n'a pas encore été synchronisé.\nLancez « Sync sociétés » pour charger ses données.");
+        lbl.setStyle("-fx-text-fill: #9B9B9B; -fx-font-size: 13px; -fx-text-alignment: center;");
+        lbl.setWrapText(true);
+        VBox box = new VBox(lbl);
+        box.setAlignment(Pos.CENTER);
+        box.setPadding(new Insets(40));
+        VBox.setVgrow(box, Priority.ALWAYS);
+        return box;
     }
 
     // =========================================================================
-    // Refresh
+    // Sync action
     // =========================================================================
 
-    public void refresh(VBox container) {
-        String consoPath   = AppPreferences.getTrfConso();
-        String listingPath = AppPreferences.getTrfListing();
-        String tableauPath = AppPreferences.getTrfTableau();
-
-        if (consoPath.isBlank() || listingPath.isBlank() || tableauPath.isBlank()) {
-            log.accept("[Dashboard] Fichiers non configurés — ouvrez Configuration.");
+    private void syncAll(HBox root, Button syncBtn) {
+        String rootPath = AppPreferences.getMergeRoot();
+        if (rootPath.isBlank()) {
+            log.accept("[Dashboard] Dossier racine non configuré.");
             return;
         }
-        File consoFile   = new File(consoPath);
-        File listingFile = new File(listingPath);
-        File tableauFile = new File(tableauPath);
-        if (!consoFile.exists() || !listingFile.exists() || !tableauFile.exists()) {
-            log.accept("[Dashboard] Fichier(s) introuvable(s) — vérifiez Configuration.");
+        File rootFolder = new File(rootPath);
+        if (!rootFolder.isDirectory()) {
+            log.accept("[Dashboard] Dossier introuvable : " + rootPath);
             return;
         }
-
-        log.accept("[Dashboard] Chargement...");
-        LocalDate now = LocalDate.now();
+        syncBtn.setDisable(true);
+        syncBtn.setText("↻  Sync en cours…");
+        log.accept("[Dashboard] Synchronisation…");
         executor.submit(() -> {
             try {
-                monthService.saveOpenMonth(now.getYear(), now.getMonthValue(),
-                        consoFile, listingFile, tableauFile);
+                syncService.syncAll(rootFolder, (pct, msg) ->
+                        Platform.runLater(() -> log.accept(msg)));
                 Platform.runLater(() -> {
-                    log.accept("[Dashboard] ✓ Données actualisées.");
-                    load(container);
+                    syncBtn.setDisable(false);
+                    syncBtn.setText("↻  Sync sociétés");
+                    log.accept("[Dashboard] ✓ Synchronisation terminée.");
+                    VBox container = (VBox) root.getParent();
+                    if (container != null) load(container);
                 });
             } catch (Exception e) {
-                Platform.runLater(() -> log.accept("[Dashboard] ERREUR : " + e.getMessage()));
+                Platform.runLater(() -> {
+                    syncBtn.setDisable(false);
+                    syncBtn.setText("↻  Sync sociétés");
+                    log.accept("[Dashboard] ERREUR : " + e.getMessage());
+                });
             }
         });
     }
@@ -376,58 +475,35 @@ public class DashboardController {
     // Helpers
     // =========================================================================
 
-    private List<TrfHistoryRecord> getFilteredRecords(List<TrfMonthRecord> months) {
-        List<TrfHistoryRecord> all = new ArrayList<>();
-        for (TrfMonthRecord m : months) {
-            if (filterYear != null && (m.year() != filterYear || m.month() != filterMonth)) continue;
-            all.addAll(monthService.getHistoryForMonth(m.id()));
-        }
-        return all;
-    }
-
-    private VBox kpiCard(String label, String value, String color) {
-        Label lbl = new Label(label);
-        lbl.getStyleClass().add("kpi-label");
-        Label val = new Label(value);
-        val.getStyleClass().add("kpi-value");
-        val.setStyle("-fx-text-fill: " + color + ";");
-        VBox card = new VBox(4, lbl, val);
-        card.getStyleClass().add("kpi-card");
-        HBox.setHgrow(card, Priority.ALWAYS);
-        return card;
-    }
-
-    private String formatMoney(double v) {
+    private String fmt(double v) {
         if (v == 0) return "—";
-        return String.format("%,.0f €", v).replace(",", " ");
+        return String.format("%,.0f", v).replace(",", " ");
     }
 
-    private String monthLabel(int month, int year) {
-        return java.time.Month.of(month)
-                .getDisplayName(TextStyle.SHORT, java.util.Locale.FRENCH)
-                + ". " + year;
+    private String str(Map<String, Object> m, String key) {
+        Object v = m.get(key);
+        return v == null ? "" : v.toString().trim();
     }
 
-    private String resolveType(String etat, boolean nonComp) {
-        if (nonComp) return "NON COMP";
-        if (etat == null) return "—";
-        String e = etat.toLowerCase();
-        if (e.contains("partiel")) return "COMP PART.";
-        if (e.contains("debit") || e.contains("débit")) return "DÉBITEUR";
-        return "VIREMENT";
+    private long toLong(Object v) {
+        if (v == null) return -1L;
+        if (v instanceof Number n) return n.longValue();
+        try { return Long.parseLong(v.toString()); } catch (Exception e) { return -1L; }
     }
 
-    private boolean isComp(String etat) {
-        if (etat == null) return false;
-        String e = etat.toLowerCase();
-        return !e.contains("non") && !e.contains("partiel") && !e.contains("debit");
+    private int toInt(Object v) {
+        if (v == null) return 0;
+        if (v instanceof Number n) return n.intValue();
+        try { return Integer.parseInt(v.toString()); } catch (Exception e) { return 0; }
     }
 
-    private boolean isPartiel(String etat) {
-        return etat != null && etat.toLowerCase().contains("partiel");
+    private double toDouble(Object v) {
+        if (v == null) return 0.0;
+        if (v instanceof Number n) return n.doubleValue();
+        try { return Double.parseDouble(v.toString()); } catch (Exception e) { return 0.0; }
     }
 
-    private boolean isDebiteur(TrfHistoryRecord r) {
-        return r.encaissements() < 0.005 && r.nousDoit() > 0.005;
+    private String abbreviate(String s, int max) {
+        return s.length() <= max ? s : s.substring(0, max - 1) + "…";
     }
 }

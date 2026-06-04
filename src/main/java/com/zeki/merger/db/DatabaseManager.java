@@ -100,6 +100,25 @@ public class DatabaseManager {
                 )""");
 
             st.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS company_summaries (
+                    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id          INTEGER NOT NULL UNIQUE REFERENCES companies(id) ON DELETE CASCADE,
+                    code_client         TEXT,
+                    responsable         TEXT,
+                    nb_dossiers         INTEGER,
+                    nb_soldes           INTEGER,
+                    nb_gestion          INTEGER,
+                    nb_irr              INTEGER,
+                    nb_arj              INTEGER,
+                    nb_autres           INTEGER,
+                    creance_principale  REAL,
+                    recouvre_total      REAL,
+                    commissions         REAL,
+                    dernier_dossier     TEXT,
+                    last_sync           TEXT
+                )""");
+
+            st.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS trf_summaries (
                     id                             INTEGER PRIMARY KEY AUTOINCREMENT,
                     company_id                     INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
@@ -459,6 +478,78 @@ public class DatabaseManager {
         } else {
             ps.setNull(idx, Types.NULL);
         }
+    }
+
+    /** Upsert the computed summary for a company (from Érat de Créances sheet). */
+    public synchronized void upsertCompanySummary(long companyId, String codeClient,
+            String responsable, int nbDossiers, int nbSoldes, int nbGestion,
+            int nbIrr, int nbArj, int nbAutres,
+            double creancePrincipale, double recouvreTotal, double commissions,
+            String dernierDossier) throws SQLException {
+        String now = LocalDateTime.now().format(ISO);
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO company_summaries
+                  (company_id, code_client, responsable, nb_dossiers,
+                   nb_soldes, nb_gestion, nb_irr, nb_arj, nb_autres,
+                   creance_principale, recouvre_total, commissions,
+                   dernier_dossier, last_sync)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(company_id) DO UPDATE
+                  SET code_client=excluded.code_client, responsable=excluded.responsable,
+                      nb_dossiers=excluded.nb_dossiers, nb_soldes=excluded.nb_soldes,
+                      nb_gestion=excluded.nb_gestion, nb_irr=excluded.nb_irr,
+                      nb_arj=excluded.nb_arj, nb_autres=excluded.nb_autres,
+                      creance_principale=excluded.creance_principale,
+                      recouvre_total=excluded.recouvre_total,
+                      commissions=excluded.commissions,
+                      dernier_dossier=excluded.dernier_dossier,
+                      last_sync=excluded.last_sync
+                """)) {
+            ps.setLong  (1,  companyId);
+            ps.setString(2,  codeClient);
+            ps.setString(3,  responsable);
+            ps.setInt   (4,  nbDossiers);
+            ps.setInt   (5,  nbSoldes);
+            ps.setInt   (6,  nbGestion);
+            ps.setInt   (7,  nbIrr);
+            ps.setInt   (8,  nbArj);
+            ps.setInt   (9,  nbAutres);
+            ps.setDouble(10, creancePrincipale);
+            ps.setDouble(11, recouvreTotal);
+            ps.setDouble(12, commissions);
+            ps.setString(13, dernierDossier);
+            ps.setString(14, now);
+            ps.executeUpdate();
+        }
+    }
+
+    public synchronized List<Map<String, Object>> getAllCompanySummaries() {
+        List<Map<String, Object>> out = new ArrayList<>();
+        String sql = """
+                SELECT c.id AS company_id, c.name, c.source_path,
+                       cs.code_client, cs.responsable, cs.nb_dossiers,
+                       cs.nb_soldes, cs.nb_gestion, cs.nb_irr, cs.nb_arj, cs.nb_autres,
+                       cs.creance_principale, cs.recouvre_total, cs.commissions,
+                       cs.dernier_dossier, cs.last_sync
+                FROM companies c
+                LEFT JOIN company_summaries cs ON cs.company_id = c.id
+                ORDER BY c.name COLLATE NOCASE
+                """;
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery(sql)) {
+            ResultSetMetaData meta = rs.getMetaData();
+            int cols = meta.getColumnCount();
+            while (rs.next()) {
+                Map<String, Object> row = new LinkedHashMap<>();
+                for (int i = 1; i <= cols; i++) {
+                    row.put(meta.getColumnName(i), rs.getObject(i));
+                }
+                out.add(row);
+            }
+        } catch (SQLException e) {
+            System.err.println("[DB] getAllCompanySummaries error: " + e.getMessage());
+        }
+        return out;
     }
 
     public synchronized void closeTrfMonth(int year, int month) throws SQLException {

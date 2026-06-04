@@ -116,7 +116,7 @@ public class MainController {
         navOperations.getStyleClass().add("nav-active");
 
         dashboardController  = new DashboardController(DatabaseManager.getInstance(),
-            monthClotureService, trfGeneratorService, this::appendLog, executor);
+            syncService, this::appendLog, executor);
 
         historiqueController = new HistoriqueController(DatabaseManager.getInstance(),
             monthClotureService, trfGeneratorService, this::appendLog, executor,
@@ -138,10 +138,7 @@ public class MainController {
         configController.load();
         operationsController.buildButtons(actionsGrid);
 
-        if (DatabaseManager.getInstance().getAllTrfMonths().isEmpty()) {
-            appendLog("[Dashboard] Base de données vide — chargement automatique...");
-            dashboardController.refresh(pageDashboard);
-        }
+        // Dashboard loads on demand — no auto-refresh needed
     }
 
     // =========================================================================
