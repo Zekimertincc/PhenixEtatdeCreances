@@ -58,6 +58,8 @@ public class DatabaseManager {
                     last_sync   TEXT
                 )""");
 
+            st.executeUpdate("CREATE UNIQUE INDEX IF NOT EXISTS idx_companies_name_ci ON companies(name COLLATE NOCASE)");
+
             st.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS creance_rows (
                     id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -161,6 +163,7 @@ public class DatabaseManager {
 
     /** Upsert company by name and return its row id. */
     public synchronized long upsertCompany(String name, String sourcePath) throws SQLException {
+        name = name.trim();
         String now = LocalDateTime.now().format(ISO);
         try (PreparedStatement ps = conn.prepareStatement("""
                 INSERT INTO companies (name, source_path, last_sync) VALUES (?,?,?)
