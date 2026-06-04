@@ -299,12 +299,7 @@ public class FacturationMailService {
             vbsContent.append("  mail.SendUsingAccount = targetAcc\n");
             vbsContent.append("  mail.Save\n");
             vbsContent.append("  On Error Resume Next\n");
-            vbsContent.append("  Dim oStore\n");
-            vbsContent.append("  For Each oStore In ol.Session.Stores\n");
-            vbsContent.append("    If InStr(LCase(oStore.DisplayName), \"cabinetphenix\") > 0 Then\n");
-            vbsContent.append("      mail.Move oStore.GetDefaultFolder(16)\n");
-            vbsContent.append("    End If\n");
-            vbsContent.append("  Next\n");
+            vbsContent.append("  mail.Move targetAcc.DeliveryStore.GetDefaultFolder(16)\n");
             vbsContent.append("  On Error GoTo 0\n");
             vbsContent.append("Else\n");
             vbsContent.append("  mail.Save\n");
