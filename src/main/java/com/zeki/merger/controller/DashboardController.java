@@ -12,6 +12,8 @@ import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 
 import java.io.File;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
@@ -24,7 +26,9 @@ public class DashboardController {
     private final Consumer<String>        log;
     private final ExecutorService         executor;
 
-    private long selectedCompanyId = -1L;
+    private long      selectedCompanyId = -1L;
+    private LocalDate filterFrom        = LocalDate.now().minusYears(1).withDayOfMonth(1);
+    private LocalDate filterTo          = LocalDate.now();
 
     public DashboardController(DatabaseManager db,
                                EtatCreancesSyncService syncService,
@@ -45,19 +49,79 @@ public class DashboardController {
         container.setPadding(Insets.EMPTY);
         container.setSpacing(0);
 
-        List<Map<String, Object>> summaries = db.getAllCompanySummaries();
+        // Tab bar
+        HBox tabBar = new HBox();
+        tabBar.setStyle("-fx-background-color: #FAFAF8; -fx-border-color: rgba(0,0,0,0.10); -fx-border-width: 0 0 1 0;");
+        tabBar.setPadding(new Insets(0, 20, 0, 20));
+
+        Button tabSociete = tabBtn("Par société");
+        Button tabGlobal  = tabBtn("Vue globale");
+        tabBar.getChildren().addAll(tabSociete, tabGlobal);
+
+        // Content area
+        VBox content = new VBox();
+        VBox.setVgrow(content, Priority.ALWAYS);
+        content.setStyle("-fx-background-color: #FAFAF8;");
+
+        final boolean[] isGlobal = {false};
+        loadParSociete(content);
+        styleActiveTab(tabSociete, tabGlobal, true);
+
+        tabSociete.setOnAction(e -> {
+            if (isGlobal[0]) {
+                isGlobal[0] = false;
+                loadParSociete(content);
+                styleActiveTab(tabSociete, tabGlobal, true);
+            }
+        });
+        tabGlobal.setOnAction(e -> {
+            if (!isGlobal[0]) {
+                isGlobal[0] = true;
+                loadVueGlobale(content);
+                styleActiveTab(tabSociete, tabGlobal, false);
+            }
+        });
+
+        container.getChildren().addAll(tabBar, content);
+    }
+
+    private Button tabBtn(String label) {
+        Button btn = new Button(label);
+        btn.setStyle("-fx-background-color: transparent; -fx-border-color: transparent; " +
+                     "-fx-font-size: 12px; -fx-padding: 10 4 10 4; -fx-cursor: hand;");
+        return btn;
+    }
+
+    private void styleActiveTab(Button tabSociete, Button tabGlobal, boolean societeActive) {
+        tabSociete.setStyle("-fx-background-color: transparent; -fx-font-size: 12px; -fx-padding: 10 4 10 4; -fx-cursor: hand; " +
+            "-fx-border-color: " + (societeActive ? "#185FA5 transparent transparent transparent" : "transparent") + "; -fx-border-width: 0 0 2 0; " +
+            "-fx-text-fill: " + (societeActive ? "#185FA5" : "#6B6B6B") + ";");
+        tabGlobal.setStyle("-fx-background-color: transparent; -fx-font-size: 12px; -fx-padding: 10 4 10 4; -fx-cursor: hand; " +
+            "-fx-border-color: " + (!societeActive ? "#185FA5 transparent transparent transparent" : "transparent") + "; -fx-border-width: 0 0 2 0; " +
+            "-fx-text-fill: " + (!societeActive ? "#185FA5" : "#6B6B6B") + ";");
+        HBox.setMargin(tabGlobal, new Insets(0, 0, 0, 20));
+    }
+
+    // =========================================================================
+    // Tab: Par société
+    // =========================================================================
+
+    private void loadParSociete(VBox content) {
+        content.getChildren().clear();
+
+        List<Map<String, Object>> summaries = db.getAllCompanySummaries().stream()
+                .filter(s -> toInt(s.get("nb_dossiers")) > 0)
+                .collect(Collectors.toList());
 
         HBox root = new HBox();
         VBox.setVgrow(root, Priority.ALWAYS);
         root.setPrefHeight(Double.MAX_VALUE);
 
-        // Sidebar
         VBox sidebar = buildSidebar(summaries, root);
         sidebar.setPrefWidth(220);
         sidebar.setMinWidth(180);
         sidebar.setMaxWidth(220);
 
-        // Detail
         VBox detail = new VBox();
         HBox.setHgrow(detail, Priority.ALWAYS);
         detail.setStyle("-fx-background-color: #FAFAF8;");
@@ -74,7 +138,7 @@ public class DashboardController {
         }
 
         root.getChildren().addAll(sidebar, detail);
-        container.getChildren().add(root);
+        content.getChildren().add(root);
     }
 
     // =========================================================================
@@ -155,8 +219,7 @@ public class DashboardController {
             cell.getChildren().addAll(nameLbl, metaLbl);
             cell.setOnMouseClicked(e -> {
                 selectedCompanyId = id;
-                VBox detail = (VBox) root.getChildren().get(1);
-                // Reload full list with new selection
+                VBox detail  = (VBox) root.getChildren().get(1);
                 VBox sidebar = (VBox) root.getChildren().get(0);
                 ScrollPane sp = (ScrollPane) sidebar.getChildren().get(2);
                 rebuildList((VBox) sp.getContent(), items, root);
@@ -178,7 +241,6 @@ public class DashboardController {
 
         boolean synced = toInt(s.get("nb_dossiers")) > 0;
 
-        // Header
         HBox hdr = new HBox();
         hdr.setAlignment(Pos.CENTER_LEFT);
         hdr.setPadding(new Insets(14, 20, 12, 20));
@@ -211,10 +273,8 @@ public class DashboardController {
             return;
         }
 
-        // KPI row
         detail.getChildren().add(buildKpiRow(s, all));
 
-        // Charts
         HBox charts = new HBox(12);
         charts.setPadding(new Insets(16, 20, 16, 20));
         VBox.setVgrow(charts, Priority.ALWAYS);
@@ -270,7 +330,7 @@ public class DashboardController {
     }
 
     // =========================================================================
-    // État distribution — custom horizontal bars (no PieChart)
+    // État distribution bars
     // =========================================================================
 
     private VBox buildEtatBars(Map<String, Object> s) {
@@ -321,7 +381,7 @@ public class DashboardController {
     }
 
     // =========================================================================
-    // Comparaison bars — all companies
+    // Comparaison bars
     // =========================================================================
 
     private VBox buildComparaisonBars(List<Map<String, Object>> all) {
@@ -369,7 +429,6 @@ public class DashboardController {
             rows.getChildren().add(row);
         }
 
-        // Legend
         HBox legend = new HBox(12,
                 legendChip("Créance",  "#B5D4F4"),
                 legendChip("Recouvré", "#1D9E75"));
@@ -390,6 +449,155 @@ public class DashboardController {
         HBox box = new HBox(5, dot, lbl);
         box.setAlignment(Pos.CENTER_LEFT);
         return box;
+    }
+
+    // =========================================================================
+    // Tab: Vue globale
+    // =========================================================================
+
+    private void loadVueGlobale(VBox content) {
+        content.getChildren().clear();
+
+        HBox filterRow = new HBox(12);
+        filterRow.setAlignment(Pos.CENTER_LEFT);
+        filterRow.setPadding(new Insets(14, 20, 14, 20));
+        filterRow.setStyle("-fx-border-color: rgba(0,0,0,0.10); -fx-border-width: 0 0 1 0;");
+
+        Label fromLbl = new Label("Du :");
+        fromLbl.setStyle("-fx-font-size: 12px; -fx-text-fill: #6B6B6B;");
+        DatePicker fromPicker = new DatePicker(filterFrom);
+        fromPicker.setPrefWidth(140);
+
+        Label toLbl = new Label("Au :");
+        toLbl.setStyle("-fx-font-size: 12px; -fx-text-fill: #6B6B6B;");
+        DatePicker toPicker = new DatePicker(filterTo);
+        toPicker.setPrefWidth(140);
+
+        Button applyBtn = new Button("Appliquer");
+        applyBtn.getStyleClass().add("secondary-btn");
+
+        filterRow.getChildren().addAll(fromLbl, fromPicker, toLbl, toPicker, applyBtn);
+
+        VBox resultsArea = new VBox();
+        VBox.setVgrow(resultsArea, Priority.ALWAYS);
+
+        applyBtn.setOnAction(e -> {
+            filterFrom = fromPicker.getValue();
+            filterTo   = toPicker.getValue();
+            buildGlobalResults(resultsArea);
+        });
+
+        buildGlobalResults(resultsArea);
+        content.getChildren().addAll(filterRow, resultsArea);
+    }
+
+    private void buildGlobalResults(VBox area) {
+        area.getChildren().clear();
+        area.setPadding(new Insets(16, 20, 16, 20));
+        area.setSpacing(12);
+
+        String fmt  = "yyyy-MM-dd";
+        String from = filterFrom.format(DateTimeFormatter.ofPattern(fmt));
+        String to   = filterTo.format(DateTimeFormatter.ofPattern(fmt));
+
+        List<Map<String, Object>> rows = db.getGlobalStatsByDateRange(from, to);
+
+        if (rows.isEmpty()) {
+            Label empty = new Label("Aucun dossier trouvé pour cette période.");
+            empty.setStyle("-fx-text-fill: #9B9B9B; -fx-font-size: 13px;");
+            area.getChildren().add(empty);
+            return;
+        }
+
+        double totCreance  = rows.stream().mapToDouble(r -> toDouble(r.get("creance_principale"))).sum();
+        double totRecouvre = rows.stream().mapToDouble(r -> toDouble(r.get("recouvre_total"))).sum();
+        int    totDossiers = rows.stream().mapToInt(r -> toInt(r.get("nb_dossiers"))).sum();
+        double globalPct   = totCreance > 0 ? totRecouvre / totCreance * 100.0 : 0.0;
+
+        HBox kpis = new HBox(10);
+        kpis.getChildren().addAll(
+            kpi("Total créances",       fmt(totCreance) + " €",          "#1a1a1a"),
+            kpi("Total recouvré",       fmt(totRecouvre) + " €",         "#0F6E56"),
+            kpi("Taux recouvrement",    String.format("%.1f%%", globalPct),
+                globalPct >= 50 ? "#0F6E56" : globalPct >= 25 ? "#BA7517" : "#A32D2D"),
+            kpi("Dossiers sur période", String.valueOf(totDossiers),      "#185FA5")
+        );
+        area.getChildren().add(kpis);
+
+        double maxCreance = rows.stream().mapToDouble(r -> toDouble(r.get("creance_principale"))).max().orElse(1.0);
+
+        VBox tableCard = new VBox(6);
+        tableCard.setStyle("-fx-background-color: #F2F0EB; -fx-background-radius: 8px; -fx-padding: 12;");
+
+        HBox hdr = new HBox();
+        hdr.setPadding(new Insets(0, 0, 6, 0));
+        hdr.setStyle("-fx-border-color: rgba(0,0,0,0.10); -fx-border-width: 0 0 1 0;");
+        hdr.getChildren().addAll(
+            colHdr("Société",  200),
+            colHdr("Créance",  110),
+            colHdr("Recouvré", 110),
+            colHdr("Taux",      70),
+            colHdr("Dossiers",  70)
+        );
+        tableCard.getChildren().add(hdr);
+
+        ScrollPane scroll = new ScrollPane();
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background-color: transparent; -fx-background: transparent; -fx-border-color: transparent;");
+        VBox.setVgrow(scroll, Priority.ALWAYS);
+
+        VBox tableRows = new VBox(2);
+        for (Map<String, Object> r : rows) {
+            double creance  = toDouble(r.get("creance_principale"));
+            double recouvre = toDouble(r.get("recouvre_total"));
+            double pct      = creance > 0 ? recouvre / creance * 100.0 : 0.0;
+            int    nb       = toInt(r.get("nb_dossiers"));
+            String name     = str(r, "name");
+
+            HBox row = new HBox();
+            row.setAlignment(Pos.CENTER_LEFT);
+            row.setPadding(new Insets(5, 0, 5, 0));
+            row.setStyle("-fx-border-color: rgba(0,0,0,0.06); -fx-border-width: 0 0 1 0;");
+
+            double barW = maxCreance > 0 ? creance / maxCreance * 180 : 0;
+            StackPane nameCell = new StackPane();
+            nameCell.setMinWidth(200); nameCell.setMaxWidth(200);
+            nameCell.setAlignment(Pos.CENTER_LEFT);
+            Rectangle bar = new Rectangle(Math.max(1, barW), 22);
+            bar.setFill(Color.web("#E6F1FB"));
+            bar.setArcWidth(3); bar.setArcHeight(3);
+            Label nameLbl = new Label(abbreviate(name, 24));
+            nameLbl.setStyle("-fx-font-size: 11px; -fx-text-fill: #1a1a1a; -fx-padding: 0 0 0 6;");
+            nameCell.getChildren().addAll(bar, nameLbl);
+
+            row.getChildren().addAll(
+                nameCell,
+                colVal(fmt(creance) + " €",         110, "#1a1a1a"),
+                colVal(fmt(recouvre) + " €",         110, "#0F6E56"),
+                colVal(String.format("%.1f%%", pct),  70,
+                    pct >= 50 ? "#0F6E56" : pct >= 25 ? "#BA7517" : "#A32D2D"),
+                colVal(String.valueOf(nb),             70, "#185FA5")
+            );
+            tableRows.getChildren().add(row);
+        }
+        scroll.setContent(tableRows);
+        tableCard.getChildren().add(scroll);
+        VBox.setVgrow(tableCard, Priority.ALWAYS);
+        area.getChildren().add(tableCard);
+    }
+
+    private Label colHdr(String text, double width) {
+        Label l = new Label(text);
+        l.setMinWidth(width); l.setMaxWidth(width);
+        l.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #9B9B9B;");
+        return l;
+    }
+
+    private Label colVal(String text, double width, String color) {
+        Label l = new Label(text);
+        l.setMinWidth(width); l.setMaxWidth(width);
+        l.setStyle("-fx-font-size: 11px; -fx-text-fill: " + color + ";");
+        return l;
     }
 
     // =========================================================================
@@ -428,7 +636,7 @@ public class DashboardController {
                     syncBtn.setDisable(false);
                     syncBtn.setText("↻  Sync sociétés");
                     log.accept("[Dashboard] ✓ Terminé.");
-                    VBox container = (VBox) root.getParent();
+                    VBox container = (VBox) root.getParent().getParent();
                     if (container != null) load(container);
                 });
             } catch (Exception e) {
@@ -447,7 +655,7 @@ public class DashboardController {
 
     private String fmt(double v) {
         if (v == 0) return "—";
-        return String.format("%,.0f", v).replace(",", "\u00A0");
+        return String.format("%,.0f", v).replace(",", " ");
     }
 
     private String fmtK(double v) {

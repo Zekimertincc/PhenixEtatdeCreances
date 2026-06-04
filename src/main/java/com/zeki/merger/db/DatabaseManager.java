@@ -563,4 +563,45 @@ public class DatabaseManager {
             ps.executeUpdate();
         }
     }
+
+    /**
+     * Returns per-company aggregates from creance_rows filtered by REMIS LE date range.
+     * dateFrom and dateTo are inclusive, format "YYYY-MM-DD".
+     * Returns list of maps with keys: company_id, name, creance_principale, recouvre_total,
+     * nb_dossiers, nb_soldes.
+     */
+    public synchronized List<Map<String, Object>> getGlobalStatsByDateRange(
+            String dateFrom, String dateTo) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        String sql = """
+                SELECT c.id AS company_id, c.name,
+                       COUNT(*)                                          AS nb_dossiers,
+                       SUM(CAST(cr.col_h AS REAL))                      AS creance_principale,
+                       SUM(CAST(cr.col_u AS REAL))                      AS recouvre_total,
+                       SUM(CASE WHEN LOWER(cr.col_j) LIKE 'sold%' THEN 1 ELSE 0 END) AS nb_soldes
+                FROM creance_rows cr
+                JOIN companies c ON c.id = cr.company_id
+                WHERE cr.col_c >= ? AND cr.col_c <= ?
+                GROUP BY cr.company_id
+                ORDER BY creance_principale DESC
+                """;
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, dateFrom);
+            ps.setString(2, dateTo + "T23:59");
+            try (ResultSet rs = ps.executeQuery()) {
+                ResultSetMetaData meta = rs.getMetaData();
+                int cols = meta.getColumnCount();
+                while (rs.next()) {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    for (int i = 1; i <= cols; i++) {
+                        row.put(meta.getColumnName(i), rs.getObject(i));
+                    }
+                    out.add(row);
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[DB] getGlobalStatsByDateRange error: " + e.getMessage());
+        }
+        return out;
+    }
 }
