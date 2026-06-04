@@ -288,9 +288,6 @@ public class FacturationMailService {
             vbsContent.append("    Set targetAcc = acc\n");
             vbsContent.append("  End If\n");
             vbsContent.append("Next\n");
-            vbsContent.append("If Not IsEmpty(targetAcc) Then\n");
-            vbsContent.append("  mail.SendUsingAccount = targetAcc\n");
-            vbsContent.append("End If\n");
             vbsContent.append("mail.To = \"").append(safeTo).append("\"\n");
             vbsContent.append("mail.Subject = \"").append(safeSubject).append("\"\n");
             vbsContent.append("mail.HTMLBody = \"").append(safeHtml).append("\"\n");
@@ -298,7 +295,22 @@ public class FacturationMailService {
             if (req.attachmentPath != null && !req.attachmentPath.isBlank()) {
                 vbsContent.append("mail.Attachments.Add \"").append(req.attachmentPath).append("\"\n");
             }
-            vbsContent.append("mail.Save\n");
+            vbsContent.append("If Not IsEmpty(targetAcc) Then\n");
+            vbsContent.append("  mail.SendUsingAccount = targetAcc\n");
+            vbsContent.append("  mail.Save\n");
+            vbsContent.append("  Dim draftsFolder\n");
+            vbsContent.append("  Set draftsFolder = ol.Session.GetDefaultFolder(16)\n");
+            vbsContent.append("  For Each store In ol.Session.Stores\n");
+            vbsContent.append("    If InStr(LCase(store.DisplayName), \"cabinetphenix\") > 0 Or InStr(LCase(store.ExchangeStoreType & \"\"), \"1\") > 0 Then\n");
+            vbsContent.append("      On Error Resume Next\n");
+            vbsContent.append("      Set draftsFolder = store.GetDefaultFolder(16)\n");
+            vbsContent.append("      On Error GoTo 0\n");
+            vbsContent.append("    End If\n");
+            vbsContent.append("  Next\n");
+            vbsContent.append("  mail.Move draftsFolder\n");
+            vbsContent.append("Else\n");
+            vbsContent.append("  mail.Save\n");
+            vbsContent.append("End If\n");
 
             java.nio.file.Files.writeString(vbs.toPath(), vbsContent.toString(),
                     java.nio.charset.Charset.forName("windows-1252"));
