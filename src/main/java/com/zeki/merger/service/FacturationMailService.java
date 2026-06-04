@@ -284,7 +284,7 @@ public class FacturationMailService {
             vbsContent.append("Set mail = ol.CreateItem(0)\n");
             vbsContent.append("Dim targetAcc\n");
             vbsContent.append("For Each acc In ol.Session.Accounts\n");
-            vbsContent.append("  If InStr(LCase(acc.SmtpAddress), \"cabinetphenix\") > 0 Then\n");
+            vbsContent.append("  If LCase(acc.SmtpAddress) = \"info@cabinetphenix.fr\" Then\n");
             vbsContent.append("    Set targetAcc = acc\n");
             vbsContent.append("  End If\n");
             vbsContent.append("Next\n");
