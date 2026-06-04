@@ -282,6 +282,11 @@ public class FacturationMailService {
             StringBuilder vbsContent = new StringBuilder();
             vbsContent.append("Set ol = CreateObject(\"Outlook.Application\")\n");
             vbsContent.append("Set mail = ol.CreateItem(0)\n");
+            vbsContent.append("For Each acc In ol.Session.Accounts\n");
+            vbsContent.append("  If InStr(LCase(acc.SmtpAddress), \"cabinetphenix\") > 0 Then\n");
+            vbsContent.append("    mail.SendUsingAccount = acc\n");
+            vbsContent.append("  End If\n");
+            vbsContent.append("Next\n");
             vbsContent.append("mail.To = \"").append(safeTo).append("\"\n");
             vbsContent.append("mail.Subject = \"").append(safeSubject).append("\"\n");
             vbsContent.append("mail.HTMLBody = \"").append(safeHtml).append("\"\n");
