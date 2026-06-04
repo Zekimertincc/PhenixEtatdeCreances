@@ -101,8 +101,15 @@ public class ValidationClientsService {
                 double iVal = iCell != null ? numericVal(iCell, ev) : 0.0;
                 double uVal = uCell != null ? numericVal(uCell, ev) : (iVal + rVal);
 
-                // Write U's value into I — as plain number, preserving cell format
+                // Write U's value into I — force NUMERIC, reset date format if needed
                 if (iCell == null) iCell = row.createCell(8, CellType.NUMERIC);
+                iCell.setCellType(CellType.NUMERIC);
+                if (DateUtil.isCellDateFormatted(iCell)) {
+                    org.apache.poi.xssf.usermodel.XSSFCellStyle numStyle =
+                            (org.apache.poi.xssf.usermodel.XSSFCellStyle) wb.createCellStyle();
+                    numStyle.setDataFormat(wb.createDataFormat().getFormat("#,##0.00"));
+                    iCell.setCellStyle(numStyle);
+                }
                 iCell.setCellValue(uVal);
 
                 // Zero out R (col 17), S (col 18), T (col 19) — preserve format

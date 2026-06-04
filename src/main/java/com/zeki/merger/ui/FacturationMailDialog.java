@@ -41,6 +41,7 @@ public class FacturationMailDialog {
     // State
     private Map<String, ClientInfo>  clientInfoMap     = new LinkedHashMap<>();
     private Map<String, String>      correspondanceMap = new LinkedHashMap<>();
+    private Map<String, String>      factureMap        = new LinkedHashMap<>();
     private final FacturationMailService service = new FacturationMailService();
     private File lastDraftFolder = null;
 
@@ -97,7 +98,9 @@ public class FacturationMailDialog {
         btnSend.setOnAction(e -> createDrafts());
         bottomRow.getChildren().addAll(btnCancel, btnSend);
 
-        root.getChildren().addAll(dateRow, split, bottomRow);
+        Label dateNote = new Label("(utilisé si RecupNumFacture non configuré)");
+        dateNote.setStyle("-fx-text-fill: #888; -fx-font-size: 10px;");
+        root.getChildren().addAll(dateRow, dateNote, split, bottomRow);
         return root;
     }
 
@@ -185,24 +188,52 @@ public class FacturationMailDialog {
             }
         }
 
+        String recupPath = AppPreferences.getRecupFacturePath();
+        if (recupPath != null && !recupPath.isBlank()) {
+            try {
+                factureMap = service.readFactureMap(new File(recupPath));
+            } catch (Exception e) {
+                log.accept("AVERT: RecupNumFacture introuvable — " + e.getMessage());
+            }
+        }
+
         applyFilter();
     }
 
     private void applyFilter() {
-        LocalDate from = dateFrom.getValue();
-        LocalDate to   = dateTo.getValue();
-        if (from == null || to == null) return;
-
-        List<ClientInfo> filtered = service.filterByDateRange(clientInfoMap, from, to);
         allRows.clear();
-        for (ClientInfo ci : filtered) {
-            String type = resolveType(ci);
-            allRows.add(new ClientRow(ci, type, true));
+
+        if (!factureMap.isEmpty()) {
+            // RecupNumFacture'daki şirketleri göster
+            for (Map.Entry<String, String> entry : factureMap.entrySet()) {
+                String normName = entry.getKey();
+                ClientInfo ci = clientInfoMap.get(normName);
+                if (ci == null) {
+                    for (Map.Entry<String, ClientInfo> e : clientInfoMap.entrySet()) {
+                        if (normName.contains(e.getKey()) || e.getKey().contains(normName)) {
+                            ci = e.getValue();
+                            break;
+                        }
+                    }
+                }
+                if (ci == null) {
+                    ci = new com.zeki.merger.trf.model.ClientInfo(
+                            normName, "", "", "", "", "", null);
+                }
+                String type = resolveType(ci);
+                allRows.add(new ClientRow(ci, type, true));
+            }
+            log.accept("Facturation mails : " + allRows.size() + " client(s) depuis RecupNumFacture.");
+        } else {
+            LocalDate from = dateFrom.getValue();
+            LocalDate to   = dateTo.getValue();
+            if (from == null || to == null) return;
+            List<ClientInfo> filtered = service.filterByDateRange(clientInfoMap, from, to);
+            for (ClientInfo ci : filtered) {
+                allRows.add(new ClientRow(ci, resolveType(ci), true));
+            }
+            log.accept("Filtre date : " + allRows.size() + " client(s) trouvé(s).");
         }
-        long nullCount = clientInfoMap.values().stream()
-                .filter(ci -> ci.getDateLastDossier() == null).count();
-        log.accept("Filtre appliqué : " + allRows.size() + " client(s) trouvé(s). "
-                + "(dateLastDossier null: " + nullCount + "/" + clientInfoMap.size() + ")");
     }
 
     private String resolveType(ClientInfo ci) {

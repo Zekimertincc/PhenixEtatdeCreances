@@ -76,6 +76,38 @@ public class FacturationMailService {
     // Col B (index 1) = MotClé, col C (index 2) = EspacePartagé path
     // -------------------------------------------------------------------------
 
+    /** Reads RecupNumFacture: col A = client name → normalized key, col B = N° facture. */
+    public Map<String, String> readFactureMap(File file) throws Exception {
+        Map<String, String> map = new LinkedHashMap<>();
+        if (file == null || !file.exists()) return map;
+        try (java.io.FileInputStream fis = new java.io.FileInputStream(file)) {
+            byte[] bytes = fis.readAllBytes();
+            java.io.ByteArrayInputStream bais = new java.io.ByteArrayInputStream(bytes);
+            org.apache.poi.ss.usermodel.Workbook wb = file.getName().toLowerCase().endsWith(".xls")
+                    ? new org.apache.poi.hssf.usermodel.HSSFWorkbook(bais)
+                    : new org.apache.poi.xssf.usermodel.XSSFWorkbook(bais);
+            org.apache.poi.ss.usermodel.Sheet sheet = wb.getSheet("Feuil1");
+            if (sheet == null) sheet = wb.getSheetAt(0);
+            org.apache.poi.ss.usermodel.DataFormatter fmt = new org.apache.poi.ss.usermodel.DataFormatter();
+            org.apache.poi.ss.usermodel.FormulaEvaluator ev = wb.getCreationHelper().createFormulaEvaluator();
+            for (int r = 1; r <= sheet.getLastRowNum(); r++) {
+                org.apache.poi.ss.usermodel.Row row = sheet.getRow(r);
+                if (row == null) continue;
+                org.apache.poi.ss.usermodel.Cell nameCell = row.getCell(0,
+                        org.apache.poi.ss.usermodel.Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+                if (nameCell == null) break;
+                String name = fmt.formatCellValue(nameCell, ev).trim();
+                if (name.isBlank()) break;
+                org.apache.poi.ss.usermodel.Cell numCell = row.getCell(1,
+                        org.apache.poi.ss.usermodel.Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+                String num = numCell != null ? fmt.formatCellValue(numCell, ev).trim() : "";
+                map.put(DataReader.normalize(name), num);
+            }
+            wb.close();
+        }
+        return map;
+    }
+
     public Map<String, String> readCorrespondanceMap(File file) throws Exception {
         Map<String, String> map = new LinkedHashMap<>();
         if (file == null || !file.exists()) return map;
