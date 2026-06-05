@@ -58,7 +58,17 @@ public class DatabaseManager {
                     last_sync   TEXT
                 )""");
 
-            st.executeUpdate("CREATE UNIQUE INDEX IF NOT EXISTS idx_companies_name_ci ON companies(name COLLATE NOCASE)");
+            try {
+                st.executeUpdate("""
+                    DELETE FROM companies
+                    WHERE id NOT IN (
+                        SELECT MIN(id) FROM companies GROUP BY LOWER(TRIM(name))
+                    )
+                """);
+            } catch (Exception ignored) {}
+            try {
+                st.executeUpdate("CREATE UNIQUE INDEX IF NOT EXISTS idx_companies_name_ci ON companies(name COLLATE NOCASE)");
+            } catch (Exception ignored) {}
 
             st.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS creance_rows (
