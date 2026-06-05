@@ -464,7 +464,10 @@ public class DashboardController {
         Button applyBtn = new Button("Appliquer");
         applyBtn.getStyleClass().add("secondary-btn");
 
-        filterRow.getChildren().addAll(fromLbl, fromPicker, toLbl, toPicker, applyBtn);
+        Button allBtn = new Button("Toutes les sociétés");
+        allBtn.getStyleClass().add("secondary-btn");
+
+        filterRow.getChildren().addAll(fromLbl, fromPicker, toLbl, toPicker, applyBtn, allBtn);
 
         VBox resultsArea = new VBox();
         VBox.setVgrow(resultsArea, Priority.ALWAYS);
@@ -472,6 +475,14 @@ public class DashboardController {
         applyBtn.setOnAction(e -> {
             filterFrom = fromPicker.getValue();
             filterTo   = toPicker.getValue();
+            buildGlobalResults(resultsArea);
+        });
+
+        allBtn.setOnAction(e -> {
+            filterFrom = null;
+            filterTo   = null;
+            fromPicker.setValue(null);
+            toPicker.setValue(null);
             buildGlobalResults(resultsArea);
         });
 
@@ -485,13 +496,13 @@ public class DashboardController {
         area.setSpacing(12);
 
         String fmt  = "yyyy-MM-dd";
-        String from = filterFrom.format(DateTimeFormatter.ofPattern(fmt));
-        String to   = filterTo.format(DateTimeFormatter.ofPattern(fmt));
+        String from = (filterFrom != null) ? filterFrom.format(DateTimeFormatter.ofPattern(fmt)) : null;
+        String to   = (filterTo   != null) ? filterTo.format(DateTimeFormatter.ofPattern(fmt))   : null;
 
         List<Map<String, Object>> rows = db.getGlobalStatsByDateRange(from, to);
 
         if (rows.isEmpty()) {
-            Label empty = new Label("Aucun dossier trouvé pour cette période.");
+            Label empty = new Label("Aucun dossier trouvé.");
             empty.setStyle("-fx-text-fill: #9B9B9B; -fx-font-size: 13px;");
             area.getChildren().add(empty);
             return;
@@ -500,15 +511,14 @@ public class DashboardController {
         double totCreance  = rows.stream().mapToDouble(r -> toDouble(r.get("creance_principale"))).sum();
         double totRecouvre = rows.stream().mapToDouble(r -> toDouble(r.get("recouvre_total"))).sum();
         int    totDossiers = rows.stream().mapToInt(r -> toInt(r.get("nb_dossiers"))).sum();
-        double globalPct   = totCreance > 0 ? totRecouvre / totCreance * 100.0 : 0.0;
 
         HBox kpis = new HBox(10);
         kpis.getChildren().addAll(
-            kpi("Total créances",       fmt(totCreance) + " €",          "#1a1a1a"),
-            kpi("Total recouvré",       fmt(totRecouvre) + " €",         "#0F6E56"),
-            kpi("Dossiers sur période",  String.valueOf(totDossiers),  "#185FA5"),
-            kpi("Dossiers soldés",       String.valueOf(rows.stream().mapToInt(r -> toInt(r.get("nb_soldes"))).sum()), "#0F6E56"),
-            kpi("Commissions",           fmt(rows.stream().mapToDouble(r -> toDouble(r.get("commissions"))).sum()) + " €", "#9B9B9B")
+            kpi("Total créances",      fmt(totCreance)  + " €",       "#1a1a1a"),
+            kpi("Total recouvré",      fmt(totRecouvre) + " €",       "#0F6E56"),
+            kpi("Dossiers total",      String.valueOf(totDossiers),   "#185FA5"),
+            kpi("Dossiers soldés",     String.valueOf(rows.stream().mapToInt(r -> toInt(r.get("nb_soldes"))).sum()), "#0F6E56"),
+            kpi("Commissions",         fmt(rows.stream().mapToDouble(r -> toDouble(r.get("commissions"))).sum()) + " €", "#9B9B9B")
         );
         area.getChildren().add(kpis);
 
@@ -560,7 +570,7 @@ public class DashboardController {
 
             row.getChildren().addAll(
                 nameCell,
-                colVal(fmt(creance) + " €",         110, "#1a1a1a"),
+                colVal(fmt(creance)  + " €",         110, "#1a1a1a"),
                 colVal(fmt(recouvre) + " €",         110, "#0F6E56"),
                 colVal(String.format("%.1f%%", pct),  70,
                     pct >= 50 ? "#0F6E56" : pct >= 25 ? "#BA7517" : "#A32D2D"),

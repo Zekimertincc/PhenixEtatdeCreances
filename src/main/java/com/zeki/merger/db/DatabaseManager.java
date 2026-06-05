@@ -592,25 +592,29 @@ public class DatabaseManager {
     public synchronized List<Map<String, Object>> getGlobalStatsByDateRange(
             String dateFrom, String dateTo) {
         List<Map<String, Object>> out = new ArrayList<>();
+
+        boolean filter = dateFrom != null && dateTo != null
+                && !dateFrom.isBlank() && !dateTo.isBlank();
+
         String sql = """
                 SELECT c.id AS company_id, c.name,
-                       COUNT(cr.id)                                         AS nb_dossiers,
-                       SUM(CAST(cr.col_h AS REAL))                          AS creance_principale,
-                       SUM(CAST(cr.col_u AS REAL))                          AS recouvre_total,
-                       SUM(CASE WHEN LOWER(cr.col_j) LIKE 'sold%' THEN 1 ELSE 0 END) AS nb_soldes,
-                       SUM(CAST(cr.col_x AS REAL))                          AS commissions
+                       COALESCE(cs.nb_dossiers, 0)         AS nb_dossiers,
+                       COALESCE(cs.nb_soldes,   0)         AS nb_soldes,
+                       COALESCE(cs.creance_principale, 0)  AS creance_principale,
+                       COALESCE(cs.recouvre_total,     0)  AS recouvre_total,
+                       COALESCE(cs.commissions,        0)  AS commissions
                 FROM companies c
-                LEFT JOIN creance_rows cr ON cr.company_id = c.id
-                    AND cr.col_c >= ? AND cr.col_c <= ?
-                WHERE EXISTS (SELECT 1 FROM creance_rows r2 WHERE r2.company_id = c.id)
-                GROUP BY c.id
-                HAVING nb_dossiers > 0
-                   OR EXISTS (SELECT 1 FROM company_summaries cs WHERE cs.company_id = c.id AND cs.nb_dossiers > 0)
-                ORDER BY creance_principale DESC NULLS LAST
-                """;
+                LEFT JOIN company_summaries cs ON cs.company_id = c.id
+                WHERE COALESCE(cs.nb_dossiers, 0) > 0
+                """
+                + (filter ? "  AND cs.dernier_dossier >= ? AND cs.dernier_dossier <= ?\n" : "")
+                + "ORDER BY cs.creance_principale DESC NULLS LAST";
+
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, dateFrom);
-            ps.setString(2, dateTo + "T23:59");
+            if (filter) {
+                ps.setString(1, dateFrom);
+                ps.setString(2, dateTo);
+            }
             try (ResultSet rs = ps.executeQuery()) {
                 ResultSetMetaData meta = rs.getMetaData();
                 int cols = meta.getColumnCount();
@@ -619,37 +623,13 @@ public class DatabaseManager {
                     for (int i = 1; i <= cols; i++) {
                         row.put(meta.getColumnName(i), rs.getObject(i));
                     }
-                    // Fallback: if date-filtered count is 0, use company_summaries totals
-                    if (((Number) row.getOrDefault("nb_dossiers", 0)).intValue() == 0) {
-                        long cid = ((Number) row.get("company_id")).longValue();
-                        fillFromSummary(cid, row);
-                    }
-                    if (((Number) row.getOrDefault("nb_dossiers", 0)).intValue() > 0) {
-                        out.add(row);
-                    }
+                    out.add(row);
                 }
             }
         } catch (SQLException e) {
             System.err.println("[DB] getGlobalStatsByDateRange error: " + e.getMessage());
         }
         return out;
-    }
-
-    private void fillFromSummary(long companyId, Map<String, Object> row) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(
-                "SELECT nb_dossiers, nb_soldes, creance_principale, recouvre_total, commissions " +
-                "FROM company_summaries WHERE company_id = ?")) {
-            ps.setLong(1, companyId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    row.put("nb_dossiers",        rs.getObject("nb_dossiers"));
-                    row.put("nb_soldes",           rs.getObject("nb_soldes"));
-                    row.put("creance_principale",  rs.getObject("creance_principale"));
-                    row.put("recouvre_total",       rs.getObject("recouvre_total"));
-                    row.put("commissions",          rs.getObject("commissions"));
-                }
-            }
-        }
     }
 
     public synchronized List<Map<String, String>> getAllMailTemplates() {

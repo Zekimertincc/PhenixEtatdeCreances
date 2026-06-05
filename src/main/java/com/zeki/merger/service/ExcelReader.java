@@ -60,7 +60,10 @@ public class ExcelReader {
                 if (row == null) continue;
 
                 Cell filterCell = row.getCell(AppConfig.FILTER_COLUMN_INDEX);
-                if (!hasRealData(filterCell)) continue;
+                if (!hasRealData(filterCell)) {
+                    Cell fallbackCell = row.getCell(9);
+                    if (!hasRealData(fallbackCell)) continue;
+                }
 
                 List<Object> values = extractRowValues(row, fmt, evaluator);
                 rows.add(new CreanceRow(companyName, values, r));
