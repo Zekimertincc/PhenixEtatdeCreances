@@ -1,6 +1,7 @@
 package com.zeki.merger.ui;
 
 import com.zeki.merger.AppPreferences;
+import com.zeki.merger.db.DatabaseManager;
 import com.zeki.merger.service.FacturationMailService;
 import com.zeki.merger.trf.DataReader;
 import com.zeki.merger.trf.model.ClientInfo;
@@ -140,7 +141,7 @@ public class FacturationMailDialog {
         subjectField.setPromptText("Objet du mail...");
         subjectField.setText("Cabinet Phénix, votre état des créances");
 
-        // Template shortcuts
+        // — Default template shortcuts —
         HBox templateRow = new HBox(6);
         Button btnTplVirement  = new Button("Virement");
         Button btnTplNonComp   = new Button("Non Comp");
@@ -151,8 +152,71 @@ public class FacturationMailDialog {
         btnTplPartielle.setOnAction(e -> bodyArea.setText(service.buildBody(FacturationMailService.CompType.COMP_PARTIELLE)));
         btnTplDebiteurs.setOnAction(e -> bodyArea.setText(service.buildBody(FacturationMailService.CompType.DEBITEURS)));
         templateRow.getChildren().addAll(
-                new Label("Charger modèle :"),
+                new Label("Modèles par défaut :"),
                 btnTplVirement, btnTplNonComp, btnTplPartielle, btnTplDebiteurs);
+
+        // — Custom templates —
+        HBox customTplRow = new HBox(6);
+        customTplRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        ComboBox<String> tplCombo = new ComboBox<>();
+        tplCombo.setPromptText("Mes modèles…");
+        tplCombo.setPrefWidth(180);
+        refreshTemplateCombo(tplCombo);
+
+        Button btnLoadTpl = new Button("Charger");
+        btnLoadTpl.setOnAction(e -> {
+            String sel = tplCombo.getValue();
+            if (sel == null || sel.isBlank()) return;
+            DatabaseManager.getInstance().getAllMailTemplates().stream()
+                    .filter(m -> sel.equals(m.get("name")))
+                    .findFirst()
+                    .ifPresent(m -> bodyArea.setText(m.get("body")));
+        });
+
+        Button btnSaveTpl = new Button("💾 Enregistrer");
+        btnSaveTpl.setOnAction(e -> {
+            String current = tplCombo.getValue();
+            String defaultName = current != null && !current.isBlank() ? current : "";
+            TextInputDialog dlg = new TextInputDialog(defaultName);
+            dlg.setTitle("Enregistrer le modèle");
+            dlg.setHeaderText(null);
+            dlg.setContentText("Nom du modèle :");
+            dlg.showAndWait().ifPresent(name -> {
+                if (name.isBlank()) return;
+                try {
+                    DatabaseManager.getInstance().upsertMailTemplate(name.trim(), bodyArea.getText());
+                    refreshTemplateCombo(tplCombo);
+                    tplCombo.setValue(name.trim());
+                } catch (Exception ex) {
+                    log.accept("ERREUR sauvegarde modèle : " + ex.getMessage());
+                }
+            });
+        });
+
+        Button btnDeleteTpl = new Button("🗑");
+        btnDeleteTpl.setStyle("-fx-text-fill: #A32D2D;");
+        btnDeleteTpl.setOnAction(e -> {
+            String sel = tplCombo.getValue();
+            if (sel == null || sel.isBlank()) return;
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                    "Supprimer le modèle « " + sel + " » ?",
+                    ButtonType.YES, ButtonType.NO);
+            confirm.setHeaderText(null);
+            confirm.showAndWait().ifPresent(bt -> {
+                if (bt == ButtonType.YES) {
+                    try {
+                        DatabaseManager.getInstance().deleteMailTemplate(sel);
+                        refreshTemplateCombo(tplCombo);
+                        tplCombo.setValue(null);
+                    } catch (Exception ex) {
+                        log.accept("ERREUR suppression modèle : " + ex.getMessage());
+                    }
+                }
+            });
+        });
+
+        customTplRow.getChildren().addAll(
+                new Label("Mes modèles :"), tplCombo, btnLoadTpl, btnSaveTpl, btnDeleteTpl);
 
         // Body
         bodyArea.setWrapText(true);
@@ -184,21 +248,12 @@ public class FacturationMailDialog {
         });
         signataireRow.getChildren().addAll(new Label("Signature :"), rbAnonyme, rbJulien, rbGauthier);
 
-        // Save template button
-        Button btnSaveTpl = new Button("💾 Enregistrer comme modèle");
-        btnSaveTpl.setDisable(true);
-        bodyArea.textProperty().addListener((obs, old, nw) -> btnSaveTpl.setDisable(false));
-        btnSaveTpl.setOnAction(e -> {
-            AppPreferences.setMailTemplate("virement", bodyArea.getText());
-            btnSaveTpl.setDisable(true);
-            btnSaveTpl.setText("✓ Modèle enregistré");
-        });
-
         pane.getChildren().addAll(
                 new Label("Objet :"), subjectField,
                 templateRow,
+                customTplRow,
                 new Label("Message :"), bodyArea,
-                signataireRow, btnSaveTpl);
+                signataireRow);
         return pane;
     }
 
@@ -270,6 +325,16 @@ public class FacturationMailDialog {
                 allRows.add(new ClientRow(ci, resolveType(ci), true));
             }
             log.accept("Filtre date : " + allRows.size() + " client(s) trouvé(s).");
+        }
+    }
+
+    private void refreshTemplateCombo(ComboBox<String> combo) {
+        String current = combo.getValue();
+        combo.getItems().clear();
+        DatabaseManager.getInstance().getAllMailTemplates()
+                .forEach(m -> combo.getItems().add(m.get("name")));
+        if (current != null && combo.getItems().contains(current)) {
+            combo.setValue(current);
         }
     }
 

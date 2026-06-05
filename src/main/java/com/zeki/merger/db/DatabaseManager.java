@@ -121,6 +121,15 @@ public class DatabaseManager {
                 )""");
 
             st.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS mail_templates (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name       TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                    body       TEXT NOT NULL,
+                    created_at TEXT,
+                    updated_at TEXT
+                )""");
+
+            st.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS trf_summaries (
                     id                             INTEGER PRIMARY KEY AUTOINCREMENT,
                     company_id                     INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
@@ -604,5 +613,47 @@ public class DatabaseManager {
             System.err.println("[DB] getGlobalStatsByDateRange error: " + e.getMessage());
         }
         return out;
+    }
+
+    public synchronized List<Map<String, String>> getAllMailTemplates() {
+        List<Map<String, String>> out = new ArrayList<>();
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery(
+                     "SELECT id, name, body FROM mail_templates ORDER BY name COLLATE NOCASE")) {
+            while (rs.next()) {
+                Map<String, String> row = new LinkedHashMap<>();
+                row.put("id",   rs.getString("id"));
+                row.put("name", rs.getString("name"));
+                row.put("body", rs.getString("body"));
+                out.add(row);
+            }
+        } catch (SQLException e) {
+            System.err.println("[DB] getAllMailTemplates: " + e.getMessage());
+        }
+        return out;
+    }
+
+    public synchronized void upsertMailTemplate(String name, String body) throws SQLException {
+        String now = LocalDateTime.now().format(ISO);
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO mail_templates (name, body, created_at, updated_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(name) DO UPDATE
+                  SET body=excluded.body, updated_at=excluded.updated_at
+                """)) {
+            ps.setString(1, name.trim());
+            ps.setString(2, body);
+            ps.setString(3, now);
+            ps.setString(4, now);
+            ps.executeUpdate();
+        }
+    }
+
+    public synchronized void deleteMailTemplate(String name) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM mail_templates WHERE name = ?")) {
+            ps.setString(1, name.trim());
+            ps.executeUpdate();
+        }
     }
 }
