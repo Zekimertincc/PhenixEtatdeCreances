@@ -1,6 +1,7 @@
 package com.zeki.merger.ui;
 
 import com.zeki.merger.AppPreferences;
+import com.zeki.merger.db.DatabaseManager;
 import com.zeki.merger.service.FacturationMailService;
 import com.zeki.merger.trf.DataReader;
 import com.zeki.merger.trf.model.ClientInfo;
@@ -42,6 +43,7 @@ public class AccuseReceptionDialog {
     private Map<String, ClientInfo>  clientInfoMap     = new LinkedHashMap<>();
     private Map<String, String>      correspondanceMap = new LinkedHashMap<>();
     private final FacturationMailService service = new FacturationMailService();
+    private FacturationMailService.Signataire selectedSignataire = FacturationMailService.Signataire.ANONYME;
     private File lastDraftFolder = null;
 
     // -------------------------------------------------------------------------
@@ -124,6 +126,69 @@ public class AccuseReceptionDialog {
         subjectField.setPromptText("Objet du mail...");
         subjectField.setText("Cabinet Phénix, accusé de réception de dossier(s)");
 
+        // — Custom templates —
+        HBox customTplRow = new HBox(6);
+        customTplRow.setAlignment(Pos.CENTER_LEFT);
+        ComboBox<String> tplCombo = new ComboBox<>();
+        tplCombo.setPromptText("Mes modèles…");
+        tplCombo.setPrefWidth(180);
+        refreshTemplateCombo(tplCombo);
+
+        Button btnLoadTpl = new Button("Charger");
+        btnLoadTpl.setOnAction(e -> {
+            String sel = tplCombo.getValue();
+            if (sel == null || sel.isBlank()) return;
+            DatabaseManager.getInstance().getAllMailTemplates().stream()
+                    .filter(m -> sel.equals(m.get("name")))
+                    .findFirst()
+                    .ifPresent(m -> bodyArea.setText(m.get("body")));
+        });
+
+        Button btnSaveTpl = new Button("💾 Enregistrer");
+        btnSaveTpl.setOnAction(e -> {
+            String current = tplCombo.getValue();
+            String defaultName = current != null && !current.isBlank() ? current : "";
+            TextInputDialog dlg = new TextInputDialog(defaultName);
+            dlg.setTitle("Enregistrer le modèle");
+            dlg.setHeaderText(null);
+            dlg.setContentText("Nom du modèle :");
+            dlg.showAndWait().ifPresent(name -> {
+                if (name.isBlank()) return;
+                try {
+                    DatabaseManager.getInstance().upsertMailTemplate(name.trim(), bodyArea.getText());
+                    refreshTemplateCombo(tplCombo);
+                    tplCombo.setValue(name.trim());
+                } catch (Exception ex) {
+                    log.accept("ERREUR sauvegarde modèle : " + ex.getMessage());
+                }
+            });
+        });
+
+        Button btnDeleteTpl = new Button("🗑");
+        btnDeleteTpl.setStyle("-fx-text-fill: #A32D2D;");
+        btnDeleteTpl.setOnAction(e -> {
+            String sel = tplCombo.getValue();
+            if (sel == null || sel.isBlank()) return;
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
+                    "Supprimer le modèle « " + sel + " » ?",
+                    ButtonType.YES, ButtonType.NO);
+            confirm.setHeaderText(null);
+            confirm.showAndWait().ifPresent(bt -> {
+                if (bt == ButtonType.YES) {
+                    try {
+                        DatabaseManager.getInstance().deleteMailTemplate(sel);
+                        refreshTemplateCombo(tplCombo);
+                        tplCombo.setValue(null);
+                    } catch (Exception ex) {
+                        log.accept("ERREUR suppression modèle : " + ex.getMessage());
+                    }
+                }
+            });
+        });
+
+        customTplRow.getChildren().addAll(
+                new Label("Mes modèles :"), tplCombo, btnLoadTpl, btnSaveTpl, btnDeleteTpl);
+
         bodyArea.setWrapText(true);
         bodyArea.setText(
             "Bonjour,\n\n" +
@@ -139,9 +204,35 @@ public class AccuseReceptionDialog {
         );
         VBox.setVgrow(bodyArea, Priority.ALWAYS);
 
+        // Signataire selection
+        HBox signataireRow = new HBox(8);
+        signataireRow.setAlignment(Pos.CENTER_LEFT);
+        ToggleGroup sigGroup = new ToggleGroup();
+        RadioButton rbAnonyme  = new RadioButton("Anonyme");
+        RadioButton rbJulien   = new RadioButton("Julien JOUSSET");
+        RadioButton rbGauthier = new RadioButton("Gauthier BERIS");
+        rbAnonyme.setToggleGroup(sigGroup);
+        rbJulien.setToggleGroup(sigGroup);
+        rbGauthier.setToggleGroup(sigGroup);
+
+        String saved = AppPreferences.getMailSignataire();
+        if ("JULIEN".equals(saved))        rbJulien.setSelected(true);
+        else if ("GAUTHIER".equals(saved)) rbGauthier.setSelected(true);
+        else                               rbAnonyme.setSelected(true);
+        selectedSignataire = toSignataire(saved);
+
+        sigGroup.selectedToggleProperty().addListener((obs, old, nw) -> {
+            if (nw == rbJulien)        { selectedSignataire = FacturationMailService.Signataire.JULIEN;   AppPreferences.setMailSignataire("JULIEN"); }
+            else if (nw == rbGauthier) { selectedSignataire = FacturationMailService.Signataire.GAUTHIER; AppPreferences.setMailSignataire("GAUTHIER"); }
+            else                       { selectedSignataire = FacturationMailService.Signataire.ANONYME;  AppPreferences.setMailSignataire("ANONYME"); }
+        });
+        signataireRow.getChildren().addAll(new Label("Signature :"), rbAnonyme, rbJulien, rbGauthier);
+
         pane.getChildren().addAll(
                 new Label("Objet :"), subjectField,
-                new Label("Message :"), bodyArea);
+                customTplRow,
+                new Label("Message :"), bodyArea,
+                signataireRow);
         return pane;
     }
 
@@ -194,6 +285,22 @@ public class AccuseReceptionDialog {
         return "VIREMENT";
     }
 
+    private void refreshTemplateCombo(ComboBox<String> combo) {
+        String current = combo.getValue();
+        combo.getItems().clear();
+        DatabaseManager.getInstance().getAllMailTemplates()
+                .forEach(m -> combo.getItems().add(m.get("name")));
+        if (current != null && combo.getItems().contains(current)) {
+            combo.setValue(current);
+        }
+    }
+
+    private FacturationMailService.Signataire toSignataire(String s) {
+        if ("JULIEN".equals(s))   return FacturationMailService.Signataire.JULIEN;
+        if ("GAUTHIER".equals(s)) return FacturationMailService.Signataire.GAUTHIER;
+        return FacturationMailService.Signataire.ANONYME;
+    }
+
     // -------------------------------------------------------------------------
     // Selection helpers
     // -------------------------------------------------------------------------
@@ -244,7 +351,7 @@ public class AccuseReceptionDialog {
                     + (attachPath.isBlank() ? " [sans PJ]" : " [" + attachment.getName() + "]"));
 
             drafts.add(new FacturationMailService.DraftRequest(
-                    ci.getName(), email, subject, body, attachPath, FacturationMailService.Signataire.ANONYME));
+                    ci.getName(), email, subject, body, attachPath, selectedSignataire));
         }
 
         if (drafts.isEmpty()) {

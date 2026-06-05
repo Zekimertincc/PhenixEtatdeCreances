@@ -222,15 +222,32 @@ public class FacturationMailService {
         String normClient = DataReader.normalize(clientName);
         File[] dirs = rootFolder.listFiles(File::isDirectory);
         if (dirs == null) return null;
+
+        // Pass 1: exact match
+        for (File dir : dirs) {
+            if (DataReader.normalize(dir.getName()).equals(normClient)) return dir;
+        }
+
+        // Pass 2: one fully contains the other — but only if the overlap is
+        // at least 6 chars AND covers at least 60% of the shorter string.
+        File best = null;
+        int bestScore = 0;
         for (File dir : dirs) {
             String normDir = DataReader.normalize(dir.getName());
-            if (normDir.contains(normClient) || normClient.contains(normDir)
-                    || (normClient.length() >= 4 && normDir.startsWith(
-                            normClient.substring(0, Math.min(4, normClient.length()))))) {
-                return dir;
+            boolean match = normDir.contains(normClient) || normClient.contains(normDir);
+            if (!match) continue;
+            String shorter = normDir.length() <= normClient.length() ? normDir : normClient;
+            int overlapLen = shorter.length();
+            if (overlapLen < 6) continue;
+            String longer  = normDir.length() >  normClient.length() ? normDir : normClient;
+            double coverage = (double) overlapLen / longer.length();
+            if (coverage < 0.60) continue;
+            if (overlapLen > bestScore) {
+                bestScore = overlapLen;
+                best = dir;
             }
         }
-        return null;
+        return best;
     }
 
     private File findLatestPdf(File folder) {

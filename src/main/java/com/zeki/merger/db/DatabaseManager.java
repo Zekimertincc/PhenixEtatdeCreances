@@ -594,16 +594,19 @@ public class DatabaseManager {
         List<Map<String, Object>> out = new ArrayList<>();
         String sql = """
                 SELECT c.id AS company_id, c.name,
-                       COUNT(*)                                          AS nb_dossiers,
-                       SUM(CAST(cr.col_h AS REAL))                      AS creance_principale,
-                       SUM(CAST(cr.col_u AS REAL))                      AS recouvre_total,
+                       COUNT(cr.id)                                         AS nb_dossiers,
+                       SUM(CAST(cr.col_h AS REAL))                          AS creance_principale,
+                       SUM(CAST(cr.col_u AS REAL))                          AS recouvre_total,
                        SUM(CASE WHEN LOWER(cr.col_j) LIKE 'sold%' THEN 1 ELSE 0 END) AS nb_soldes,
-                       SUM(CAST(cr.col_x AS REAL)) AS commissions
-                FROM creance_rows cr
-                JOIN companies c ON c.id = cr.company_id
-                WHERE cr.col_c >= ? AND cr.col_c <= ?
-                GROUP BY cr.company_id
-                ORDER BY creance_principale DESC
+                       SUM(CAST(cr.col_x AS REAL))                          AS commissions
+                FROM companies c
+                LEFT JOIN creance_rows cr ON cr.company_id = c.id
+                    AND cr.col_c >= ? AND cr.col_c <= ?
+                WHERE EXISTS (SELECT 1 FROM creance_rows r2 WHERE r2.company_id = c.id)
+                GROUP BY c.id
+                HAVING nb_dossiers > 0
+                   OR EXISTS (SELECT 1 FROM company_summaries cs WHERE cs.company_id = c.id AND cs.nb_dossiers > 0)
+                ORDER BY creance_principale DESC NULLS LAST
                 """;
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, dateFrom);
@@ -616,13 +619,37 @@ public class DatabaseManager {
                     for (int i = 1; i <= cols; i++) {
                         row.put(meta.getColumnName(i), rs.getObject(i));
                     }
-                    out.add(row);
+                    // Fallback: if date-filtered count is 0, use company_summaries totals
+                    if (((Number) row.getOrDefault("nb_dossiers", 0)).intValue() == 0) {
+                        long cid = ((Number) row.get("company_id")).longValue();
+                        fillFromSummary(cid, row);
+                    }
+                    if (((Number) row.getOrDefault("nb_dossiers", 0)).intValue() > 0) {
+                        out.add(row);
+                    }
                 }
             }
         } catch (SQLException e) {
             System.err.println("[DB] getGlobalStatsByDateRange error: " + e.getMessage());
         }
         return out;
+    }
+
+    private void fillFromSummary(long companyId, Map<String, Object> row) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT nb_dossiers, nb_soldes, creance_principale, recouvre_total, commissions " +
+                "FROM company_summaries WHERE company_id = ?")) {
+            ps.setLong(1, companyId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    row.put("nb_dossiers",        rs.getObject("nb_dossiers"));
+                    row.put("nb_soldes",           rs.getObject("nb_soldes"));
+                    row.put("creance_principale",  rs.getObject("creance_principale"));
+                    row.put("recouvre_total",       rs.getObject("recouvre_total"));
+                    row.put("commissions",          rs.getObject("commissions"));
+                }
+            }
+        }
     }
 
     public synchronized List<Map<String, String>> getAllMailTemplates() {
