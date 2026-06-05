@@ -70,4 +70,15 @@ public class AppPreferences {
     public static void setCorrespondancePath(String path) {
         PREFS.put("correspondance_path", path);
     }
+
+    private static final String KEY_MAIL_TPL_VIREMENT     = "mail_tpl_virement";
+    private static final String KEY_MAIL_TPL_NON_COMP      = "mail_tpl_non_comp";
+    private static final String KEY_MAIL_TPL_COMP_PART     = "mail_tpl_comp_partielle";
+    private static final String KEY_MAIL_TPL_DEBITEURS     = "mail_tpl_debiteurs";
+    private static final String KEY_MAIL_SIGNATAIRE        = "mail_signataire";
+
+    public static String getMailTemplate(String type)          { return PREFS.get("mail_tpl_" + type.toLowerCase().replace(" ", "_"), ""); }
+    public static void   setMailTemplate(String type, String v){ PREFS.put("mail_tpl_" + type.toLowerCase().replace(" ", "_"), v); }
+    public static String getMailSignataire()                   { return PREFS.get(KEY_MAIL_SIGNATAIRE, "ANONYME"); }
+    public static void   setMailSignataire(String v)           { PREFS.put(KEY_MAIL_SIGNATAIRE, v); }
 }

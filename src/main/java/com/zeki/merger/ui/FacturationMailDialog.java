@@ -39,6 +39,7 @@ public class FacturationMailDialog {
     private final TextArea  bodyArea     = new TextArea();
 
     // State
+    private FacturationMailService.Signataire selectedSignataire = FacturationMailService.Signataire.ANONYME;
     private Map<String, ClientInfo>  clientInfoMap     = new LinkedHashMap<>();
     private Map<String, String>      correspondanceMap = new LinkedHashMap<>();
     private Map<String, String>      factureMap        = new LinkedHashMap<>();
@@ -155,13 +156,49 @@ public class FacturationMailDialog {
 
         // Body
         bodyArea.setWrapText(true);
-        bodyArea.setText(service.buildBody(FacturationMailService.CompType.VIREMENT));
+        String savedTpl = AppPreferences.getMailTemplate("virement");
+        bodyArea.setText(savedTpl.isBlank() ? service.buildBody(FacturationMailService.CompType.VIREMENT) : savedTpl);
         VBox.setVgrow(bodyArea, Priority.ALWAYS);
+
+        // Signataire selection
+        HBox signataireRow = new HBox(8);
+        signataireRow.setAlignment(Pos.CENTER_LEFT);
+        ToggleGroup sigGroup = new ToggleGroup();
+        RadioButton rbAnonyme  = new RadioButton("Anonyme");
+        RadioButton rbJulien   = new RadioButton("Julien JOUSSET");
+        RadioButton rbGauthier = new RadioButton("Gauthier BERIS");
+        rbAnonyme.setToggleGroup(sigGroup);
+        rbJulien.setToggleGroup(sigGroup);
+        rbGauthier.setToggleGroup(sigGroup);
+
+        String saved = AppPreferences.getMailSignataire();
+        if ("JULIEN".equals(saved))        rbJulien.setSelected(true);
+        else if ("GAUTHIER".equals(saved)) rbGauthier.setSelected(true);
+        else                               rbAnonyme.setSelected(true);
+        selectedSignataire = toSignataire(saved);
+
+        sigGroup.selectedToggleProperty().addListener((obs, old, nw) -> {
+            if (nw == rbJulien)        { selectedSignataire = FacturationMailService.Signataire.JULIEN;   AppPreferences.setMailSignataire("JULIEN"); }
+            else if (nw == rbGauthier) { selectedSignataire = FacturationMailService.Signataire.GAUTHIER; AppPreferences.setMailSignataire("GAUTHIER"); }
+            else                       { selectedSignataire = FacturationMailService.Signataire.ANONYME;  AppPreferences.setMailSignataire("ANONYME"); }
+        });
+        signataireRow.getChildren().addAll(new Label("Signature :"), rbAnonyme, rbJulien, rbGauthier);
+
+        // Save template button
+        Button btnSaveTpl = new Button("💾 Enregistrer comme modèle");
+        btnSaveTpl.setDisable(true);
+        bodyArea.textProperty().addListener((obs, old, nw) -> btnSaveTpl.setDisable(false));
+        btnSaveTpl.setOnAction(e -> {
+            AppPreferences.setMailTemplate("virement", bodyArea.getText());
+            btnSaveTpl.setDisable(true);
+            btnSaveTpl.setText("✓ Modèle enregistré");
+        });
 
         pane.getChildren().addAll(
                 new Label("Objet :"), subjectField,
                 templateRow,
-                new Label("Message :"), bodyArea);
+                new Label("Message :"), bodyArea,
+                signataireRow, btnSaveTpl);
         return pane;
     }
 
@@ -236,6 +273,12 @@ public class FacturationMailDialog {
         }
     }
 
+    private FacturationMailService.Signataire toSignataire(String s) {
+        if ("JULIEN".equals(s))   return FacturationMailService.Signataire.JULIEN;
+        if ("GAUTHIER".equals(s)) return FacturationMailService.Signataire.GAUTHIER;
+        return FacturationMailService.Signataire.ANONYME;
+    }
+
     private String resolveType(ClientInfo ci) {
         if (ci.isNonCompensation()) return "NON COMP";
         // TODO: COMP PART. ve DÉBITEURS için TRF classification eklenecek
@@ -292,7 +335,7 @@ public class FacturationMailDialog {
                     + (attachPath.isBlank() ? " [sans PJ]" : " [" + attachment.getName() + "]"));
 
             drafts.add(new FacturationMailService.DraftRequest(
-                    ci.getName(), email, subject, body, attachPath));
+                    ci.getName(), email, subject, body, attachPath, selectedSignataire));
         }
 
         if (drafts.isEmpty()) {
