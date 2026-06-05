@@ -8,29 +8,27 @@
       styleClass="root-pane">
 
     <!-- ===== LEFT SIDEBAR (200px fixed) ===== -->
-    <VBox styleClass="sidebar" prefWidth="200" minWidth="200" maxWidth="200">
+    <VBox styleClass="sidebar" prefWidth="200" minWidth="200" maxWidth="200" fx:id="sidebarPanel">
 
         <VBox styleClass="sidebar-logo" alignment="CENTER" spacing="4">
             <padding><Insets top="24" bottom="16" left="0" right="0"/></padding>
-            <Label text="Cabinet Phénix" styleClass="sidebar-logo-title"/>
-            <Label text="v1.0.0" styleClass="sidebar-logo-sub"/>
+            <Label fx:id="sidebarLogoTitle" text="Cabinet Phénix" styleClass="sidebar-logo-title"/>
+            <Label fx:id="sidebarLogoSub" text="v1.0.0" styleClass="sidebar-logo-sub"/>
         </VBox>
 
-        <Label text="PRINCIPAL" styleClass="nav-section-label">
+        <Label fx:id="sidebarLabelPrincipal" text="PRINCIPAL" styleClass="nav-section-label">
             <VBox.margin><Insets top="8" left="16" bottom="4"/></VBox.margin>
         </Label>
         <Button fx:id="navOperations" text="⊞  Opérations" maxWidth="Infinity"
                 styleClass="nav-item" onAction="#showOperations"/>
         <Button fx:id="navDashboard"  text="▦  Dashboard"  maxWidth="Infinity"
                 styleClass="nav-item" onAction="#showDashboard"/>
-        <Button fx:id="navHistorique" text="📅  Historique" maxWidth="Infinity"
-                styleClass="nav-item" onAction="#showHistorique"/>
 
         <Region prefHeight="1" minHeight="1" maxHeight="1" styleClass="sidebar-divider-line">
             <VBox.margin><Insets top="8" bottom="8"/></VBox.margin>
         </Region>
 
-        <Label text="PARAMÈTRES" styleClass="nav-section-label">
+        <Label fx:id="sidebarLabelParams" text="PARAMÈTRES" styleClass="nav-section-label">
             <VBox.margin><Insets left="16" bottom="4"/></VBox.margin>
         </Label>
         <Button fx:id="navConfig" text="⚙  Configuration" maxWidth="Infinity"
@@ -41,6 +39,9 @@
         <Region prefHeight="1" minHeight="1" maxHeight="1" styleClass="sidebar-divider-line"/>
         <Button fx:id="navLogFull" text="⌨  Log complet" maxWidth="Infinity"
                 styleClass="nav-item" onAction="#showLogFull"/>
+        <Button fx:id="sidebarToggleBtn" text="◀" maxWidth="Infinity"
+                styleClass="nav-item" onAction="#toggleSidebar"/>
+
     </VBox>
 
     <!-- ===== RIGHT MAIN AREA ===== -->
@@ -93,10 +94,7 @@
                 <!-- Page 2: Dashboard (populated programmatically) -->
                 <VBox fx:id="pageDashboard" styleClass="content-box" visible="false" managed="false"/>
 
-                <!-- Page 3: Historique (populated programmatically) -->
-                <VBox fx:id="pageHistorique" styleClass="content-box" visible="false" managed="false"/>
-
-                <!-- Page 4: Configuration -->
+<!-- Page 4: Configuration -->
                 <VBox fx:id="pageConfig" styleClass="content-box" visible="false" managed="false" spacing="16">
                     <padding><Insets top="16" right="24" bottom="12" left="24"/></padding>
                     <VBox fx:id="configFormBox" spacing="12"/>

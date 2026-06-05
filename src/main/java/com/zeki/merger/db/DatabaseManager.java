@@ -578,7 +578,8 @@ public class DatabaseManager {
                        COUNT(*)                                          AS nb_dossiers,
                        SUM(CAST(cr.col_h AS REAL))                      AS creance_principale,
                        SUM(CAST(cr.col_u AS REAL))                      AS recouvre_total,
-                       SUM(CASE WHEN LOWER(cr.col_j) LIKE 'sold%' THEN 1 ELSE 0 END) AS nb_soldes
+                       SUM(CASE WHEN LOWER(cr.col_j) LIKE 'sold%' THEN 1 ELSE 0 END) AS nb_soldes,
+                       SUM(CAST(cr.col_x AS REAL)) AS commissions
                 FROM creance_rows cr
                 JOIN companies c ON c.id = cr.company_id
                 WHERE cr.col_c >= ? AND cr.col_c <= ?

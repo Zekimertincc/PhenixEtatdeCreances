@@ -297,12 +297,7 @@ public class DashboardController {
     private HBox buildKpiRow(Map<String, Object> s, List<Map<String, Object>> all) {
         double creance  = toDouble(s.get("creance_principale"));
         double recouvre = toDouble(s.get("recouvre_total"));
-        double pct      = creance > 0 ? recouvre / creance * 100.0 : 0.0;
-        int    actifs   = toInt(s.get("nb_dossiers")) - toInt(s.get("nb_soldes"));
-
-        double totC = all.stream().mapToDouble(m -> toDouble(m.get("creance_principale"))).sum();
-        double totR = all.stream().mapToDouble(m -> toDouble(m.get("recouvre_total"))).sum();
-        double gPct = totC > 0 ? totR / totC * 100.0 : 0.0;
+        int    actifs   = Math.max(0, toInt(s.get("nb_dossiers")) - toInt(s.get("nb_soldes")));
 
         HBox row = new HBox(10);
         row.setPadding(new Insets(14, 20, 14, 20));
@@ -310,10 +305,9 @@ public class DashboardController {
         row.getChildren().addAll(
                 kpi("Créance principale",  fmt(creance) + " €",            "#1a1a1a"),
                 kpi("Recouvré total",      fmt(recouvre) + " €",           "#0F6E56"),
-                kpi("Taux recouvrement",   String.format("%.1f%%", pct),
-                        pct >= 50 ? "#0F6E56" : pct >= 25 ? "#BA7517" : "#A32D2D"),
                 kpi("Dossiers actifs",     String.valueOf(Math.max(0, actifs)), "#185FA5"),
-                kpi("Taux global (tout)",  String.format("%.1f%%", gPct),  "#6B6B6B")
+                kpi("Dossiers soldés",     String.valueOf(toInt(s.get("nb_soldes"))),           "#0F6E56"),
+                kpi("Commissions",         fmt(toDouble(s.get("commissions"))) + " €",          "#185FA5")
         );
         return row;
     }
@@ -334,12 +328,9 @@ public class DashboardController {
     // =========================================================================
 
     private VBox buildEtatBars(Map<String, Object> s) {
-        int total   = toInt(s.get("nb_dossiers"));
-        int soldes  = toInt(s.get("nb_soldes"));
-        int gestion = toInt(s.get("nb_gestion"));
-        int irr     = toInt(s.get("nb_irr"));
-        int arj     = toInt(s.get("nb_arj"));
-        int autres  = toInt(s.get("nb_autres"));
+        int total  = toInt(s.get("nb_dossiers"));
+        int soldes = toInt(s.get("nb_soldes"));
+        int cours  = Math.max(0, total - soldes);
 
         Label title = new Label("Répartition des dossiers");
         title.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #6B6B6B;");
@@ -347,11 +338,8 @@ public class DashboardController {
         VBox bars = new VBox(8);
         if (total > 0) {
             bars.getChildren().addAll(
-                    etatBar("Soldé",   soldes,  total, "#1D9E75"),
-                    etatBar("Gestion", gestion, total, "#BA7517"),
-                    etatBar("IRR",     irr,     total, "#E24B4A"),
-                    etatBar("ARJ",     arj,     total, "#378ADD"),
-                    etatBar("Autres",  autres,  total, "#888780")
+                etatBar("Soldés",   soldes, total, "#1D9E75"),
+                etatBar("En cours", cours,  total, "#BA7517")
             );
         }
 
@@ -518,9 +506,9 @@ public class DashboardController {
         kpis.getChildren().addAll(
             kpi("Total créances",       fmt(totCreance) + " €",          "#1a1a1a"),
             kpi("Total recouvré",       fmt(totRecouvre) + " €",         "#0F6E56"),
-            kpi("Taux recouvrement",    String.format("%.1f%%", globalPct),
-                globalPct >= 50 ? "#0F6E56" : globalPct >= 25 ? "#BA7517" : "#A32D2D"),
-            kpi("Dossiers sur période", String.valueOf(totDossiers),      "#185FA5")
+            kpi("Dossiers sur période",  String.valueOf(totDossiers),  "#185FA5"),
+            kpi("Dossiers soldés",       String.valueOf(rows.stream().mapToInt(r -> toInt(r.get("nb_soldes"))).sum()), "#0F6E56"),
+            kpi("Commissions",           fmt(rows.stream().mapToDouble(r -> toDouble(r.get("commissions"))).sum()) + " €", "#9B9B9B")
         );
         area.getChildren().add(kpis);
 

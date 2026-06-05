@@ -625,3 +625,31 @@
     -fx-padding: 14 12 8 14;
     -fx-background-color: #F2F0EB;
 }
+
+/* =============================================================
+   Sidebar accordion
+   ============================================================= */
+.sidebar-accordion-pane {
+    -fx-background-color: transparent;
+}
+.sidebar-accordion-pane > .title {
+    -fx-background-color: transparent;
+    -fx-text-fill: rgba(255,255,255,0.25);
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-padding: 8 8 4 16;
+}
+.sidebar-accordion-pane > .title > .arrow-button > .arrow {
+    -fx-background-color: rgba(255,255,255,0.25);
+}
+.sidebar-accordion-pane > .title:hover {
+    -fx-background-color: rgba(255,255,255,0.05);
+}
+.sidebar-accordion-pane > .content {
+    -fx-background-color: transparent;
+    -fx-padding: 2 0 4 0;
+}
+.sidebar-accordion-content {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
