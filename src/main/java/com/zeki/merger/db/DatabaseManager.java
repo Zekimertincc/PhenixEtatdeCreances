@@ -58,6 +58,8 @@ public class DatabaseManager {
                     last_sync   TEXT
                 )""");
 
+            st.executeUpdate("CREATE UNIQUE INDEX IF NOT EXISTS idx_companies_name_ci ON companies(name COLLATE NOCASE)");
+
             st.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS creance_rows (
                     id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -97,6 +99,25 @@ public class DatabaseManager {
                     etat             TEXT,
                     iban             TEXT,
                     non_compensation INTEGER DEFAULT 0
+                )""");
+
+            st.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS company_summaries (
+                    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id          INTEGER NOT NULL UNIQUE REFERENCES companies(id) ON DELETE CASCADE,
+                    code_client         TEXT,
+                    responsable         TEXT,
+                    nb_dossiers         INTEGER,
+                    nb_soldes           INTEGER,
+                    nb_gestion          INTEGER,
+                    nb_irr              INTEGER,
+                    nb_arj              INTEGER,
+                    nb_autres           INTEGER,
+                    creance_principale  REAL,
+                    recouvre_total      REAL,
+                    commissions         REAL,
+                    dernier_dossier     TEXT,
+                    last_sync           TEXT
                 )""");
 
             st.executeUpdate("""
@@ -142,6 +163,7 @@ public class DatabaseManager {
 
     /** Upsert company by name and return its row id. */
     public synchronized long upsertCompany(String name, String sourcePath) throws SQLException {
+        name = name.trim();
         String now = LocalDateTime.now().format(ISO);
         try (PreparedStatement ps = conn.prepareStatement("""
                 INSERT INTO companies (name, source_path, last_sync) VALUES (?,?,?)
@@ -461,6 +483,78 @@ public class DatabaseManager {
         }
     }
 
+    /** Upsert the computed summary for a company (from Érat de Créances sheet). */
+    public synchronized void upsertCompanySummary(long companyId, String codeClient,
+            String responsable, int nbDossiers, int nbSoldes, int nbGestion,
+            int nbIrr, int nbArj, int nbAutres,
+            double creancePrincipale, double recouvreTotal, double commissions,
+            String dernierDossier) throws SQLException {
+        String now = LocalDateTime.now().format(ISO);
+        try (PreparedStatement ps = conn.prepareStatement("""
+                INSERT INTO company_summaries
+                  (company_id, code_client, responsable, nb_dossiers,
+                   nb_soldes, nb_gestion, nb_irr, nb_arj, nb_autres,
+                   creance_principale, recouvre_total, commissions,
+                   dernier_dossier, last_sync)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(company_id) DO UPDATE
+                  SET code_client=excluded.code_client, responsable=excluded.responsable,
+                      nb_dossiers=excluded.nb_dossiers, nb_soldes=excluded.nb_soldes,
+                      nb_gestion=excluded.nb_gestion, nb_irr=excluded.nb_irr,
+                      nb_arj=excluded.nb_arj, nb_autres=excluded.nb_autres,
+                      creance_principale=excluded.creance_principale,
+                      recouvre_total=excluded.recouvre_total,
+                      commissions=excluded.commissions,
+                      dernier_dossier=excluded.dernier_dossier,
+                      last_sync=excluded.last_sync
+                """)) {
+            ps.setLong  (1,  companyId);
+            ps.setString(2,  codeClient);
+            ps.setString(3,  responsable);
+            ps.setInt   (4,  nbDossiers);
+            ps.setInt   (5,  nbSoldes);
+            ps.setInt   (6,  nbGestion);
+            ps.setInt   (7,  nbIrr);
+            ps.setInt   (8,  nbArj);
+            ps.setInt   (9,  nbAutres);
+            ps.setDouble(10, creancePrincipale);
+            ps.setDouble(11, recouvreTotal);
+            ps.setDouble(12, commissions);
+            ps.setString(13, dernierDossier);
+            ps.setString(14, now);
+            ps.executeUpdate();
+        }
+    }
+
+    public synchronized List<Map<String, Object>> getAllCompanySummaries() {
+        List<Map<String, Object>> out = new ArrayList<>();
+        String sql = """
+                SELECT c.id AS company_id, c.name, c.source_path,
+                       cs.code_client, cs.responsable, cs.nb_dossiers,
+                       cs.nb_soldes, cs.nb_gestion, cs.nb_irr, cs.nb_arj, cs.nb_autres,
+                       cs.creance_principale, cs.recouvre_total, cs.commissions,
+                       cs.dernier_dossier, cs.last_sync
+                FROM companies c
+                LEFT JOIN company_summaries cs ON cs.company_id = c.id
+                ORDER BY c.name COLLATE NOCASE
+                """;
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery(sql)) {
+            ResultSetMetaData meta = rs.getMetaData();
+            int cols = meta.getColumnCount();
+            while (rs.next()) {
+                Map<String, Object> row = new LinkedHashMap<>();
+                for (int i = 1; i <= cols; i++) {
+                    row.put(meta.getColumnName(i), rs.getObject(i));
+                }
+                out.add(row);
+            }
+        } catch (SQLException e) {
+            System.err.println("[DB] getAllCompanySummaries error: " + e.getMessage());
+        }
+        return out;
+    }
+
     public synchronized void closeTrfMonth(int year, int month) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
                 "UPDATE trf_months SET status='closed', closed_at=datetime('now') WHERE year=? AND month=?")) {
@@ -468,5 +562,47 @@ public class DatabaseManager {
             ps.setInt(2, month);
             ps.executeUpdate();
         }
+    }
+
+    /**
+     * Returns per-company aggregates from creance_rows filtered by REMIS LE date range.
+     * dateFrom and dateTo are inclusive, format "YYYY-MM-DD".
+     * Returns list of maps with keys: company_id, name, creance_principale, recouvre_total,
+     * nb_dossiers, nb_soldes.
+     */
+    public synchronized List<Map<String, Object>> getGlobalStatsByDateRange(
+            String dateFrom, String dateTo) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        String sql = """
+                SELECT c.id AS company_id, c.name,
+                       COUNT(*)                                          AS nb_dossiers,
+                       SUM(CAST(cr.col_h AS REAL))                      AS creance_principale,
+                       SUM(CAST(cr.col_u AS REAL))                      AS recouvre_total,
+                       SUM(CASE WHEN LOWER(cr.col_j) LIKE 'sold%' THEN 1 ELSE 0 END) AS nb_soldes,
+                       SUM(CAST(cr.col_x AS REAL)) AS commissions
+                FROM creance_rows cr
+                JOIN companies c ON c.id = cr.company_id
+                WHERE cr.col_c >= ? AND cr.col_c <= ?
+                GROUP BY cr.company_id
+                ORDER BY creance_principale DESC
+                """;
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, dateFrom);
+            ps.setString(2, dateTo + "T23:59");
+            try (ResultSet rs = ps.executeQuery()) {
+                ResultSetMetaData meta = rs.getMetaData();
+                int cols = meta.getColumnCount();
+                while (rs.next()) {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    for (int i = 1; i <= cols; i++) {
+                        row.put(meta.getColumnName(i), rs.getObject(i));
+                    }
+                    out.add(row);
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[DB] getGlobalStatsByDateRange error: " + e.getMessage());
+        }
+        return out;
     }
 }

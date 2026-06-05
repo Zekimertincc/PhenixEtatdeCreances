@@ -244,7 +244,7 @@ public class AccuseReceptionDialog {
                     + (attachPath.isBlank() ? " [sans PJ]" : " [" + attachment.getName() + "]"));
 
             drafts.add(new FacturationMailService.DraftRequest(
-                    ci.getName(), email, subject, body, attachPath));
+                    ci.getName(), email, subject, body, attachPath, FacturationMailService.Signataire.ANONYME));
         }
 
         if (drafts.isEmpty()) {

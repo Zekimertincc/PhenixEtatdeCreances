@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 public class FacturationMailService {
 
     public enum CompType { VIREMENT, NON_COMP, COMP_PARTIELLE, DEBITEURS }
+    public enum Signataire { ANONYME, JULIEN, GAUTHIER }
 
     // -------------------------------------------------------------------------
     // Template bodies
@@ -269,7 +270,7 @@ public class FacturationMailService {
             String safeName = req.clientName.replaceAll("[^a-zA-Z0-9]", "_");
             File vbs = new File(draftDir, "draft_" + safeName + ".vbs");
 
-            String htmlBody = buildHtmlBody(req.body);
+            String htmlBody = buildHtmlBody(req.body, req.signataire);
             // VBScript'te uzun HTML string'i Chr() ile parçalara böl
             String safeHtml = htmlBody
                     .replace("\\", "\\\\")
@@ -370,7 +371,7 @@ public class FacturationMailService {
         folder.delete();
     }
 
-    private String buildHtmlSignature() {
+    private String buildHtmlSignature(Signataire signataire) {
         String logoBase64 = "";
         try {
             java.io.InputStream is = getClass().getResourceAsStream("/phenix.png");
@@ -386,15 +387,28 @@ public class FacturationMailService {
                 : "<img src=\"data:image/png;base64," + logoBase64
                   + "\" width=\"160\" style=\"display:block;margin-bottom:8px;\" />";
 
+        String nameBlock = switch (signataire) {
+            case JULIEN   -> "<tr><td style=\"font-weight:bold;color:#1a1a1a;\">Julien JOUSSET</td></tr>"
+                           + "<tr><td style=\"color:#555;\">Directeur Associé</td></tr>";
+            case GAUTHIER -> "<tr><td style=\"font-weight:bold;color:#1a1a1a;\">Gauthier BERIS</td></tr>"
+                           + "<tr><td style=\"color:#555;\">Directeur Associé</td></tr>";
+            default       -> "<tr><td style=\"font-weight:bold;color:#1a1a1a;\">CABINET PHÉNIX</td></tr>";
+        };
+
+        String mobLine = switch (signataire) {
+            case JULIEN   -> "<tr><td>Mob. : +33 (0)6 72 86 38 78 &nbsp;|&nbsp; Tél. : +33 (0)1 53 20 12 76</td></tr>";
+            case GAUTHIER -> "<tr><td>Mob. : +33 (0)6 22 19 61 78 &nbsp;|&nbsp; Tél. : +33 (0)1 53 20 12 76</td></tr>";
+            default       -> "<tr><td>Mob. : +33 (0)6 72 86 38 78 &nbsp;|&nbsp; Tél. : +33 (0)1 53 20 12 76</td></tr>";
+        };
+
         return "<br><br>"
              + "<table style=\"font-family:Arial,sans-serif;font-size:12px;"
              + "color:#333;border-left:3px solid #E8670A;padding-left:12px;"
              + "margin-top:10px;\">"
              + "<tr><td>" + logoTag + "</td></tr>"
-             + "<tr><td style=\"font-weight:bold;color:#1a1a1a;\">CABINET PHÉNIX</td></tr>"
+             + nameBlock
              + "<tr><td>1, rue de Stockholm — 75008 PARIS</td></tr>"
-             + "<tr><td>Mob. : +33 (0)6 72 86 38 78 &nbsp;|&nbsp; "
-             + "Tél. : +33 (0)1 53 20 12 76</td></tr>"
+             + mobLine
              + "<tr><td>E-mail : <a href=\"mailto:contact@cabinetphenix.fr\" "
              + "style=\"color:#E8670A;\">contact@cabinetphenix.fr</a></td></tr>"
              + "<tr><td>Site : <a href=\"https://www.cabinetphenix.fr\" "
@@ -402,7 +416,7 @@ public class FacturationMailService {
              + "</table>";
     }
 
-    private String buildHtmlBody(String plainBody) {
+    public String buildHtmlBody(String plainBody, Signataire signataire) {
         String htmlBody = plainBody
                 .replace("&", "&amp;")
                 .replace("<", "&lt;")
@@ -411,24 +425,30 @@ public class FacturationMailService {
         return "<html><body style=\"font-family:Arial,sans-serif;font-size:13px;"
              + "color:#333;line-height:1.6;\">"
              + htmlBody
-             + buildHtmlSignature()
+             + buildHtmlSignature(signataire)
              + "</body></html>";
     }
 
+    public String buildHtmlBody(String plainBody) {
+        return buildHtmlBody(plainBody, Signataire.ANONYME);
+    }
+
     public static class DraftRequest {
-        public final String clientName;
-        public final String to;
-        public final String subject;
-        public final String body;
-        public final String attachmentPath;
+        public final String      clientName;
+        public final String      to;
+        public final String      subject;
+        public final String      body;
+        public final String      attachmentPath;
+        public final Signataire  signataire;
 
         public DraftRequest(String clientName, String to, String subject,
-                           String body, String attachmentPath) {
+                           String body, String attachmentPath, Signataire signataire) {
             this.clientName     = clientName;
             this.to             = to;
             this.subject        = subject;
             this.body           = body;
             this.attachmentPath = attachmentPath != null ? attachmentPath : "";
+            this.signataire     = signataire != null ? signataire : Signataire.ANONYME;
         }
     }
 }

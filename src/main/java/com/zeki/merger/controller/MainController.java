@@ -30,7 +30,6 @@ public class MainController {
 
     @FXML private Button navOperations;
     @FXML private Button navDashboard;
-    @FXML private Button navHistorique;
     @FXML private Button navConfig;
     @FXML private Button navLogFull;
     @FXML private Label  pageTitle;
@@ -41,7 +40,6 @@ public class MainController {
 
     @FXML private VBox pageOperations;
     @FXML private VBox pageDashboard;
-    @FXML private VBox pageHistorique;
     @FXML private VBox pageConfig;
 
     // =========================================================================
@@ -93,8 +91,15 @@ public class MainController {
     // Sub-controllers
     // =========================================================================
 
+    @FXML private VBox   sidebarPanel;
+    @FXML private Button sidebarToggleBtn;
+    @FXML private Label  sidebarLogoTitle;
+    @FXML private Label  sidebarLogoSub;
+    @FXML private Label  sidebarLabelPrincipal;
+    @FXML private Label  sidebarLabelParams;
+    private boolean sidebarCollapsed = false;
+
     private DashboardController   dashboardController;
-    private HistoriqueController  historiqueController;
     private ConfigController      configController;
     private OperationsController  operationsController;
 
@@ -107,8 +112,8 @@ public class MainController {
 
     @FXML
     public void initialize() {
-        navButtons = List.of(navOperations, navDashboard, navHistorique, navConfig);
-        pages      = List.of(pageOperations, pageDashboard, pageHistorique, pageConfig);
+        navButtons = List.of(navOperations, navDashboard, navConfig);
+        pages      = List.of(pageOperations, pageDashboard, pageConfig);
 
         progressBar.setProgress(0);
         statusBar.setVisible(false);
@@ -116,11 +121,7 @@ public class MainController {
         navOperations.getStyleClass().add("nav-active");
 
         dashboardController  = new DashboardController(DatabaseManager.getInstance(),
-            monthClotureService, trfGeneratorService, this::appendLog, executor);
-
-        historiqueController = new HistoriqueController(DatabaseManager.getInstance(),
-            monthClotureService, trfGeneratorService, this::appendLog, executor,
-            this::showOperations);
+            syncService, this::appendLog, executor);
 
         configController = new ConfigController(configFormBox, badgesBox, missingFilesLabel,
             this::appendLog, this::showOperations);
@@ -138,10 +139,7 @@ public class MainController {
         configController.load();
         operationsController.buildButtons(actionsGrid);
 
-        if (DatabaseManager.getInstance().getAllTrfMonths().isEmpty()) {
-            appendLog("[Dashboard] Base de données vide — chargement automatique...");
-            dashboardController.refresh(pageDashboard);
-        }
+        // Dashboard loads on demand — no auto-refresh needed
     }
 
     // =========================================================================
@@ -157,14 +155,40 @@ public class MainController {
         dashboardController.load(pageDashboard);
     }
 
-    @FXML private void showHistorique() {
-        switchPage(pageHistorique, navHistorique, "Historique");
-        historiqueController.load(pageHistorique);
-    }
-
     @FXML private void showConfig() {
         switchPage(pageConfig, navConfig, "Configuration");
         configController.load();
+    }
+
+    @FXML private void toggleSidebar() {
+        sidebarCollapsed = !sidebarCollapsed;
+        if (sidebarCollapsed) {
+            sidebarPanel.setPrefWidth(48);
+            sidebarPanel.setMinWidth(48);
+            sidebarPanel.setMaxWidth(48);
+            sidebarLogoTitle.setVisible(false);  sidebarLogoTitle.setManaged(false);
+            sidebarLogoSub.setVisible(false);    sidebarLogoSub.setManaged(false);
+            sidebarLabelPrincipal.setVisible(false); sidebarLabelPrincipal.setManaged(false);
+            sidebarLabelParams.setVisible(false);    sidebarLabelParams.setManaged(false);
+            navOperations.setText("⊞");
+            navDashboard.setText("▦");
+            navConfig.setText("⚙");
+            navLogFull.setText("⌨");
+            sidebarToggleBtn.setText("▶");
+        } else {
+            sidebarPanel.setPrefWidth(200);
+            sidebarPanel.setMinWidth(200);
+            sidebarPanel.setMaxWidth(200);
+            sidebarLogoTitle.setVisible(true);  sidebarLogoTitle.setManaged(true);
+            sidebarLogoSub.setVisible(true);    sidebarLogoSub.setManaged(true);
+            sidebarLabelPrincipal.setVisible(true); sidebarLabelPrincipal.setManaged(true);
+            sidebarLabelParams.setVisible(true);    sidebarLabelParams.setManaged(true);
+            navOperations.setText("⊞  Opérations");
+            navDashboard.setText("▦  Dashboard");
+            navConfig.setText("⚙  Configuration");
+            navLogFull.setText("⌨  Log complet");
+            sidebarToggleBtn.setText("◀");
+        }
     }
 
     @FXML private void showLogFull() {
