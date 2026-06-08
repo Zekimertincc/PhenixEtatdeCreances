@@ -6,10 +6,14 @@ import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
+import com.zeki.merger.ui.ConsoFilterDialog.ConsoFilter;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -46,7 +50,7 @@ public class ExcelReader {
      * {@link AppConfig#FILTER_COLUMN_INDEX} is non-blank, and wraps each in a
      * {@link CreanceRow} tagged with {@code companyName}.
      */
-    public List<CreanceRow> readFiltered(String companyName, File excelFile) throws IOException {
+    public List<CreanceRow> readFiltered(String companyName, File excelFile, ConsoFilter filter) throws IOException {
         List<CreanceRow> rows = new ArrayList<>();
 
         try (Workbook wb = openWorkbook(excelFile)) {
@@ -55,14 +59,30 @@ public class ExcelReader {
             DataFormatter fmt = new DataFormatter();
             FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
 
-            for (int r = 16; r <= sheet.getLastRowNum(); r++) {  // row 15 = header, row 16+ = data
+            for (int r = 16; r <= sheet.getLastRowNum(); r++) {
                 Row row = sheet.getRow(r);
                 if (row == null) continue;
 
-                Cell filterCell = row.getCell(AppConfig.FILTER_COLUMN_INDEX);
-                if (!hasRealData(filterCell)) {
-                    Cell fallbackCell = row.getCell(9);
-                    if (!hasRealData(fallbackCell)) continue;
+                if (filter != null && !filter.tous()) {
+                    // Lieu filter: column 18 must be AG, CL or NA
+                    Cell lieuCell = row.getCell(AppConfig.FILTER_COLUMN_INDEX);
+                    if (!isValidLieu(lieuCell)) continue;
+
+                    // Remis Le filter: column 2 (src index 2 = col D in source = index 2 0-based)
+                    if (filter.dateDebut() != null || filter.dateFin() != null) {
+                        Cell remisCell = row.getCell(2);
+                        LocalDate remis = extractDate(remisCell);
+                        if (remis == null) continue;
+                        if (filter.dateDebut() != null && remis.isBefore(filter.dateDebut())) continue;
+                        if (filter.dateFin()   != null && remis.isAfter(filter.dateFin()))   continue;
+                    }
+                } else {
+                    // Tous mode: keep existing behaviour (non-empty col S or fallback col J)
+                    Cell filterCell = row.getCell(AppConfig.FILTER_COLUMN_INDEX);
+                    if (!hasRealData(filterCell)) {
+                        Cell fallbackCell = row.getCell(9);
+                        if (!hasRealData(fallbackCell)) continue;
+                    }
                 }
 
                 List<Object> values = extractRowValues(row, fmt, evaluator);
@@ -71,7 +91,7 @@ public class ExcelReader {
         }
 
         if (rows.isEmpty()) {
-            System.out.println("[" + companyName + "] SKIPPED - no data in column S");
+            System.out.println("[" + companyName + "] SKIPPED - no data matched filter");
         }
         return rows;
     }
@@ -111,6 +131,35 @@ public class ExcelReader {
             || formatString.contains("£")
             || formatString.contains("¥")
             || formatString.contains("₺");
+    }
+
+    private static final java.util.Set<String> VALID_LIEU = java.util.Set.of("AG", "CL", "NA");
+
+    private boolean isValidLieu(Cell cell) {
+        if (cell == null) return false;
+        CellType type = cell.getCellType() == CellType.FORMULA
+            ? cell.getCachedFormulaResultType() : cell.getCellType();
+        if (type != CellType.STRING) return false;
+        String val = cell.getStringCellValue().trim().toUpperCase(java.util.Locale.ROOT);
+        return VALID_LIEU.contains(val);
+    }
+
+    private LocalDate extractDate(Cell cell) {
+        if (cell == null) return null;
+        CellType type = cell.getCellType() == CellType.FORMULA
+            ? cell.getCachedFormulaResultType() : cell.getCellType();
+        if (type == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
+            return DateUtil.getJavaDate(cell.getNumericCellValue())
+                .toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDate();
+        }
+        if (type == CellType.STRING) {
+            String s = cell.getStringCellValue().trim();
+            for (String fmt : new String[]{"dd/MM/yyyy", "d/MM/yyyy", "dd/M/yyyy"}) {
+                try { return LocalDate.parse(s, DateTimeFormatter.ofPattern(fmt)); }
+                catch (Exception ignored) {}
+            }
+        }
+        return null;
     }
 
     private boolean hasRealData(Cell cell) {

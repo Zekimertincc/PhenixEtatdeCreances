@@ -3,6 +3,7 @@ package com.zeki.merger.service;
 import com.zeki.merger.AppConfig;
 import com.zeki.merger.db.DatabaseManager;
 import com.zeki.merger.model.CreanceRow;
+import com.zeki.merger.ui.ConsoFilterDialog.ConsoFilter;
 
 import java.io.File;
 import java.time.LocalDateTime;
@@ -36,6 +37,7 @@ public class MergeService {
 
     public File merge(File rootFolder,
                       File outputFolder,
+                      ConsoFilter filter,
                       BiConsumer<Double, String> progressCallback) throws Exception {
 
         log(progressCallback, 0.00, "Scanning: " + rootFolder.getAbsolutePath());
@@ -68,7 +70,7 @@ public class MergeService {
                 + "  →  " + cf.excelFile().getName());
 
             try {
-                List<CreanceRow> rows = reader.readFiltered(cf.companyName(), cf.excelFile());
+                List<CreanceRow> rows = reader.readFiltered(cf.companyName(), cf.excelFile(), filter);
                 if (rows.isEmpty()) {
                     log(progressCallback, progress,
                         "[" + cf.companyName() + "] SKIPPED - no data in column S");
@@ -165,7 +167,7 @@ public class MergeService {
                 + "  →  " + cf.excelFile().getName());
 
             try {
-                List<CreanceRow> rows = reader.readFiltered(cf.companyName(), cf.excelFile());
+                List<CreanceRow> rows = reader.readFiltered(cf.companyName(), cf.excelFile(), null);
                 if (rows.isEmpty()) {
                     log(progressCallback, progress,
                         "[" + cf.companyName() + "] SKIPPED - no data in column S");

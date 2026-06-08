@@ -3,6 +3,8 @@ package com.zeki.merger.controller;
 import com.zeki.merger.AppPreferences;
 import com.zeki.merger.service.*;
 import com.zeki.merger.ui.AccuseReceptionDialog;
+import com.zeki.merger.ui.ConsoFilterDialog;
+import com.zeki.merger.ui.ConsoFilterDialog.ConsoFilter;
 import com.zeki.merger.ui.FacturationMailDialog;
 import javafx.stage.Stage;
 import com.zeki.merger.trf.TrfGeneratorService;
@@ -96,7 +98,7 @@ public class OperationsController {
     }
 
     public void buildButtons(GridPane actionsGrid) {
-        runActionBtn     = createActionBtn("▶  CONSOLIDER",              "Lire les états → ConsolidationGénérale",  "consolider-card",     e -> showConfirmDialog("Consolider", "Lit tous les états de créances et génère la ConsolidationGénérale.xlsx.", new String[]{"Dossier racine"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank()}, this::run));
+        runActionBtn     = createActionBtn("▶  CONSOLIDER",              "Lire les états → ConsolidationGénérale",  "consolider-card",     e -> openConsoFilter());
         trfBtn           = createActionBtn("Générer TRF",                "Calcul virements et compensations",       "action-card-primary", e -> showConfirmDialog("Générer TRF", "Calcule les virements et compensations depuis la ConsolidationGénérale.", new String[]{"Dossier racine", "ConsolidationGénérale", "Listing Cabinet", "Tableau de bord"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank(), !AppPreferences.getTrfConso().isBlank(), !AppPreferences.getTrfListing().isBlank(), !AppPreferences.getTrfTableau().isBlank()}, this::generateTrf));
         etatBtn          = createActionBtn("États publics",              "Exporter vers Espace Partagé",            "action-card",         e -> showConfirmDialog("États publics", "Exporte les états publics vers l'Espace Partagé de chaque client.", new String[]{"Dossier racine"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank()}, this::generateEtatPublic));
         cmpBtn           = createActionBtn("Comparer fichiers",          "Contrôle PROCRÉANCES",                    "action-card",         e -> showConfirmDialog("Comparer fichiers", "Compare le fichier Procréances avec la ConsolidationGénérale.", new String[]{"Dossier racine", "Procréances", "ConsolidationGénérale"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank(), !AppPreferences.getProcreancesPath().isBlank(), !AppPreferences.getTrfConso().isBlank()}, this::compareProcreances));
@@ -268,7 +270,12 @@ public class OperationsController {
         });
     }
 
-    private void run() {
+    private void openConsoFilter() {
+        Stage owner = (Stage) runActionBtn.getScene().getWindow();
+        new ConsoFilterDialog(owner).showAndWait().ifPresent(this::run);
+    }
+
+    private void run(ConsoFilter filter) {
         File rootFolder   = new File(AppPreferences.getMergeRoot());
         File outputFolder = new File(AppPreferences.getOutputFolder());
 
@@ -287,7 +294,7 @@ public class OperationsController {
 
         executor.submit(() -> {
             try {
-                File result = mergeService.merge(rootFolder, outputFolder,
+                File result = mergeService.merge(rootFolder, outputFolder, filter,
                         (progress, msg) -> Platform.runLater(() -> { progressBar.setProgress(progress); log.accept(msg); }));
                 Platform.runLater(() -> {
                     if (result != null) {

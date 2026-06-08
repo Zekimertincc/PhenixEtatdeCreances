@@ -58,7 +58,7 @@ public class EtatCreancesSyncService {
         if (db == null) return;
 
         // 1. Write raw rows (existing behaviour)
-        List<CreanceRow> rows = reader.readFiltered(cf.companyName(), cf.excelFile());
+        List<CreanceRow> rows = reader.readFiltered(cf.companyName(), cf.excelFile(), null);
         long companyId = db.upsertCompany(cf.companyName(), cf.excelFile().getAbsolutePath());
         db.replaceCreanceRows(companyId, rows);
 
