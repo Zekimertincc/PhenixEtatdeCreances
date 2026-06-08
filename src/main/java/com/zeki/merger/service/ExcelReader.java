@@ -6,8 +6,6 @@ import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
-import com.zeki.merger.ui.ConsoFilterDialog.ConsoFilter;
-
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -17,24 +15,13 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Reads an Excel file with Apache POI and returns:
- * <ul>
- *   <li>the header row (row 0) as a list of strings</li>
- *   <li>all data rows where column S (index 18) is non-empty, skipping row 0</li>
- * </ul>
- */
 public class ExcelReader {
 
-    /**
-     * Returns the header row from the first sheet (row index 0).
-     */
     public List<String> readHeader(File excelFile) throws IOException {
         try (Workbook wb = openWorkbook(excelFile)) {
             Sheet sheet = wb.getSheetAt(0);
             Row headerRow = sheet.getRow(0);
             if (headerRow == null) return List.of();
-
             DataFormatter fmt = new DataFormatter();
             List<String> headers = new ArrayList<>();
             for (int c = 0; c < headerRow.getLastCellNum(); c++) {
@@ -46,13 +33,34 @@ public class ExcelReader {
     }
 
     /**
-     * Reads every data row (starting at index 1) whose value in column
-     * {@link AppConfig#FILTER_COLUMN_INDEX} is non-blank, and wraps each in a
-     * {@link CreanceRow} tagged with {@code companyName}.
+     * CONSOLIDER — original behaviour: col S non-empty = include row.
      */
-    public List<CreanceRow> readFiltered(String companyName, File excelFile, ConsoFilter filter) throws IOException {
+    public List<CreanceRow> readFiltered(String companyName, File excelFile) throws IOException {
         List<CreanceRow> rows = new ArrayList<>();
+        try (Workbook wb = openWorkbook(excelFile)) {
+            Sheet sheet = wb.getSheet(AppConfig.CREANCES_SHEET_NAME);
+            if (sheet == null) sheet = wb.getSheetAt(0);
+            DataFormatter fmt = new DataFormatter();
+            FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
 
+            for (int r = 16; r <= sheet.getLastRowNum(); r++) {
+                Row row = sheet.getRow(r);
+                if (row == null) continue;
+                Cell filterCell = row.getCell(AppConfig.FILTER_COLUMN_INDEX);
+                if (!hasRealData(filterCell)) continue;
+                rows.add(new CreanceRow(companyName, extractRowValues(row, fmt, evaluator), r));
+            }
+        }
+        if (rows.isEmpty()) System.out.println("[" + companyName + "] SKIPPED - no data in column S");
+        return rows;
+    }
+
+    /**
+     * TOUS LES DOSSIERS — no Lieu filter, optional date range on col C (Remis Le).
+     */
+    public List<CreanceRow> readFilteredTous(String companyName, File excelFile,
+                                              LocalDate dateDebut, LocalDate dateFin) throws IOException {
+        List<CreanceRow> rows = new ArrayList<>();
         try (Workbook wb = openWorkbook(excelFile)) {
             Sheet sheet = wb.getSheet(AppConfig.CREANCES_SHEET_NAME);
             if (sheet == null) sheet = wb.getSheetAt(0);
@@ -63,44 +71,25 @@ public class ExcelReader {
                 Row row = sheet.getRow(r);
                 if (row == null) continue;
 
-                if (filter != null && !filter.tous()) {
-                    // Lieu filter: column 18 must be AG, CL or NA
-                    Cell lieuCell = row.getCell(AppConfig.FILTER_COLUMN_INDEX);
-                    if (!isValidLieu(lieuCell)) continue;
-
-                    // Remis Le filter: column 2 (src index 2 = col D in source = index 2 0-based)
-                    if (filter.dateDebut() != null || filter.dateFin() != null) {
-                        Cell remisCell = row.getCell(2);
-                        LocalDate remis = extractDate(remisCell);
-                        if (remis == null) continue;
-                        if (filter.dateDebut() != null && remis.isBefore(filter.dateDebut())) continue;
-                        if (filter.dateFin()   != null && remis.isAfter(filter.dateFin()))   continue;
-                    }
-                } else {
-                    // Tous mode: accept all rows with real data, optionally filter by date
-                    Cell filterCell = row.getCell(AppConfig.FILTER_COLUMN_INDEX);
-                    if (!hasRealData(filterCell)) {
-                        Cell fallbackCell = row.getCell(9);
-                        if (!hasRealData(fallbackCell)) continue;
-                    }
-                    // Apply date range if provided even in Tous mode
-                    if (filter != null && (filter.dateDebut() != null || filter.dateFin() != null)) {
-                        Cell remisCell = row.getCell(2);
-                        LocalDate remis = extractDate(remisCell);
-                        if (remis == null) continue;
-                        if (filter.dateDebut() != null && remis.isBefore(filter.dateDebut())) continue;
-                        if (filter.dateFin()   != null && remis.isAfter(filter.dateFin()))   continue;
-                    }
+                // Row must have some real data (col S or fallback col J)
+                Cell filterCell = row.getCell(AppConfig.FILTER_COLUMN_INDEX);
+                if (!hasRealData(filterCell)) {
+                    Cell fallback = row.getCell(9);
+                    if (!hasRealData(fallback)) continue;
                 }
 
-                List<Object> values = extractRowValues(row, fmt, evaluator);
-                rows.add(new CreanceRow(companyName, values, r));
+                // Date range filter on col C (index 2 = Remis Le)
+                if (dateDebut != null || dateFin != null) {
+                    LocalDate remis = extractDate(row.getCell(2));
+                    if (remis == null) continue;
+                    if (dateDebut != null && remis.isBefore(dateDebut)) continue;
+                    if (dateFin   != null && remis.isAfter(dateFin))   continue;
+                }
+
+                rows.add(new CreanceRow(companyName, extractRowValues(row, fmt, evaluator), r));
             }
         }
-
-        if (rows.isEmpty()) {
-            System.out.println("[" + companyName + "] SKIPPED - no data matched filter");
-        }
+        if (rows.isEmpty()) System.out.println("[" + companyName + "] SKIPPED - no rows matched");
         return rows;
     }
 
@@ -113,70 +102,12 @@ public class ExcelReader {
             : new XSSFWorkbook(fis);
     }
 
-    /**
-     * Returns true only when the cell contains a genuinely meaningful value:
-     * - non-blank STRING that is not empty/whitespace
-     * - NUMERIC that is not zero (zero = formula placeholder with no real data)
-     * - BOOLEAN (any boolean is real data)
-     *
-     * This prevents financial templates where column S is pre-filled with
-     * SUM/IF formulas that evaluate to 0 when no data is entered from being
-     * treated as having data.
-     */
-    /**
-     * Values that appear in column S as template sub-headers (not real data).
-     * Case-insensitive comparison is used.
-     */
-    private static final java.util.Set<String> HEADER_LABELS = java.util.Set.of(
-        "lieu", "location", "place"
-    );
-
-    /** Returns true when the Excel format string contains a known currency symbol. */
-    private boolean isCurrencyFormat(String formatString) {
-        if (formatString == null) return false;
-        return formatString.contains("€")
-            || formatString.contains("$")
-            || formatString.contains("£")
-            || formatString.contains("¥")
-            || formatString.contains("₺");
-    }
-
-    private static final java.util.Set<String> VALID_LIEU = java.util.Set.of("AG", "CL", "NA");
-
-    private boolean isValidLieu(Cell cell) {
-        if (cell == null) return false;
-        CellType type = cell.getCellType() == CellType.FORMULA
-            ? cell.getCachedFormulaResultType() : cell.getCellType();
-        if (type != CellType.STRING) return false;
-        String val = cell.getStringCellValue().trim().toUpperCase(java.util.Locale.ROOT);
-        return VALID_LIEU.contains(val);
-    }
-
-    private LocalDate extractDate(Cell cell) {
-        if (cell == null) return null;
-        CellType type = cell.getCellType() == CellType.FORMULA
-            ? cell.getCachedFormulaResultType() : cell.getCellType();
-        if (type == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
-            return DateUtil.getJavaDate(cell.getNumericCellValue())
-                .toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDate();
-        }
-        if (type == CellType.STRING) {
-            String s = cell.getStringCellValue().trim();
-            for (String fmt : new String[]{"dd/MM/yyyy", "d/MM/yyyy", "dd/M/yyyy"}) {
-                try { return LocalDate.parse(s, DateTimeFormatter.ofPattern(fmt)); }
-                catch (Exception ignored) {}
-            }
-        }
-        return null;
-    }
+    private static final java.util.Set<String> HEADER_LABELS = java.util.Set.of("lieu", "location", "place");
 
     private boolean hasRealData(Cell cell) {
         if (cell == null) return false;
-
         CellType type = cell.getCellType() == CellType.FORMULA
-            ? cell.getCachedFormulaResultType()
-            : cell.getCellType();
-
+            ? cell.getCachedFormulaResultType() : cell.getCellType();
         return switch (type) {
             case BLANK   -> false;
             case BOOLEAN -> true;
@@ -185,8 +116,28 @@ public class ExcelReader {
                 String val = cell.getStringCellValue().trim();
                 yield !val.isEmpty() && !HEADER_LABELS.contains(val.toLowerCase());
             }
-            default      -> false;
+            default -> false;
         };
+    }
+
+    private LocalDate extractDate(Cell cell) {
+        if (cell == null) return null;
+        try {
+            CellType type = cell.getCellType() == CellType.FORMULA
+                ? cell.getCachedFormulaResultType() : cell.getCellType();
+            if (type == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
+                return DateUtil.getJavaDate(cell.getNumericCellValue())
+                    .toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDate();
+            }
+            if (type == CellType.STRING) {
+                String s = cell.getStringCellValue().trim();
+                for (String pat : new String[]{"dd/MM/yyyy", "d/MM/yyyy", "dd/M/yyyy"}) {
+                    try { return LocalDate.parse(s, DateTimeFormatter.ofPattern(pat)); }
+                    catch (Exception ignored) {}
+                }
+            }
+        } catch (Exception ignored) {}
+        return null;
     }
 
     private static final java.util.Set<Integer> NUMERIC_STRING_COLS = java.util.Set.of(
@@ -194,32 +145,22 @@ public class ExcelReader {
     );
 
     private Object coerceStringToDouble(String raw) {
-        String cleaned = raw.replaceAll("[€$£\\s]", "")
-                            .replace(".", "")
-                            .replace(",", ".");
-        try {
-            return Double.parseDouble(cleaned);
-        } catch (NumberFormatException e) {
-            return raw;
-        }
+        String cleaned = raw.replaceAll("[€$£\\s]", "").replace(".", "").replace(",", ".");
+        try { return Double.parseDouble(cleaned); }
+        catch (NumberFormatException e) { return raw; }
     }
 
     private List<Object> extractRowValues(Row row, DataFormatter fmt, FormulaEvaluator evaluator) {
         int lastCell = row.getLastCellNum();
         List<Object> values = new ArrayList<>(lastCell);
-
         for (int c = 0; c < lastCell; c++) {
             Cell cell = row.getCell(c, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
-            if (cell == null) {
-                values.add("");
-                continue;
-            }
+            if (cell == null) { values.add(""); continue; }
 
-            // Evaluate formula cells so we get the computed result, never the formula text
             CellType type;
-            double   numericResult  = 0;
-            String   stringResult   = "";
-            boolean  booleanResult  = false;
+            double  numericResult = 0;
+            String  stringResult  = "";
+            boolean boolResult    = false;
 
             if (cell.getCellType() == CellType.FORMULA) {
                 try {
@@ -228,21 +169,17 @@ public class ExcelReader {
                     switch (type) {
                         case NUMERIC -> numericResult = cv.getNumberValue();
                         case STRING  -> stringResult  = cv.getStringValue();
-                        case BOOLEAN -> booleanResult = cv.getBooleanValue();
-                        default      -> {}
+                        case BOOLEAN -> boolResult    = cv.getBooleanValue();
+                        default -> {}
                     }
-                } catch (Exception e) {
-                    // Formula evaluation failed (e.g. external references) — treat as blank
-                    values.add("");
-                    continue;
-                }
+                } catch (Exception e) { values.add(""); continue; }
             } else {
                 type = cell.getCellType();
                 switch (type) {
                     case NUMERIC -> numericResult = cell.getNumericCellValue();
                     case STRING  -> stringResult  = cell.getStringCellValue();
-                    case BOOLEAN -> booleanResult = cell.getBooleanCellValue();
-                    default      -> {}
+                    case BOOLEAN -> boolResult    = cell.getBooleanCellValue();
+                    default -> {}
                 }
             }
 
@@ -250,19 +187,16 @@ public class ExcelReader {
                 case NUMERIC -> {
                     if (DateUtil.isCellDateFormatted(cell)) {
                         values.add(DateUtil.getJavaDate(numericResult)
-                            .toInstant()
-                            .atZone(java.time.ZoneId.systemDefault())
-                            .toLocalDateTime());
+                            .toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime());
                     } else {
                         values.add(numericResult);
                     }
                 }
-                case BOOLEAN -> values.add(booleanResult);
+                case BOOLEAN -> values.add(boolResult);
                 case STRING  -> values.add(
-                    NUMERIC_STRING_COLS.contains(c) ? coerceStringToDouble(stringResult) : stringResult
-                );
+                    NUMERIC_STRING_COLS.contains(c) ? coerceStringToDouble(stringResult) : stringResult);
                 case BLANK   -> values.add("");
-                default      -> values.add(""); // ERROR veya bilinmeyen — boş bırak
+                default      -> values.add("");
             }
         }
         return values;

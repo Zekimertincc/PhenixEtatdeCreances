@@ -99,7 +99,7 @@ public class OperationsController {
     }
 
     public void buildButtons(GridPane actionsGrid) {
-        runActionBtn       = createActionBtn("▶  CONSOLIDER",       "Lire les états → ConsolidationGénérale (AG/CL/NA)", "consolider-card",     e -> showConfirmDialog("Consolider", "Lit tous les états de créances (AG/CL/NA) et génère la ConsolidationGénérale.xlsx.", new String[]{"Dossier racine"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank()}, this::run));
+        runActionBtn       = createActionBtn("▶  CONSOLIDER",     "Lire les états → ConsolidationGénérale", "consolider-card", e -> showConfirmDialog("Consolider", "Lit tous les états de créances et génère la ConsolidationGénérale.xlsx.", new String[]{"Dossier racine"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank()}, this::run));
         tousLesDocsiersBtn = createActionBtn("Tous les dossiers",   "Conso sans filtre Lieu — choisir une période",      "action-card",         e -> openTousLesDossiers());
         trfBtn           = createActionBtn("Générer TRF",                "Calcul virements et compensations",       "action-card-primary", e -> showConfirmDialog("Générer TRF", "Calcule les virements et compensations depuis la ConsolidationGénérale.", new String[]{"Dossier racine", "ConsolidationGénérale", "Listing Cabinet", "Tableau de bord"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank(), !AppPreferences.getTrfConso().isBlank(), !AppPreferences.getTrfListing().isBlank(), !AppPreferences.getTrfTableau().isBlank()}, this::generateTrf));
         etatBtn          = createActionBtn("États publics",              "Exporter vers Espace Partagé",            "action-card",         e -> showConfirmDialog("États publics", "Exporte les états publics vers l'Espace Partagé de chaque client.", new String[]{"Dossier racine"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank()}, this::generateEtatPublic));
@@ -274,49 +274,25 @@ public class OperationsController {
     }
 
     private void run() {
-        runMerge(null);
-    }
-
-    private void openTousLesDossiers() {
-        Stage owner = (Stage) tousLesDocsiersBtn.getScene().getWindow();
-        new DateRangeDialog(owner, "Tous les dossiers — Période")
-            .showAndWait()
-            .ifPresent(range -> {
-                com.zeki.merger.ui.ConsoFilterDialog.ConsoFilter filter =
-                    new com.zeki.merger.ui.ConsoFilterDialog.ConsoFilter(true, range.dateDebut(), range.dateFin());
-                runMerge(filter);
-            });
-    }
-
-    private void runMerge(com.zeki.merger.ui.ConsoFilterDialog.ConsoFilter filter) {
         File rootFolder   = new File(AppPreferences.getMergeRoot());
         File outputFolder = new File(AppPreferences.getOutputFolder());
-
-        if (!rootFolder.isDirectory()) {
-            log.accept("ERROR: Dossier source introuvable — " + rootFolder.getAbsolutePath()); return;
-        }
-        if (!outputFolder.isDirectory()) {
-            log.accept("ERROR: Dossier sortie introuvable — " + outputFolder.getAbsolutePath()); return;
-        }
+        if (!rootFolder.isDirectory()) { log.accept("ERROR: Dossier source introuvable — " + rootFolder.getAbsolutePath()); return; }
+        if (!outputFolder.isDirectory()) { log.accept("ERROR: Dossier sortie introuvable — " + outputFolder.getAbsolutePath()); return; }
         setAllButtonsDisabled(true);
-        statusBar.setVisible(false);
-        statusBar.setManaged(false);
+        statusBar.setVisible(false); statusBar.setManaged(false);
         progressBar.setProgress(0);
         logArea.clear();
         lastOutputFile = null;
-
         executor.submit(() -> {
             try {
-                File result = mergeService.merge(rootFolder, outputFolder, filter,
-                        (progress, msg) -> Platform.runLater(() -> { progressBar.setProgress(progress); log.accept(msg); }));
+                File result = mergeService.merge(rootFolder, outputFolder,
+                    (progress, msg) -> Platform.runLater(() -> { progressBar.setProgress(progress); log.accept(msg); }));
                 Platform.runLater(() -> {
                     if (result != null) {
                         lastOutputFile = result;
                         statusLabel.setText("Output: " + result.getAbsolutePath());
-                        openFileBtn.setVisible(true);
-                        openFileBtn.setManaged(true);
-                        statusBar.setVisible(true);
-                        statusBar.setManaged(true);
+                        openFileBtn.setVisible(true); openFileBtn.setManaged(true);
+                        statusBar.setVisible(true); statusBar.setManaged(true);
                         onDashboardRefresh.run();
                     }
                     setAllButtonsDisabled(false);
@@ -325,6 +301,42 @@ public class OperationsController {
                 Platform.runLater(() -> { log.accept("FATAL: " + e.getMessage()); setAllButtonsDisabled(false); });
             }
         });
+    }
+
+    private void openTousLesDossiers() {
+        Stage owner = (Stage) tousLesDocsiersBtn.getScene().getWindow();
+        new DateRangeDialog(owner, "Tous les dossiers — Période")
+            .showAndWait()
+            .ifPresent(range -> {
+                File rootFolder   = new File(AppPreferences.getMergeRoot());
+                File outputFolder = new File(AppPreferences.getOutputFolder());
+                if (!rootFolder.isDirectory()) { log.accept("ERROR: Dossier source introuvable — " + rootFolder.getAbsolutePath()); return; }
+                if (!outputFolder.isDirectory()) { log.accept("ERROR: Dossier sortie introuvable — " + outputFolder.getAbsolutePath()); return; }
+                setAllButtonsDisabled(true);
+                statusBar.setVisible(false); statusBar.setManaged(false);
+                progressBar.setProgress(0);
+                logArea.clear();
+                lastOutputFile = null;
+                executor.submit(() -> {
+                    try {
+                        File result = mergeService.mergeTous(rootFolder, outputFolder,
+                            range.dateDebut(), range.dateFin(),
+                            (progress, msg) -> Platform.runLater(() -> { progressBar.setProgress(progress); log.accept(msg); }));
+                        Platform.runLater(() -> {
+                            if (result != null) {
+                                lastOutputFile = result;
+                                statusLabel.setText("Output: " + result.getAbsolutePath());
+                                openFileBtn.setVisible(true); openFileBtn.setManaged(true);
+                                statusBar.setVisible(true); statusBar.setManaged(true);
+                                onDashboardRefresh.run();
+                            }
+                            setAllButtonsDisabled(false);
+                        });
+                    } catch (Exception e) {
+                        Platform.runLater(() -> { log.accept("FATAL: " + e.getMessage()); setAllButtonsDisabled(false); });
+                    }
+                });
+            });
     }
 
     private void compareProcreances() {
