@@ -77,11 +77,19 @@ public class ExcelReader {
                         if (filter.dateFin()   != null && remis.isAfter(filter.dateFin()))   continue;
                     }
                 } else {
-                    // Tous mode: keep existing behaviour (non-empty col S or fallback col J)
+                    // Tous mode: accept all rows with real data, optionally filter by date
                     Cell filterCell = row.getCell(AppConfig.FILTER_COLUMN_INDEX);
                     if (!hasRealData(filterCell)) {
                         Cell fallbackCell = row.getCell(9);
                         if (!hasRealData(fallbackCell)) continue;
+                    }
+                    // Apply date range if provided even in Tous mode
+                    if (filter != null && (filter.dateDebut() != null || filter.dateFin() != null)) {
+                        Cell remisCell = row.getCell(2);
+                        LocalDate remis = extractDate(remisCell);
+                        if (remis == null) continue;
+                        if (filter.dateDebut() != null && remis.isBefore(filter.dateDebut())) continue;
+                        if (filter.dateFin()   != null && remis.isAfter(filter.dateFin()))   continue;
                     }
                 }
 

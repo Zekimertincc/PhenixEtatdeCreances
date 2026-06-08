@@ -3,8 +3,8 @@ package com.zeki.merger.controller;
 import com.zeki.merger.AppPreferences;
 import com.zeki.merger.service.*;
 import com.zeki.merger.ui.AccuseReceptionDialog;
-import com.zeki.merger.ui.ConsoFilterDialog;
-import com.zeki.merger.ui.ConsoFilterDialog.ConsoFilter;
+import com.zeki.merger.ui.DateRangeDialog;
+import com.zeki.merger.ui.DateRangeDialog.DateRange;
 import com.zeki.merger.ui.FacturationMailDialog;
 import javafx.stage.Stage;
 import com.zeki.merger.trf.TrfGeneratorService;
@@ -62,6 +62,7 @@ public class OperationsController {
     private Button misAJourListingBtn;
     private Button accuseReceptionBtn;
     private Button facturationMailBtn;
+    private Button tousLesDocsiersBtn;
 
     public OperationsController(MergeService mergeService,
                                 EspacePartageFixer espacePartageFixer,
@@ -98,7 +99,8 @@ public class OperationsController {
     }
 
     public void buildButtons(GridPane actionsGrid) {
-        runActionBtn     = createActionBtn("▶  CONSOLIDER",              "Lire les états → ConsolidationGénérale",  "consolider-card",     e -> openConsoFilter());
+        runActionBtn       = createActionBtn("▶  CONSOLIDER",       "Lire les états → ConsolidationGénérale (AG/CL/NA)", "consolider-card",     e -> showConfirmDialog("Consolider", "Lit tous les états de créances (AG/CL/NA) et génère la ConsolidationGénérale.xlsx.", new String[]{"Dossier racine"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank()}, this::run));
+        tousLesDocsiersBtn = createActionBtn("Tous les dossiers",   "Conso sans filtre Lieu — choisir une période",      "action-card",         e -> openTousLesDossiers());
         trfBtn           = createActionBtn("Générer TRF",                "Calcul virements et compensations",       "action-card-primary", e -> showConfirmDialog("Générer TRF", "Calcule les virements et compensations depuis la ConsolidationGénérale.", new String[]{"Dossier racine", "ConsolidationGénérale", "Listing Cabinet", "Tableau de bord"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank(), !AppPreferences.getTrfConso().isBlank(), !AppPreferences.getTrfListing().isBlank(), !AppPreferences.getTrfTableau().isBlank()}, this::generateTrf));
         etatBtn          = createActionBtn("États publics",              "Exporter vers Espace Partagé",            "action-card",         e -> showConfirmDialog("États publics", "Exporte les états publics vers l'Espace Partagé de chaque client.", new String[]{"Dossier racine"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank()}, this::generateEtatPublic));
         cmpBtn           = createActionBtn("Comparer fichiers",          "Contrôle PROCRÉANCES",                    "action-card",         e -> showConfirmDialog("Comparer fichiers", "Compare le fichier Procréances avec la ConsolidationGénérale.", new String[]{"Dossier racine", "Procréances", "ConsolidationGénérale"}, new boolean[]{!AppPreferences.getMergeRoot().isBlank(), !AppPreferences.getProcreancesPath().isBlank(), !AppPreferences.getTrfConso().isBlank()}, this::compareProcreances));
@@ -131,7 +133,8 @@ public class OperationsController {
         GridPane.setColumnSpan(utilLabel, 2);
 
         actionsGrid.add(quotidienLabel,    0, 0);
-        actionsGrid.add(runActionBtn,      0, 1); GridPane.setColumnSpan(runActionBtn, 2);
+        actionsGrid.add(runActionBtn,         0, 1);
+        actionsGrid.add(tousLesDocsiersBtn,   1, 1);
         actionsGrid.add(trfBtn,            0, 2);
         actionsGrid.add(etatBtn,           1, 2);
         actionsGrid.add(cmpBtn,            0, 3);
@@ -270,12 +273,22 @@ public class OperationsController {
         });
     }
 
-    private void openConsoFilter() {
-        Stage owner = (Stage) runActionBtn.getScene().getWindow();
-        new ConsoFilterDialog(owner).showAndWait().ifPresent(this::run);
+    private void run() {
+        runMerge(null);
     }
 
-    private void run(ConsoFilter filter) {
+    private void openTousLesDossiers() {
+        Stage owner = (Stage) tousLesDocsiersBtn.getScene().getWindow();
+        new DateRangeDialog(owner, "Tous les dossiers — Période")
+            .showAndWait()
+            .ifPresent(range -> {
+                com.zeki.merger.ui.ConsoFilterDialog.ConsoFilter filter =
+                    new com.zeki.merger.ui.ConsoFilterDialog.ConsoFilter(true, range.dateDebut(), range.dateFin());
+                runMerge(filter);
+            });
+    }
+
+    private void runMerge(com.zeki.merger.ui.ConsoFilterDialog.ConsoFilter filter) {
         File rootFolder   = new File(AppPreferences.getMergeRoot());
         File outputFolder = new File(AppPreferences.getOutputFolder());
 
@@ -521,6 +534,7 @@ public class OperationsController {
         if (misAJourListingBtn     != null) misAJourListingBtn.setDisable(disabled);
         if (validationClientsBtn   != null) validationClientsBtn.setDisable(disabled);
         if (runActionBtn           != null) runActionBtn.setDisable(disabled);
+        if (tousLesDocsiersBtn     != null) tousLesDocsiersBtn.setDisable(disabled);
         if (accuseReceptionBtn     != null) accuseReceptionBtn.setDisable(disabled);
         if (facturationMailBtn     != null) facturationMailBtn.setDisable(disabled);
     }
