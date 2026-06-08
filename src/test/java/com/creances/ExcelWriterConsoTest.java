@@ -24,8 +24,7 @@ class ExcelWriterConsoTest {
         File outputFile = File.createTempFile("conso_test_", ".xlsx");
         outputFile.deleteOnExit();
 
-        List<CreanceRow> rows = reader.readFiltered("FT TRADING", etatFile);
-        assertThat(rows).as("No rows read from FT TRADING fixture").isNotEmpty();
+        List<CreanceRow> rows = reader.readFiltered("FT TRADING", etatFile, null);        assertThat(rows).as("No rows read from FT TRADING fixture").isNotEmpty();
 
         Map<String, List<CreanceRow>> grouped = new LinkedHashMap<>();
         grouped.put("FT TRADING", rows);
