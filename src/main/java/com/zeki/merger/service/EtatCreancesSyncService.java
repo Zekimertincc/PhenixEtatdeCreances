@@ -19,7 +19,7 @@ public class EtatCreancesSyncService {
     private final ExcelReader    reader  = new ExcelReader();
     private final FolderScanner  scanner = new FolderScanner();
 
-    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     // Col indices in Créances sheet (0-based, row 15 = header, data from row 16)
     private static final int COL_CREANCE_PRINCIPALE = 7;   // H

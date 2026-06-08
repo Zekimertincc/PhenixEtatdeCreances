@@ -596,19 +596,36 @@ public class DatabaseManager {
         boolean filter = dateFrom != null && dateTo != null
                 && !dateFrom.isBlank() && !dateTo.isBlank();
 
-        String sql = """
-                SELECT c.id AS company_id, c.name,
-                       COALESCE(cs.nb_dossiers, 0)         AS nb_dossiers,
-                       COALESCE(cs.nb_soldes,   0)         AS nb_soldes,
-                       COALESCE(cs.creance_principale, 0)  AS creance_principale,
-                       COALESCE(cs.recouvre_total,     0)  AS recouvre_total,
-                       COALESCE(cs.commissions,        0)  AS commissions
-                FROM companies c
-                LEFT JOIN company_summaries cs ON cs.company_id = c.id
-                WHERE COALESCE(cs.nb_dossiers, 0) > 0
-                """
-                + (filter ? "  AND cs.dernier_dossier >= ? AND cs.dernier_dossier <= ?\n" : "")
-                + "ORDER BY cs.creance_principale DESC NULLS LAST";
+        String sql;
+        if (!filter) {
+            sql = """
+                    SELECT c.id AS company_id, c.name,
+                           COALESCE(cs.nb_dossiers, 0)        AS nb_dossiers,
+                           COALESCE(cs.nb_soldes,   0)        AS nb_soldes,
+                           COALESCE(cs.creance_principale, 0) AS creance_principale,
+                           COALESCE(cs.recouvre_total,     0) AS recouvre_total,
+                           COALESCE(cs.commissions,        0) AS commissions
+                    FROM companies c
+                    LEFT JOIN company_summaries cs ON cs.company_id = c.id
+                    WHERE COALESCE(cs.nb_dossiers, 0) > 0
+                    ORDER BY cs.creance_principale DESC NULLS LAST
+                    """;
+        } else {
+            sql = """
+                    SELECT c.id AS company_id, c.name,
+                           COUNT(*)                                                              AS nb_dossiers,
+                           SUM(CASE WHEN LOWER(COALESCE(cr.col_j,'')) LIKE 'sold%' THEN 1 ELSE 0 END) AS nb_soldes,
+                           SUM(cr.col_h)                                                         AS creance_principale,
+                           SUM(cr.col_u)                                                         AS recouvre_total,
+                           SUM(cr.col_x)                                                         AS commissions
+                    FROM companies c
+                    JOIN creance_rows cr ON cr.company_id = c.id
+                    WHERE cr.col_c >= ? AND cr.col_c <= ?
+                    GROUP BY c.id, c.name
+                    HAVING COUNT(*) > 0
+                    ORDER BY creance_principale DESC NULLS LAST
+                    """;
+        }
 
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             if (filter) {

@@ -27,8 +27,8 @@ public class DashboardController {
     private final ExecutorService         executor;
 
     private long      selectedCompanyId = -1L;
-    private LocalDate filterFrom        = LocalDate.now().minusYears(1).withDayOfMonth(1);
-    private LocalDate filterTo          = LocalDate.now();
+    private LocalDate filterFrom        = null;
+    private LocalDate filterTo          = null;
 
     public DashboardController(DatabaseManager db,
                                EtatCreancesSyncService syncService,
