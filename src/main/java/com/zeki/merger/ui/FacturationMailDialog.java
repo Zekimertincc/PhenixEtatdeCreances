@@ -139,7 +139,7 @@ public class FacturationMailDialog {
 
         // Subject
         subjectField.setPromptText("Objet du mail...");
-        subjectField.setText("Cabinet Phénix, votre état des créances");
+        subjectField.setText(service.getObjetFacturation());
 
         // — Default template shortcuts —
         HBox templateRow = new HBox(6);

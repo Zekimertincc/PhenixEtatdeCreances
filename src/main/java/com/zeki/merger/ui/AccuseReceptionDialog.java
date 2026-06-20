@@ -124,7 +124,7 @@ public class AccuseReceptionDialog {
         pane.setPadding(new Insets(4));
 
         subjectField.setPromptText("Objet du mail...");
-        subjectField.setText("Cabinet Phénix, accusé de réception de dossier(s)");
+        subjectField.setText(service.getObjetAccuse());
 
         // — Custom templates —
         HBox customTplRow = new HBox(6);

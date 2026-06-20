@@ -168,6 +168,12 @@ public class DatabaseManager {
                     virements                      REAL,
                     last_sync                      TEXT
                 )""");
+
+            st.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS mail_config (
+                    key   TEXT PRIMARY KEY,
+                    value TEXT NOT NULL DEFAULT ''
+                )""");
         }
     }
 
@@ -689,5 +695,29 @@ public class DatabaseManager {
             ps.setString(1, name.trim());
             ps.executeUpdate();
         }
+    }
+
+    public String getMailConfig(String key, String defaultValue) {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT value FROM mail_config WHERE key = ?")) {
+            ps.setString(1, key);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    String v = rs.getString(1);
+                    return (v != null && !v.isBlank()) ? v : defaultValue;
+                }
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+        return defaultValue;
+    }
+
+    public void setMailConfig(String key, String value) {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO mail_config(key,value) VALUES(?,?) " +
+                "ON CONFLICT(key) DO UPDATE SET value=excluded.value")) {
+            ps.setString(1, key);
+            ps.setString(2, value != null ? value : "");
+            ps.executeUpdate();
+        } catch (Exception e) { e.printStackTrace(); }
     }
 }

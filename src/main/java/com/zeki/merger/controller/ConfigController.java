@@ -1,6 +1,8 @@
 package com.zeki.merger.controller;
 
 import com.zeki.merger.AppPreferences;
+import com.zeki.merger.db.DatabaseManager;
+import com.zeki.merger.ui.ModelesSignaturesDialog;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -21,17 +23,23 @@ public class ConfigController {
     private final Label          missingFilesLabel;
     private final Consumer<String> log;
     private final Runnable       onSaved;
+    private final DatabaseManager db;
 
     private String[] configPaths;
     private Label[]  configPathLabels;
 
     public ConfigController(VBox configFormBox, FlowPane badgesPane, Label missingFilesLabel,
-                            Consumer<String> log, Runnable onSaved) {
+                            Consumer<String> log, Runnable onSaved, DatabaseManager db) {
         this.configFormBox    = configFormBox;
         this.badgesPane       = badgesPane;
         this.missingFilesLabel = missingFilesLabel;
         this.log              = log;
         this.onSaved          = onSaved;
+        this.db               = db;
+    }
+
+    public void openModelesSignatures(Stage owner) {
+        new ModelesSignaturesDialog(owner, db).showAndWait();
     }
 
     public void load() {

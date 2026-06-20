@@ -1,5 +1,6 @@
 package com.zeki.merger.service;
 
+import com.zeki.merger.db.DatabaseManager;
 import com.zeki.merger.trf.DataReader;
 import com.zeki.merger.trf.model.ClientInfo;
 
@@ -12,6 +13,8 @@ public class FacturationMailService {
 
     public enum CompType { VIREMENT, NON_COMP, COMP_PARTIELLE, DEBITEURS }
     public enum Signataire { ANONYME, JULIEN, GAUTHIER }
+
+    private final DatabaseManager db = DatabaseManager.getInstance();
 
     // -------------------------------------------------------------------------
     // Template bodies
@@ -404,18 +407,25 @@ public class FacturationMailService {
                 : "<img src=\"data:image/png;base64," + logoBase64
                   + "\" width=\"160\" style=\"display:block;margin-bottom:8px;\" />";
 
+        String julienNom     = db.getMailConfig("signature_julien_nom",    "Julien JOUSSET");
+        String julienTitre   = db.getMailConfig("signature_julien_titre",  "Directeur Associé");
+        String gauthierNom   = db.getMailConfig("signature_gauthier_nom",  "Gauthier BERIS");
+        String gauthierTitre = db.getMailConfig("signature_gauthier_titre","Directeur Associé");
         String nameBlock = switch (signataire) {
-            case JULIEN   -> "<tr><td style=\"font-weight:bold;color:#1a1a1a;\">Julien JOUSSET</td></tr>"
-                           + "<tr><td style=\"color:#555;\">Directeur Associé</td></tr>";
-            case GAUTHIER -> "<tr><td style=\"font-weight:bold;color:#1a1a1a;\">Gauthier BERIS</td></tr>"
-                           + "<tr><td style=\"color:#555;\">Directeur Associé</td></tr>";
+            case JULIEN   -> "<tr><td style=\"font-weight:bold;color:#1a1a1a;\">" + julienNom + "</td></tr>"
+                           + "<tr><td style=\"color:#555;\">" + julienTitre + "</td></tr>";
+            case GAUTHIER -> "<tr><td style=\"font-weight:bold;color:#1a1a1a;\">" + gauthierNom + "</td></tr>"
+                           + "<tr><td style=\"color:#555;\">" + gauthierTitre + "</td></tr>";
             default       -> "<tr><td style=\"font-weight:bold;color:#1a1a1a;\">CABINET PHÉNIX</td></tr>";
         };
 
+        String julienTel   = db.getMailConfig("signature_julien_tel",   "+33 (0)6 72 86 38 78");
+        String gauthierTel = db.getMailConfig("signature_gauthier_tel", "+33 (0)6 22 19 61 78");
+        String fixe        = "Tél. : +33 (0)1 53 20 12 76";
         String mobLine = switch (signataire) {
-            case JULIEN   -> "<tr><td>Mob. : +33 (0)6 72 86 38 78 &nbsp;|&nbsp; Tél. : +33 (0)1 53 20 12 76</td></tr>";
-            case GAUTHIER -> "<tr><td>Mob. : +33 (0)6 22 19 61 78 &nbsp;|&nbsp; Tél. : +33 (0)1 53 20 12 76</td></tr>";
-            default       -> "<tr><td>Mob. : +33 (0)6 72 86 38 78 &nbsp;|&nbsp; Tél. : +33 (0)1 53 20 12 76</td></tr>";
+            case JULIEN   -> "<tr><td>Mob. : " + julienTel + " &nbsp;|&nbsp; " + fixe + "</td></tr>";
+            case GAUTHIER -> "<tr><td>Mob. : " + gauthierTel + " &nbsp;|&nbsp; " + fixe + "</td></tr>";
+            default       -> "<tr><td>Mob. : " + julienTel + " &nbsp;|&nbsp; " + fixe + "</td></tr>";
         };
 
         return "<br><br>"
@@ -448,6 +458,14 @@ public class FacturationMailService {
 
     public String buildHtmlBody(String plainBody) {
         return buildHtmlBody(plainBody, Signataire.ANONYME);
+    }
+
+    public String getObjetFacturation() {
+        return db.getMailConfig("objet_facturation", "Cabinet Phénix, votre état des créances");
+    }
+
+    public String getObjetAccuse() {
+        return db.getMailConfig("objet_accuse", "Cabinet Phénix, accusé de réception de dossier(s)");
     }
 
     public static class DraftRequest {

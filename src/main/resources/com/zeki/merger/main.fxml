@@ -72,6 +72,8 @@
                         </VBox>
                         <Button text="⚙ Configurer" styleClass="secondary-btn"
                                 onAction="#openFileConfig"/>
+                        <Button text="✉ Modèles &amp; Signatures" styleClass="secondary-btn"
+                                onAction="#openModelesSignatures"/>
                     </HBox>
 
                     <GridPane fx:id="actionsGrid" hgap="10" vgap="10">

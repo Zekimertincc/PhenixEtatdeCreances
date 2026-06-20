@@ -124,7 +124,7 @@ public class MainController {
             syncService, this::appendLog, executor);
 
         configController = new ConfigController(configFormBox, badgesBox, missingFilesLabel,
-            this::appendLog, this::showOperations);
+            this::appendLog, this::showOperations, DatabaseManager.getInstance());
 
         operationsController = new OperationsController(
             mergeService, espacePartageFixer, etatPublicGenerator, trfGeneratorService,
@@ -209,6 +209,9 @@ public class MainController {
     @FXML private void openFileConfig() { configController.openFileConfig(); }
     @FXML private void saveConfig()     { configController.save(); }
     @FXML private void openFile()       { operationsController.openFile(); }
+    @FXML private void openModelesSignatures() {
+        configController.openModelesSignatures((Stage) navConfig.getScene().getWindow());
+    }
 
     // =========================================================================
     // Utilities
