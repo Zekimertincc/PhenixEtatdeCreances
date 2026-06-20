@@ -136,16 +136,16 @@ public class ExcelWriter {
                     writeCell(row, 21, get(src, 23), dataStyle, dateStyle, moneyStyle);
 
                     // W = Commisions TTC = V * 1.2
-                    setFormula(row, 22, "V" + excelRow + "*1.2", moneyStyle);
+                    setFormula(row, 22, "ROUND(V" + excelRow + "*1.2,2)", moneyStyle);
                     // X = SOMMES CZ PHENIX
                     setFormula(row, 23,
-                        "IF(Q" + excelRow + "=\"AG\",P" + excelRow
+                        "IF(Q" + excelRow + "=\"AG\",ROUND(P" + excelRow + "*1.2,2)"
                         + ",IF(Q" + excelRow + "=\"CL\",0,IF(Q" + excelRow + "=\"NA\",0,\"\")))",
                         moneyStyle);
                     // Y = MONTANT A FACTURER TTC
                     setFormula(row, 24,
-                        "IF(ISNUMBER(V" + excelRow + "),(V" + excelRow
-                        + "+R" + excelRow + ")*1.2,\"\")",
+                        "IF(ISNUMBER(V" + excelRow + "),ROUND((V" + excelRow
+                        + "+R" + excelRow + ")*1.2,2),\"\")",
                         moneyStyle);
                     // Z = SOMMES A REVERSER
                     setFormula(row, 25,
@@ -200,15 +200,27 @@ public class ExcelWriter {
 
     private void writeValue(XSSFCell cell, Object val,
                              XSSFCellStyle defaultStyle, XSSFCellStyle dateStyle) {
-        if (val instanceof Double d)          { cell.setCellValue(d);               cell.setCellStyle(defaultStyle); return; }
-        if (val instanceof Number n)          { cell.setCellValue(n.doubleValue()); cell.setCellStyle(defaultStyle); return; }
+        if (val instanceof Double d) {
+            double rounded = Math.round(d * 100.0) / 100.0;
+            cell.setCellValue(rounded);
+            cell.setCellStyle(defaultStyle);
+            return;
+        }
+        if (val instanceof Number n) {
+            double rounded = Math.round(n.doubleValue() * 100.0) / 100.0;
+            cell.setCellValue(rounded);
+            cell.setCellStyle(defaultStyle);
+            return;
+        }
         if (val instanceof Boolean b)         { cell.setCellValue(b);               cell.setCellStyle(defaultStyle); return; }
         if (val instanceof LocalDateTime ldt) { cell.setCellValue(ldt);             cell.setCellStyle(dateStyle);    return; }
         if (val instanceof String str && !str.isBlank()) {
             String stripped = str.replaceAll("[€$£¥₺]", "").replaceAll("\\p{Z}", "").trim();
             if (!stripped.isEmpty() && !stripped.equals("-")
                     && stripped.matches("[-+]?[\\d.,]+")) {
-                cell.setCellValue(ConsolidationRow.parseFrenchDouble(str));
+                double parsed = ConsolidationRow.parseFrenchDouble(str);
+                double rounded = Math.round(parsed * 100.0) / 100.0;
+                cell.setCellValue(rounded);
                 cell.setCellStyle(defaultStyle);
                 return;
             }

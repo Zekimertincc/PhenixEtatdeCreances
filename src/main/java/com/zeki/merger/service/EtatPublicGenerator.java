@@ -261,6 +261,8 @@ public class EtatPublicGenerator {
             XSSFCellStyle money  = buildMoneyStyle(wb, data);
             XSSFCellStyle date   = buildDateStyle(wb, data);
             XSSFCellStyle total  = buildTotalStyle(wb);
+            XSSFCellStyle yellow    = buildYellowStyle(wb, data);
+            XSSFCellStyle yellowHdr = buildYellowHeaderStyle(wb);
 
             int rowIdx = 0;
 
@@ -300,7 +302,7 @@ public class EtatPublicGenerator {
             XSSFRow r2 = sheet.getRow(6); if (r2 == null) r2 = sheet.createRow(6);
 
             putString(r0, 6, "1, rue de Stockholm — 75008 PARIS", adresStyle);
-            putString(r1, 6, "Tél. : +33 (0)1 53 20 12 76  |  Mob. : +33 (0)6 72 86 38 78", adresStyle);
+            putString(r1, 6, "Tél. : +33 (0)1 53 20 12 76", adresStyle);
             putString(r2, 6, "contact@cabinetphenix.fr  |  www.cabinetphenix.fr", adresStyle);
 
             // Merge adres cells across cols 6-9
@@ -313,7 +315,7 @@ public class EtatPublicGenerator {
             for (int c = 0; c < OUT_COLS; c++) {
                 XSSFCell cell = headerRow.createCell(c);
                 cell.setCellValue(OUTPUT_HEADERS[c]);
-                cell.setCellStyle(hdr);
+                cell.setCellStyle((c == 1 || c == OUT_COL_NREF) ? yellowHdr : hdr);
             }
 
             // Data rows (start at row index 9)
@@ -321,12 +323,16 @@ public class EtatPublicGenerator {
             for (Object[] dr : dataRows) {
                 XSSFRow row = sheet.createRow(rowIdx++);
                 for (int c = 0; c < OUT_COLS; c++) {
-                    boolean isMoneyCol  = (c == OUT_COL_CREANCE || c == OUT_COL_RECOUVRE
+                    boolean isMoneyCol   = (c == OUT_COL_CREANCE || c == OUT_COL_RECOUVRE
                             || c == OUT_COL_ATTENTE);
-                    boolean isCenterCol = (c == 0 || c == 1 || c == OUT_COL_ANCIENNETE);
+                    boolean isCenterCol  = (c == 0 || c == 1 || c == OUT_COL_ANCIENNETE || c == OUT_COL_NREF);
+                    boolean isYellowCol  = (c == 1 || c == OUT_COL_NREF); // V/REF and N/REF
                     Object val = dr[c];
                     if (isMoneyCol && (val == null || val.toString().isBlank())) val = 0.0;
-                    XSSFCellStyle colStyle = isMoneyCol ? money : (isCenterCol ? center : data);
+                    XSSFCellStyle colStyle = isYellowCol ? yellow
+                            : isMoneyCol ? money
+                            : isCenterCol ? center
+                            : data;
                     writeValue(row.createCell(c), val, colStyle, date);
                 }
             }
@@ -419,7 +425,7 @@ public class EtatPublicGenerator {
 
             rightCell.add(new Paragraph("1, rue de Stockholm — 75008 PARIS")
                     .setFontSize(8).setMarginTop(4));
-            rightCell.add(new Paragraph("Tél. : +33 (0)1 53 20 12 76  |  Mob. : +33 (0)6 72 86 38 78")
+            rightCell.add(new Paragraph("Tél. : +33 (0)1 53 20 12 76")
                     .setFontSize(8));
             rightCell.add(new Paragraph("contact@cabinetphenix.fr  |  www.cabinetphenix.fr")
                     .setFontSize(8));
@@ -580,6 +586,7 @@ public class EtatPublicGenerator {
         if (val instanceof Boolean b)           { cell.setCellValue(b);               cell.setCellStyle(def);       return; }
         if (val instanceof LocalDateTime ldt)   { cell.setCellValue(ldt);             cell.setCellStyle(dateStyle); return; }
         if (val instanceof String s && !s.isBlank()) {
+            s = s.trim();
             String stripped = s
                     .replaceAll("[€$£¥₺]", "")
                     .replaceAll("\\p{Z}", "")
@@ -703,5 +710,32 @@ public class EtatPublicGenerator {
 
     private static String sanitize(String name) {
         return name.replaceAll("[\\\\/:*?\"<>|_]", " ").trim().replaceAll("\\s+", " ");
+    }
+
+    /** V/REF and N/REF data cells — yellow background (#FFFF00), same borders as data. */
+    private XSSFCellStyle buildYellowStyle(XSSFWorkbook wb, XSSFCellStyle base) {
+        XSSFCellStyle s = wb.createCellStyle();
+        s.cloneStyleFrom(base);
+        s.setFillForegroundColor(
+            new XSSFColor(new byte[]{(byte)0xFF,(byte)0xFF,(byte)0x00}, null));
+        s.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        s.setAlignment(HorizontalAlignment.CENTER);
+        return s;
+    }
+
+    /** V/REF and N/REF header cells — yellow background, bold black font. */
+    private XSSFCellStyle buildYellowHeaderStyle(XSSFWorkbook wb) {
+        XSSFCellStyle s = wb.createCellStyle();
+        XSSFFont f = wb.createFont();
+        f.setBold(true);
+        f.setFontHeightInPoints((short) 10);
+        f.setColor(new XSSFColor(new byte[]{(byte)0x00,(byte)0x00,(byte)0x00}, null));
+        s.setFont(f);
+        s.setFillForegroundColor(
+            new XSSFColor(new byte[]{(byte)0xFF,(byte)0xFF,(byte)0x00}, null));
+        s.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        s.setVerticalAlignment(VerticalAlignment.CENTER);
+        s.setAlignment(HorizontalAlignment.CENTER);
+        return s;
     }
 }
