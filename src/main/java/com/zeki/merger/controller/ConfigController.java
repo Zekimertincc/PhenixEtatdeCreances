@@ -39,7 +39,7 @@ public class ConfigController {
     }
 
     public void openModelesSignatures(Stage owner) {
-        new ModelesSignaturesDialog(owner, db).showAndWait();
+        new ModelesSignaturesDialog(owner, db).show();
     }
 
     public void load() {
