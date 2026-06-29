@@ -133,7 +133,7 @@ public class FacturePdfService {
                 Row row = sheet.getRow(r);
                 if (row == null) continue;
                 String name = cellStr(row, 0, fmt, ev);
-                if (name.isBlank()) break;
+                if (name.isBlank()) continue;
                 String num = cellStr(row, 1, fmt, ev); // col B = N° facture
                 if (!num.isBlank()) map.put(DataReader.normalize(name), num);
             }
@@ -154,7 +154,7 @@ public class FacturePdfService {
                 Row row = sheet.getRow(r);
                 if (row == null) continue;
                 String name = cellStr(row, 0, fmt, ev); // col A = CLIENT
-                if (name.isBlank()) break;
+                if (name.isBlank()) continue;
                 // col D = NOM — formül ise cached string value'yu oku, evaluate etme
                 String nom = "";
                 org.apache.poi.ss.usermodel.Cell nomCell =
@@ -172,7 +172,7 @@ public class FacturePdfService {
                     }
                 }
                 if (nom.isBlank()) nom = name;           // fallback to client name
-                map.put(DataReader.normalize(name), nom);
+                if (nom.length() > 1) map.put(DataReader.normalize(name), nom);
             }
         }
         return map;
@@ -239,13 +239,14 @@ public class FacturePdfService {
             if (nomClient.isBlank()) nomClient = companyName;
 
             // Skip if not in factureMap (no facture number assigned this month)
-            if (recupFile != null && !factureMap.isEmpty()) {
-                String normClient = DataReader.normalize(nomClient);
+            if (factureMap.isEmpty()) {
+                return "SKIP (RecupNumFacture non configuré)";
+            }
+            String normClient = DataReader.normalize(nomClient);
+            if (!hasPartialMatch(normClient, factureMap)) {
+                normClient = DataReader.normalize(companyName);
                 if (!hasPartialMatch(normClient, factureMap)) {
-                    normClient = DataReader.normalize(companyName);
-                    if (!hasPartialMatch(normClient, factureMap)) {
-                        return "SKIP (pas de numéro de facture)";
-                    }
+                    return "SKIP (pas de numéro de facture)";
                 }
             }
 
@@ -308,9 +309,10 @@ public class FacturePdfService {
             // NOM from recupFile (col D) for PDF filename
             String nom = lookup(nomClient, nomMap);
             if (nom.isBlank()) nom = lookup(companyName, nomMap);
-            if (nom.isBlank()) nom = nomClient.isBlank() ? companyName : nomClient;
-            String safeNom = nom.isBlank() ? companyName : nom;
-            String pdfName = sanitize(safeNom) + ".pdf";
+            // nom from nomMap can be "0" or garbage if D col formula is uncalculated
+            // Always prefer companyName (folder name) which is guaranteed non-blank
+            String safeNom = companyName;
+            String pdfName = sanitize(safeNom) + "_" + numFacture + ".pdf";
 
             List<String> adresseLines = new ArrayList<>();
             for (int r = 4; r <= 10; r++) {
@@ -329,39 +331,55 @@ public class FacturePdfService {
             }
             int debiteurDataStart = (debiteurHeaderRow >= 0) ? debiteurHeaderRow + 1 : 17;
 
+            // BUG B: ag/cl accumulated from billing rows so NA frais are never included
+            double ag = 0, cl = 0;
             List<Object[]> debiteurRows = new ArrayList<>();
             for (int r = debiteurDataStart; r <= facture.getLastRowNum(); r++) {
                 Row row = facture.getRow(r);
-                if (row == null) break;
-                org.apache.poi.ss.usermodel.Cell firstCell =
-                        row.getCell(0, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
-                if (firstCell == null) break;
-                // firstCell may be numeric (V/REF number like 70650) — check value not blank
-                CellType fcType = firstCell.getCellType() == CellType.FORMULA
-                        ? firstCell.getCachedFormulaResultType() : firstCell.getCellType();
-                boolean firstCellEmpty = (fcType == CellType.BLANK)
-                        || (fcType == CellType.STRING && firstCell.getStringCellValue().isBlank())
-                        || (fcType == CellType.NUMERIC && firstCell.getNumericCellValue() == 0
-                            && fmt.formatCellValue(firstCell, ev).isBlank());
-                if (firstCellEmpty) {
-                    // V/REF boş olabilir ama N/REF (col 1) veya Débiteur (col 2) doluysa data satırıdır
-                    org.apache.poi.ss.usermodel.Cell nrefCell =
-                            row.getCell(1, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
-                    org.apache.poi.ss.usermodel.Cell debCell =
-                            row.getCell(2, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
-                    String nrefVal = nrefCell != null ? fmt.formatCellValue(nrefCell, ev).trim() : "";
-                    String debVal  = debCell  != null ? fmt.formatCellValue(debCell,  ev).trim() : "";
-                    if (nrefVal.isBlank() && debVal.isBlank()) break; // gerçekten boş satır, dur
-                    // yoksa devam et (V/REF sadece boş)
-                }
+                if (row == null) continue; // sparse row — skip, don't stop
 
-                // Stop if col A contains a section header keyword (not a V/REF data row)
-                String firstVal = fcType == CellType.STRING
-                        ? firstCell.getStringCellValue().trim().toUpperCase()
-                        : fmt.formatCellValue(firstCell, ev).trim().toUpperCase();
-                if (firstVal.contains("ENCAISSEMENT") || firstVal.contains("INFORMATION")
-                 || firstVal.contains("CONCLUSION") || firstVal.contains("VERSEMENT")
-                 || firstVal.contains("MENTION") || firstVal.startsWith("LES ")) break;
+                // Stop only at the "LES ENCAISSEMENTS SELON LE LIEU" sentinel row.
+                // V/REF (col A) and N/REF (col B) are the only columns that can carry this marker;
+                // checking them is sufficient and avoids false-positives on Débiteur names or amount cells.
+                String colA = cellStr(facture, r, 0, fmt, ev).toUpperCase();
+                String colB = cellStr(facture, r, 1, fmt, ev).toUpperCase();
+                if (colA.contains("ENCAISSEMENT") || colB.contains("ENCAISSEMENT")) break;
+
+                // BUG A: for Encaissements (col 3) and Frais (col 5), call getNumericCellValue()
+                // unconditionally — date-formatted cells hold raw doubles, not date serial numbers.
+                // The CellType guard (getCachedFormulaResultType() == NUMERIC) was silently returning
+                // 0 for formula cells whose cached result type was BLANK (stale cache after reload).
+                double encRaw = 0, fraisRaw = 0;
+                org.apache.poi.ss.usermodel.Cell encCell   = row.getCell(3, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+                org.apache.poi.ss.usermodel.Cell fraisCell = row.getCell(5, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+                if (encCell   != null) encRaw   = readNumericOrString(encCell,   fmt, ev);
+                if (fraisCell != null) fraisRaw = readNumericOrString(fraisCell, fmt, ev);
+                if (encRaw == 0 && encCell != null) {
+                    try {
+                        org.apache.poi.ss.usermodel.CellValue cv = ev.evaluate(encCell);
+                        if (cv != null && cv.getCellType() == CellType.NUMERIC) {
+                            encRaw = cv.getNumberValue();
+                        }
+                    } catch (Exception ignored) {}
+                }
+                if (fraisRaw == 0 && fraisCell != null) {
+                    try {
+                        org.apache.poi.ss.usermodel.CellValue cv = ev.evaluate(fraisCell);
+                        if (cv != null && cv.getCellType() == CellType.NUMERIC) {
+                            fraisRaw = cv.getNumberValue();
+                        }
+                    } catch (Exception ignored) {}
+                }
+                if (encRaw <= 0 && fraisRaw <= 0) continue;
+
+                // BUG B: accumulate AG/CL totals from Encaissements only — not from Frais,
+                // and never from NA rows (their frais are invoiced separately under line E).
+                String lieu = cellStr(facture, r, 6, fmt, ev).trim().toUpperCase();
+                if ("AG".equals(lieu))      ag += encRaw;
+                else if ("CL".equals(lieu)) cl += encRaw;
+                // NA rows: encRaw is 0 by definition; their frais go to line E, not the billing table
+                if ("NA".equals(lieu) && encRaw <= 0) continue;
+
                 Object[] dr = new Object[7];
                 for (int c = 0; c < 7; c++) {
                     org.apache.poi.ss.usermodel.Cell cell =
@@ -369,11 +387,13 @@ public class FacturePdfService {
                     if (cell == null) { dr[c] = ""; continue; }
                     CellType ct = cell.getCellType() == CellType.FORMULA
                             ? cell.getCachedFormulaResultType() : cell.getCellType();
-                    // cols 3,4,5 = Encaissements, Commissions, Frais — always numeric amounts, never dates
                     boolean isMoneyCol = (c == 3 || c == 4 || c == 5);
-                    if (ct == CellType.NUMERIC && isMoneyCol) {
-                        dr[c] = formatMoney(cell.getNumericCellValue());
-                    } else if (ct == CellType.NUMERIC && !isMoneyCol) {
+                    if (isMoneyCol) {
+                        // BUG A: money columns always read as raw double — skip DataFormatter
+                        double v = 0;
+                        try { v = cell.getNumericCellValue(); } catch (Exception ignored) {}
+                        dr[c] = formatMoney(v);
+                    } else if (ct == CellType.NUMERIC) {
                         if (DateUtil.isCellDateFormatted(cell)) {
                             // e.g. V/REF stored as date-formatted number — use raw numeric
                             dr[c] = String.valueOf((long) cell.getNumericCellValue());
@@ -386,6 +406,7 @@ public class FacturePdfService {
                 }
                 debiteurRows.add(dr);
             }
+            double agcl = ag + cl;
 
             int ligneDuA = findMarker(facture, "A", 0, fmt, ev);
             int ligneDuD = ligneDuA >= 0 ? findMarker(facture, "D", ligneDuA + 3, fmt, ev) : -1;
@@ -401,9 +422,7 @@ public class FacturePdfService {
             int ligneConclusion = findMarkerContains(facture, "EN CONCLUSION", 0, fmt, ev);
             int ligneMentions   = findMarkerStartsWith(facture, "Mentions", 0, fmt, ev);
 
-            double ag             = ligneDuA >= 0 ? numVal(facture, ligneDuA,     2, fmt, ev) : 0;
-            double cl             = ligneDuA >= 0 ? numVal(facture, ligneDuA + 1, 2, fmt, ev) : 0;
-            double agcl           = ligneDuA >= 0 ? numVal(facture, ligneDuA + 2, 2, fmt, ev) : 0;
+
             double comsHt         = ligneDuD >= 0 ? numVal(facture, ligneDuD,     2, fmt, ev) : 0;
             double prodHt         = ligneDuD >= 0 ? numVal(facture, ligneDuD + 1, 2, fmt, ev) : 0;
             double totalHt        = ligneDuD >= 0 ? numVal(facture, ligneDuD + 2, 2, fmt, ev) : 0;
@@ -1033,6 +1052,18 @@ public class FacturePdfService {
                 row.getCell(c, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
         if (cell == null) return "";
         return fmt.formatCellValue(cell, ev).trim();
+    }
+
+    private double readNumericOrString(org.apache.poi.ss.usermodel.Cell cell,
+                                       DataFormatter fmt, FormulaEvaluator ev) {
+        try { return cell.getNumericCellValue(); } catch (Exception ignored) {}
+        try {
+            return Double.parseDouble(
+                    fmt.formatCellValue(cell, ev)
+                            .replace(",", ".").replace(" ", "").replace(" ", "")
+                            .replace("€", "").trim());
+        } catch (Exception ignored) {}
+        return 0;
     }
 
     private double numVal(Sheet sheet, int rowIdx, int colIdx,
