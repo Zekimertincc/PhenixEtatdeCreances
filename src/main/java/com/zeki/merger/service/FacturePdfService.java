@@ -378,7 +378,7 @@ public class FacturePdfService {
                 if ("AG".equals(lieu))      ag += encRaw;
                 else if ("CL".equals(lieu)) cl += encRaw;
                 // NA rows: encRaw is 0 by definition; their frais go to line E, not the billing table
-                if ("NA".equals(lieu) && encRaw <= 0) continue;
+                if ("NA".equals(lieu) && encRaw <= 0 && fraisRaw <= 0) continue;
 
                 Object[] dr = new Object[7];
                 for (int c = 0; c < 7; c++) {
@@ -922,23 +922,37 @@ public class FacturePdfService {
 
                 // 9. EN CONCLUSION — only for COMP
                 if (!isNonComp && (!conclusion.isBlank() || soldeComptable != 0)) {
-                    Table concl = new Table(UnitValue.createPercentArray(new float[]{60, 40}))
-                            .useAllAvailableWidth().setMarginBottom(4);
-                    String conclText = conclusion.isBlank()
-                            ? "Nous avons le plaisir de vous envoyer un règlement correspondant au solde comptable de :"
-                            : conclusion;
-                    Cell leftCell = new Cell().setBorder(new SolidBorder(1)).setPadding(4);
-                    leftCell.add(new Paragraph("EN CONCLUSION").setFontSize(8).setBold().setMarginBottom(3));
-                    leftCell.add(new Paragraph(conclText).setFontSize(8));
-                    concl.addCell(leftCell);
-                    concl.addCell(new Cell()
+                    String conclLabel = "Nous avons le plaisir de vous envoyer un règlement correspondant au solde comptable de :";
+
+                    // Header row: full-width single cell
+                    Table conclHeader = new Table(UnitValue.createPercentArray(new float[]{100}))
+                            .useAllAvailableWidth()
+                            .setMarginTop(4)
+                            .setMarginBottom(0);
+                    conclHeader.addCell(new Cell()
+                            .add(new Paragraph("EN CONCLUSION").setFontSize(8).setBold())
+                            .setBorder(new SolidBorder(1))
+                            .setPadding(4));
+                    doc.add(conclHeader);
+
+                    // Content row: left=text, right=big amount
+                    Table conclBody = new Table(UnitValue.createPercentArray(new float[]{60, 40}))
+                            .useAllAvailableWidth()
+                            .setMarginTop(0)
+                            .setMarginBottom(4);
+                    conclBody.addCell(new Cell()
+                            .add(new Paragraph(conclLabel).setFontSize(8))
+                            .setBorder(new SolidBorder(1))
+                            .setPadding(6));
+                    conclBody.addCell(new Cell()
                             .add(new Paragraph(formatMoney(soldeComptable))
-                                    .setBold().setFontSize(14)
+                                    .setBold().setFontSize(16)
                                     .setTextAlignment(TextAlignment.CENTER))
-                            .setBorder(new SolidBorder(1)).setPadding(4)
+                            .setBorder(new SolidBorder(1))
+                            .setPadding(6)
                             .setVerticalAlignment(
                                     com.itextpdf.layout.properties.VerticalAlignment.MIDDLE));
-                    doc.add(concl);
+                    doc.add(conclBody);
                 }
 
                 // 10. IBAN — 2-column bordered table
