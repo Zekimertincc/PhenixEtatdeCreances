@@ -370,7 +370,7 @@ public class FacturePdfService {
                         }
                     } catch (Exception ignored) {}
                 }
-                if (encRaw <= 0 && fraisRaw <= 0) continue;
+                if (encRaw == 0 && fraisRaw <= 0) continue;
 
                 // BUG B: accumulate AG/CL totals from Encaissements only — not from Frais,
                 // and never from NA rows (their frais are invoiced separately under line E).
